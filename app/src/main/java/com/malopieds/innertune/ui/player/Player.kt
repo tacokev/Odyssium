@@ -872,7 +872,7 @@ fun BottomSheetPlayer(
                             Modifier
                                 .size(32.dp)
                                 .align(Alignment.Center),
-                        onClick = playerConnection.player::seekToPrevious,
+                        onClick = playerConnection::seekToPrevious,
                     )
                 }
 
@@ -926,7 +926,7 @@ fun BottomSheetPlayer(
                             Modifier
                                 .size(32.dp)
                                 .align(Alignment.Center),
-                        onClick = playerConnection.player::seekToNext,
+                        onClick = playerConnection::seekToNext,
                     )
                 }
 
