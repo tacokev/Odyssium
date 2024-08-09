@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,11 +97,13 @@ import com.malopieds.innertune.LocalDatabase
 import com.malopieds.innertune.LocalDownloadUtil
 import com.malopieds.innertune.LocalPlayerConnection
 import com.malopieds.innertune.R
+import com.malopieds.innertune.constants.DarkModeKey
 import com.malopieds.innertune.constants.EnableSquigglySlider
 import com.malopieds.innertune.constants.ListThumbnailSize
 import com.malopieds.innertune.constants.PlayerBackgroundStyle
 import com.malopieds.innertune.constants.PlayerBackgroundStyleKey
 import com.malopieds.innertune.constants.PlayerHorizontalPadding
+import com.malopieds.innertune.constants.PureBlackKey
 import com.malopieds.innertune.constants.QueuePeekHeight
 import com.malopieds.innertune.constants.ShowLyricsKey
 import com.malopieds.innertune.constants.ThumbnailCornerRadius
@@ -117,6 +120,7 @@ import com.malopieds.innertune.ui.component.ResizableIconButton
 import com.malopieds.innertune.ui.component.rememberBottomSheetState
 import com.malopieds.innertune.ui.menu.AddToPlaylistDialog
 import com.malopieds.innertune.ui.menu.PlayerMenu
+import com.malopieds.innertune.ui.screens.settings.DarkMode
 import com.malopieds.innertune.ui.theme.extractGradientColors
 import com.malopieds.innertune.utils.joinByBullet
 import com.malopieds.innertune.utils.makeTimeString
@@ -144,6 +148,21 @@ fun BottomSheetPlayer(
     val clipboardManager = LocalClipboardManager.current
 
     val playerConnection = LocalPlayerConnection.current ?: return
+
+    val isSystemInDarkTheme = isSystemInDarkTheme()
+    val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
+    val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
+    val useBlackBackground =
+        remember(isSystemInDarkTheme, darkTheme, pureBlack) {
+            val useDarkTheme = if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
+            useDarkTheme && pureBlack
+        }
+    val backgroundColor =
+        if (useBlackBackground && !state.isCollapsed) {
+            Color.Black
+        } else {
+            MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
+        }
 
     val playbackState by playerConnection.playbackState.collectAsState()
     val isPlaying by playerConnection.isPlaying.collectAsState()
@@ -479,12 +498,8 @@ fun BottomSheetPlayer(
             } else {
                 Brush.verticalGradient(
                     listOf(
-                        MaterialTheme.colorScheme.surfaceColorAtElevation(
-                            NavigationBarDefaults.Elevation,
-                        ),
-                        MaterialTheme.colorScheme.surfaceColorAtElevation(
-                            NavigationBarDefaults.Elevation,
-                        ),
+                        backgroundColor,
+                        backgroundColor,
                     ),
                 )
             },
@@ -1009,7 +1024,7 @@ fun BottomSheetPlayer(
             state = queueSheetState,
             playerBottomSheetState = state,
             navController = navController,
-            backgroundColor = MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation),
+            backgroundColor = backgroundColor,
         )
     }
 }
