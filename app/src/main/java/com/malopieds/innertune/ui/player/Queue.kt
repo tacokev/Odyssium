@@ -59,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,6 +89,7 @@ import androidx.navigation.NavController
 import com.malopieds.innertune.LocalPlayerConnection
 import com.malopieds.innertune.R
 import com.malopieds.innertune.constants.ListItemHeight
+import com.malopieds.innertune.constants.QueueEditLockKey
 import com.malopieds.innertune.extensions.metadata
 import com.malopieds.innertune.extensions.move
 import com.malopieds.innertune.extensions.togglePlayPause
@@ -101,6 +103,7 @@ import com.malopieds.innertune.ui.component.ResizableIconButton
 import com.malopieds.innertune.ui.menu.PlayerMenu
 import com.malopieds.innertune.ui.menu.SelectionMediaMetadataMenu
 import com.malopieds.innertune.utils.makeTimeString
+import com.malopieds.innertune.utils.rememberPreference
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.burnoutcrew.reorderable.ReorderableItem
@@ -140,6 +143,8 @@ fun Queue(
     var showDetailsDialog by rememberSaveable {
         mutableStateOf(false)
     }
+
+    var locked by rememberPreference(QueueEditLockKey, defaultValue = false)
 
     val snackbarHostState = remember { SnackbarHostState() }
     var dismissJob: Job? by remember { mutableStateOf(null) }
@@ -248,21 +253,34 @@ fun Queue(
             }
 
         val coroutineScope = rememberCoroutineScope()
+
+        val headerItems = remember { mutableIntStateOf(1) }
         val reorderableState =
             rememberReorderableLazyListState(
                 onMove = { from, to ->
-                    mutableQueueWindows.move(from.index, to.index)
+                    if (to.index >= headerItems.intValue && from.index >= headerItems.intValue) {
+                        mutableQueueWindows.move(
+                            from.index - headerItems.intValue,
+                            to.index - headerItems.intValue,
+                        )
+                    }
                 },
                 onDragEnd = { fromIndex, toIndex ->
+                    println(fromIndex)
+                    println(toIndex)
+                    val to = if (toIndex == 0) 1 else toIndex
                     if (!playerConnection.player.shuffleModeEnabled) {
-                        playerConnection.player.moveMediaItem(fromIndex, toIndex)
+                        playerConnection.player.moveMediaItem(fromIndex - headerItems.intValue, to - headerItems.intValue)
+                        queueWindows.forEach {
+                            println(it.mediaItem.metadata?.title)
+                        }
                     } else {
                         playerConnection.player.setShuffleOrder(
                             DefaultShuffleOrder(
                                 queueWindows
                                     .map { it.firstPeriodIndex }
                                     .toMutableList()
-                                    .move(fromIndex, toIndex)
+                                    .move(fromIndex - headerItems.intValue, to - headerItems.intValue)
                                     .toIntArray(),
                                 System.currentTimeMillis(),
                             ),
@@ -344,7 +362,6 @@ fun Queue(
                                                     mutableQueueWindows.size,
                                                     currentItem.firstPeriodIndex,
                                                 )
-                                                println(mutableQueueWindows.size)
                                             }
                                         }
                                 }
@@ -352,26 +369,28 @@ fun Queue(
                             },
                         )
 
-                    SwipeToDismissBox(
-                        state = dismissBoxState,
-                        backgroundContent = {},
-                    ) {
+                    val content: @Composable () -> Unit = {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
                             MediaMetadataListItem(
                                 mediaMetadata = window.mediaItem.metadata!!,
                                 isSelected = selection && window.mediaItem.metadata!! in selectedSongs,
                                 isActive = index == currentWindowIndex,
                                 isPlaying = isPlaying,
                                 trailingContent = {
-                                    IconButton(
-                                        onClick = { },
-                                        modifier =
-                                            Modifier
-                                                .detectReorder(reorderableState),
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.drag_handle),
-                                            contentDescription = null,
-                                        )
+                                    if (!locked) {
+                                        IconButton(
+                                            onClick = { },
+                                            modifier =
+                                                Modifier
+                                                    .detectReorder(reorderableState),
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.drag_handle),
+                                                contentDescription = null,
+                                            )
+                                        }
                                     }
                                 },
                                 modifier =
@@ -413,8 +432,19 @@ fun Queue(
                                                 }
                                             },
                                         ),
-                                // .detectReorderAfterLongPress(reorderableState)
                             )
+                        }
+                    }
+
+                    if (locked) {
+                        content()
+                    } else {
+                        SwipeToDismissBox(
+                            state = dismissBoxState,
+                            backgroundContent = {},
+                        ) {
+                            content()
+                        }
                     }
                 }
             }
@@ -437,7 +467,7 @@ fun Queue(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier =
                     Modifier
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                        .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = if (selection) 0.dp else 12.dp),
             ) {
                 Text(
                     text = queueTitle.orEmpty(),
@@ -452,15 +482,27 @@ fun Queue(
                     enter = fadeIn() + slideInVertically { it },
                     exit = fadeOut() + slideOutVertically { it },
                 ) {
-                    IconButton(
-                        onClick = {
-                            selection = true
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.select_all),
-                            contentDescription = null,
-                        )
+                    Row {
+                        IconButton(
+                            onClick = {
+                                selection = true
+                            },
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.select),
+                                contentDescription = null,
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { locked = !locked },
+                            modifier = Modifier.padding(horizontal = 6.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(if (locked) R.drawable.lock else R.drawable.lock_open),
+                                contentDescription = null,
+                            )
+                        }
                     }
                 }
 
@@ -486,9 +528,10 @@ fun Queue(
                 exit = fadeOut() + shrinkVertically(),
             ) {
                 Row(
-                    modifier = Modifier
-                        .height(64.dp)
-                        .padding(start = 16.dp),
+                    modifier =
+                        Modifier
+                            .height(64.dp)
+                            .padding(start = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val count = selectedSongs.size
@@ -510,13 +553,13 @@ fun Queue(
                     ) {
                         Icon(
                             painter =
-                            painterResource(
-                                if (count == mutableQueueWindows.size) {
-                                    R.drawable.deselect
-                                } else {
-                                    R.drawable.select_all
-                                },
-                            ),
+                                painterResource(
+                                    if (count == mutableQueueWindows.size) {
+                                        R.drawable.deselect
+                                    } else {
+                                        R.drawable.select_all
+                                    },
+                                ),
                             contentDescription = null,
                         )
                     }
@@ -544,7 +587,9 @@ fun Queue(
                     }
 
                     IconButton(
-                        onClick = { selection = false },
+                        onClick = {
+                            selection = false
+                        },
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.close),
