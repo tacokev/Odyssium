@@ -80,6 +80,7 @@ import androidx.navigation.NavController
 import com.malopieds.innertune.LocalPlayerConnection
 import com.malopieds.innertune.R
 import com.malopieds.innertune.constants.ListItemHeight
+import com.malopieds.innertune.constants.QueueEditLockKey
 import com.malopieds.innertune.extensions.metadata
 import com.malopieds.innertune.extensions.move
 import com.malopieds.innertune.extensions.togglePlayPause
@@ -93,6 +94,7 @@ import com.malopieds.innertune.ui.component.ResizableIconButton
 import com.malopieds.innertune.ui.menu.PlayerMenu
 import com.malopieds.innertune.ui.menu.SelectionMediaMetadataMenu
 import com.malopieds.innertune.utils.makeTimeString
+import com.malopieds.innertune.utils.rememberPreference
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.burnoutcrew.reorderable.ReorderableItem
@@ -129,6 +131,8 @@ fun Queue(
     var showDetailsDialog by rememberSaveable {
         mutableStateOf(false)
     }
+
+    var locked by rememberPreference(QueueEditLockKey, defaultValue = false)
 
     val snackbarHostState = remember { SnackbarHostState() }
     var dismissJob: Job? by remember { mutableStateOf(null) }
@@ -332,10 +336,7 @@ fun Queue(
                             },
                         )
 
-                    SwipeToDismissBox(
-                        state = dismissBoxState,
-                        backgroundContent = {},
-                    ) {
+                    val content: @Composable () -> Unit = {
                         Row(
                             horizontalArrangement = Arrangement.Center,
                         ) {
@@ -373,16 +374,18 @@ fun Queue(
                                 isActive = index == currentWindowIndex,
                                 isPlaying = isPlaying,
                                 trailingContent = {
-                                    IconButton(
-                                        onClick = { },
-                                        modifier =
-                                            Modifier
-                                                .detectReorder(reorderableState),
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.drag_handle),
-                                            contentDescription = null,
-                                        )
+                                    if (!locked) {
+                                        IconButton(
+                                            onClick = { },
+                                            modifier =
+                                                Modifier
+                                                    .detectReorder(reorderableState),
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.drag_handle),
+                                                contentDescription = null,
+                                            )
+                                        }
                                     }
                                 },
                                 modifier =
@@ -424,8 +427,18 @@ fun Queue(
                                                 }
                                             },
                                         ),
-                                // .detectReorderAfterLongPress(reorderableState)
                             )
+                        }
+                    }
+
+                    if (locked) {
+                        content()
+                    } else {
+                        SwipeToDismissBox(
+                            state = dismissBoxState,
+                            backgroundContent = {},
+                        ) {
+                            content()
                         }
                     }
                 }
@@ -510,6 +523,15 @@ fun Queue(
                     }
                 }
 
+                IconButton(
+                    onClick = { locked = !locked },
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(if (locked) R.drawable.lock else R.drawable.lock_open),
+                        contentDescription = null,
+                    )
+                }
                 Column(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     horizontalAlignment = Alignment.End,
