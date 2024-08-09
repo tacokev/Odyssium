@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -90,7 +89,6 @@ import com.malopieds.innertune.ui.component.BottomSheet
 import com.malopieds.innertune.ui.component.BottomSheetState
 import com.malopieds.innertune.ui.component.LocalMenuState
 import com.malopieds.innertune.ui.component.MediaMetadataListItem
-import com.malopieds.innertune.ui.component.ResizableIconButton
 import com.malopieds.innertune.ui.menu.PlayerMenu
 import com.malopieds.innertune.ui.menu.SelectionMediaMetadataMenu
 import com.malopieds.innertune.utils.makeTimeString
@@ -281,8 +279,8 @@ fun Queue(
                 WindowInsets.systemBars
                     .add(
                         WindowInsets(
-                            top = ListItemHeight,
-                            bottom = ListItemHeight,
+                            top = ListItemHeight + 12.dp + 8.dp,
+                            bottom = ListItemHeight + 8.dp,
                         ),
                     ).asPaddingValues(),
             modifier =
@@ -462,7 +460,8 @@ fun Queue(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier =
                     Modifier
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                        .height(ListItemHeight + 12.dp)
+                        .padding(horizontal = 12.dp),
             ) {
                 Text(
                     text = queueTitle.orEmpty(),
@@ -595,21 +594,22 @@ fun Queue(
                 modifier = Modifier.align(Alignment.Center),
             )
 
-            ResizableIconButton(
-                icon =
-                    when (repeatMode) {
-                        Player.REPEAT_MODE_OFF, Player.REPEAT_MODE_ALL -> R.drawable.repeat
-                        Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
-                        else -> throw IllegalStateException()
-                    },
-                modifier =
-                    Modifier
-                        .size(32.dp)
-                        .padding(4.dp)
-                        .align(Alignment.CenterEnd)
-                        .alpha(if (repeatMode == Player.REPEAT_MODE_OFF) 0.5f else 1f),
+            IconButton(
+                modifier = Modifier.align(Alignment.CenterEnd),
                 onClick = playerConnection.player::toggleRepeatMode,
-            )
+            ) {
+                Icon(
+                    painter = painterResource(
+                        when (repeatMode) {
+                            Player.REPEAT_MODE_OFF, Player.REPEAT_MODE_ALL -> R.drawable.repeat
+                            Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
+                            else -> throw IllegalStateException()
+                        }
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier.alpha(if (repeatMode == Player.REPEAT_MODE_OFF) 0.5f else 1f),
+                )
+            }
         }
 
         SnackbarHost(
