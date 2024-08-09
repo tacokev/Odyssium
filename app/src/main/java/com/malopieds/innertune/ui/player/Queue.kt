@@ -45,6 +45,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -97,6 +101,7 @@ import com.malopieds.innertune.ui.component.ResizableIconButton
 import com.malopieds.innertune.ui.menu.PlayerMenu
 import com.malopieds.innertune.ui.menu.SelectionMediaMetadataMenu
 import com.malopieds.innertune.utils.makeTimeString
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.burnoutcrew.reorderable.ReorderableItem
 import org.burnoutcrew.reorderable.detectReorder
@@ -135,6 +140,9 @@ fun Queue(
     var showDetailsDialog by rememberSaveable {
         mutableStateOf(false)
     }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    var dismissJob: Job? by remember { mutableStateOf(null) }
 
     if (showDetailsDialog) {
         AlertDialog(
@@ -317,6 +325,28 @@ fun Queue(
                                     dismissValue == SwipeToDismissBoxValue.EndToStart
                                 ) {
                                     playerConnection.player.removeMediaItem(currentItem.firstPeriodIndex)
+                                    dismissJob?.cancel()
+                                    dismissJob =
+                                        coroutineScope.launch {
+                                            val snackbarResult =
+                                                snackbarHostState.showSnackbar(
+                                                    message =
+                                                        context.getString(
+                                                            R.string.removed_song_from_playlist,
+                                                            currentItem.mediaItem.metadata?.title,
+                                                        ),
+                                                    actionLabel = context.getString(R.string.undo),
+                                                    duration = SnackbarDuration.Short,
+                                                )
+                                            if (snackbarResult == SnackbarResult.ActionPerformed) {
+                                                playerConnection.player.addMediaItem(currentItem.mediaItem)
+                                                playerConnection.player.moveMediaItem(
+                                                    mutableQueueWindows.size,
+                                                    currentItem.firstPeriodIndex,
+                                                )
+                                                println(mutableQueueWindows.size)
+                                            }
+                                        }
                                 }
                                 true
                             },
@@ -325,8 +355,6 @@ fun Queue(
                     SwipeToDismissBox(
                         state = dismissBoxState,
                         backgroundContent = {},
-//                        state = dismissState,
-//                        = {
                     ) {
                             MediaMetadataListItem(
                                 mediaMetadata = window.mediaItem.metadata!!,
@@ -589,5 +617,18 @@ fun Queue(
                 onClick = playerConnection.player::toggleRepeatMode,
             )
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier =
+                Modifier
+                    .padding(
+                        bottom =
+                            ListItemHeight +
+                                WindowInsets.systemBars
+                                    .asPaddingValues()
+                                    .calculateBottomPadding(),
+                    ).align(Alignment.BottomCenter),
+        )
     }
 }
