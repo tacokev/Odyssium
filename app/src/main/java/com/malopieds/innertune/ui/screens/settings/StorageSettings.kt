@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
-import com.malopieds.innertune.BuildConfig
 import com.malopieds.innertune.LocalPlayerAwareWindowInsets
 import com.malopieds.innertune.LocalPlayerConnection
 import com.malopieds.innertune.R
@@ -41,7 +40,6 @@ import com.malopieds.innertune.ui.component.PreferenceEntry
 import com.malopieds.innertune.ui.component.PreferenceGroupTitle
 import com.malopieds.innertune.ui.utils.backToMain
 import com.malopieds.innertune.ui.utils.formatFileSize
-import com.malopieds.innertune.utils.TranslationHelper
 import com.malopieds.innertune.utils.rememberPreference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -131,7 +129,7 @@ fun StorageSettings(
             )
         } else {
             LinearProgressIndicator(
-                progress = (playerCacheSize.toFloat() / (maxSongCacheSize * 1024 * 1024L)).coerceIn(0f, 1f),
+                progress = { (playerCacheSize.toFloat() / (maxSongCacheSize * 1024 * 1024L)).coerceIn(0f, 1f) },
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -177,7 +175,7 @@ fun StorageSettings(
         )
 
         LinearProgressIndicator(
-            progress = (imageCacheSize.toFloat() / imageDiskCache.maxSize).coerceIn(0f, 1f),
+            progress = { (imageCacheSize.toFloat() / imageDiskCache.maxSize).coerceIn(0f, 1f) },
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -206,21 +204,6 @@ fun StorageSettings(
                 }
             },
         )
-
-        if (BuildConfig.FLAVOR != "foss") {
-            PreferenceGroupTitle(
-                title = stringResource(R.string.translation_models),
-            )
-
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.clear_translation_models)) },
-                onClick = {
-                    coroutineScope.launch(Dispatchers.IO) {
-                        TranslationHelper.clearModels()
-                    }
-                },
-            )
-        }
     }
 
     TopAppBar(
