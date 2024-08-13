@@ -209,7 +209,13 @@ fun Queue(
 
     BottomSheet(
         state = state,
-        brushBackgroundColor = Brush.verticalGradient(listOf(Color.Unspecified, Color.Unspecified)),
+        brushBackgroundColor =
+            Brush.verticalGradient(
+                listOf(
+                    if (state.isExpanded) backgroundColor else Color.Unspecified,
+                    if (state.isExpanded) backgroundColor else Color.Unspecified,
+                ),
+            ),
         modifier = modifier,
         collapsedContent = {
             Row(
