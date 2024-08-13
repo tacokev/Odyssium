@@ -2,7 +2,6 @@ package com.malopieds.innertune.ui.player
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Box
@@ -10,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -131,7 +132,6 @@ fun MiniPlayer(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MiniMediaInfo(
     mediaMetadata: MediaMetadata,
@@ -146,9 +146,11 @@ fun MiniMediaInfo(
             AsyncImage(
                 model = mediaMetadata.thumbnailUrl,
                 contentDescription = null,
+                contentScale = ContentScale.Crop,
                 modifier =
                     Modifier
                         .size(48.dp)
+                        .aspectRatio(1f)
                         .clip(RoundedCornerShape(ThumbnailCornerRadius)),
             )
             androidx.compose.animation.AnimatedVisibility(
