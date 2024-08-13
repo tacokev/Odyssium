@@ -154,12 +154,6 @@ fun BottomSheetPlayer(
             val useDarkTheme = if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
             useDarkTheme && pureBlack
         }
-    val backgroundColor =
-        if (useBlackBackground && !state.isCollapsed) {
-            Color.Black
-        } else {
-            MaterialTheme.colorScheme.surfaceContainer
-        }
 
     val playbackState by playerConnection.playbackState.collectAsState()
     val isPlaying by playerConnection.isPlaying.collectAsState()
@@ -193,7 +187,9 @@ fun BottomSheetPlayer(
     }
 
     LaunchedEffect(mediaMetadata, playerBackground) {
-        if (playerBackground == PlayerBackgroundStyle.GRADIENT) {
+        if (useBlackBackground) {
+            gradientColors = listOf(Color.Black, Color.Black)
+        } else if (playerBackground == PlayerBackgroundStyle.GRADIENT) {
             withContext(Dispatchers.IO) {
                 val result =
                     (
@@ -495,8 +491,8 @@ fun BottomSheetPlayer(
             } else {
                 Brush.verticalGradient(
                     listOf(
-                        backgroundColor,
-                        backgroundColor,
+                        MaterialTheme.colorScheme.surfaceContainer,
+                        MaterialTheme.colorScheme.surfaceContainer,
                     ),
                 )
             },
@@ -1022,7 +1018,12 @@ fun BottomSheetPlayer(
             state = queueSheetState,
             playerBottomSheetState = state,
             navController = navController,
-            backgroundColor = backgroundColor,
+            backgroundColor =
+                if (useBlackBackground) {
+                    Color.Black
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainer
+                },
         )
     }
 }
