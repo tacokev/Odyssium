@@ -1,5 +1,4 @@
 package com.malopieds.innertune.ui.player
-irintln(offsetX)
 
 import android.annotation.SuppressLint
 import android.text.format.Formatter
