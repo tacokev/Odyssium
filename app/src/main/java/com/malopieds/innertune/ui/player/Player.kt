@@ -1,6 +1,5 @@
 package com.malopieds.innertune.ui.player
 
-import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.drawable.BitmapDrawable
 import android.text.format.Formatter
@@ -585,7 +584,7 @@ fun BottomSheetPlayer(
                         Modifier
                             .size(42.dp)
                             .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.primary)
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
                             .clickable {
                                 playerConnection.service.startRadioSeamlessly()
                             },
@@ -593,7 +592,7 @@ fun BottomSheetPlayer(
                     Image(
                         painter = painterResource(R.drawable.radio),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSecondaryContainer),
                         modifier =
                             Modifier
                                 .align(Alignment.Center)
@@ -608,7 +607,7 @@ fun BottomSheetPlayer(
                         Modifier
                             .size(42.dp)
                             .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.primary)
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
                             .clickable {
                                 if (download?.state == Download.STATE_COMPLETED) {
                                     DownloadService.sendRemoveDownload(
@@ -648,7 +647,7 @@ fun BottomSheetPlayer(
                                 },
                             ),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSecondaryContainer),
                         modifier =
                             Modifier
                                 .align(Alignment.Center)
@@ -663,7 +662,7 @@ fun BottomSheetPlayer(
                         Modifier
                             .size(42.dp)
                             .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.primary)
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
                             .clickable {
                                 showChoosePlaylistDialog = true
                             },
@@ -671,7 +670,7 @@ fun BottomSheetPlayer(
                     Image(
                         painter = painterResource(R.drawable.playlist_add),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSecondaryContainer),
                         modifier =
                             Modifier
                                 .align(Alignment.Center)
@@ -687,19 +686,7 @@ fun BottomSheetPlayer(
                         Modifier
                             .size(42.dp)
                             .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.primary)
-                            .clickable {
-                                val intent =
-                                    Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        type = "text/plain"
-                                        putExtra(
-                                            Intent.EXTRA_TEXT,
-                                            "https://music.youtube.com/watch?v=${mediaMetadata.id}",
-                                        )
-                                    }
-                                context.startActivity(Intent.createChooser(intent, null))
-                            },
+                            .background(MaterialTheme.colorScheme.secondaryContainer),
                 ) {
                     AnimatedContent(
                         label = "sleepTimer",
@@ -710,10 +697,12 @@ fun BottomSheetPlayer(
                                 text = makeTimeString(sleepTimerTimeLeft),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = onBackgroundColor,
+                                maxLines = 1,
                                 modifier =
                                     Modifier
                                         .clip(RoundedCornerShape(50))
-                                        .clickable(onClick = playerConnection.service.sleepTimer::clear),
+                                        .clickable(onClick = playerConnection.service.sleepTimer::clear)
+                                        .basicMarquee(),
                             )
                         } else {
                             Box(
@@ -721,14 +710,14 @@ fun BottomSheetPlayer(
                                     Modifier
                                         .size(42.dp)
                                         .clip(RoundedCornerShape(24.dp))
-                                        .background(MaterialTheme.colorScheme.primary)
+                                        .background(MaterialTheme.colorScheme.secondaryContainer)
                                         .clickable {
                                             showSleepTimerDialog = true
                                         },
                             ) {
                                 Image(
                                     painter = painterResource(R.drawable.bedtime),
-                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSecondaryContainer),
                                     contentDescription = null,
                                     modifier =
                                         Modifier
@@ -748,7 +737,7 @@ fun BottomSheetPlayer(
                         Modifier
                             .size(42.dp)
                             .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.primary)
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
                             .clickable {
                                 menuState.show {
                                     PlayerMenu(
@@ -764,7 +753,7 @@ fun BottomSheetPlayer(
                     Image(
                         painter = painterResource(R.drawable.more_horiz),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSecondaryContainer),
                     )
                 }
             }
@@ -877,7 +866,7 @@ fun BottomSheetPlayer(
                         Modifier
                             .size(72.dp)
                             .clip(RoundedCornerShape(playPauseRoundness))
-                            .background(MaterialTheme.colorScheme.primary)
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
                             .clickable {
                                 if (playbackState == STATE_ENDED) {
                                     playerConnection.player.seekTo(0, 0)
@@ -901,7 +890,7 @@ fun BottomSheetPlayer(
                                 },
                             ),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSecondaryContainer),
                         modifier =
                             Modifier
                                 .align(Alignment.Center)
