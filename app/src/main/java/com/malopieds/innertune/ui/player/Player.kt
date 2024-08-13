@@ -200,7 +200,10 @@ fun BottomSheetPlayer(
                                     .allowHardware(false)
                                     .build(),
                             ).drawable as? BitmapDrawable
-                    )?.bitmap?.extractGradientColors()
+                    )?.bitmap?.extractGradientColors(
+                        darkTheme =
+                            darkTheme == DarkMode.ON || (darkTheme == DarkMode.AUTO && isSystemInDarkTheme),
+                    )
 
                 result?.let {
                     gradientColors = it
@@ -233,15 +236,13 @@ fun BottomSheetPlayer(
                     } else {
                         2.0
                     }
-                println(whiteContrast)
-                println(blackContrast)
                 if (gradientColors.size >= 2 &&
-                    whiteContrast < 1.5f &&
-                    blackContrast > 1.5f
+                    whiteContrast < 2f &&
+                    blackContrast > 2f
                 ) {
                     changeColor = true
                     Color.Black
-                } else if (whiteContrast > 1.5f && blackContrast < 1.5f) {
+                } else if (whiteContrast > 2f && blackContrast < 2f) {
                     changeColor = true
                     Color.White
                 } else {
@@ -1040,6 +1041,7 @@ fun BottomSheetPlayer(
                 } else {
                     MaterialTheme.colorScheme.surfaceContainer
                 },
+            onBackgroundColor = onBackgroundColor,
         )
     }
 }

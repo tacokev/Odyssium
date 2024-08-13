@@ -115,6 +115,7 @@ fun Queue(
     navController: NavController,
     modifier: Modifier = Modifier,
     backgroundColor: Color,
+    onBackgroundColor: Color,
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -226,6 +227,7 @@ fun Queue(
                 IconButton(onClick = { state.expandSoft() }) {
                     Icon(
                         painter = painterResource(R.drawable.expand_less),
+                        tint = onBackgroundColor,
                         contentDescription = null,
                     )
                 }
