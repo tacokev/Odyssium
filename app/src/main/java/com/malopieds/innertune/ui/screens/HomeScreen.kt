@@ -207,11 +207,11 @@ fun HomeScreen(
                     }
                 }
 
-                NavigationTitle(
-                    title = stringResource(R.string.quick_picks),
-                )
-
                 quickPicks?.let { quickPicks ->
+                    NavigationTitle(
+                        title = stringResource(R.string.quick_picks),
+                    )
+
                     if (quickPicks.isEmpty()) {
                         Box(
                             modifier =
