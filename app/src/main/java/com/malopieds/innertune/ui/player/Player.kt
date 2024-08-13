@@ -214,16 +214,41 @@ fun BottomSheetPlayer(
     val onBackgroundColor =
         when (playerBackground) {
             PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.onBackground
-            else ->
+            else -> {
+                val whiteContrast =
+                    if (gradientColors.size >= 2) {
+                        ColorUtils.calculateContrast(
+                            gradientColors.first().toArgb(),
+                            Color.White.toArgb(),
+                        )
+                    } else {
+                        2.0
+                    }
+                val blackContrast: Double =
+                    if (gradientColors.size >= 2) {
+                        ColorUtils.calculateContrast(
+                            gradientColors.last().toArgb(),
+                            Color.Black.toArgb(),
+                        )
+                    } else {
+                        2.0
+                    }
+                println(whiteContrast)
+                println(blackContrast)
                 if (gradientColors.size >= 2 &&
-                    ColorUtils.calculateContrast(gradientColors.first().toArgb(), Color.White.toArgb()) < 1.5f
+                    whiteContrast < 1.5f &&
+                    blackContrast > 1.5f
                 ) {
                     changeColor = true
                     Color.Black
+                } else if (whiteContrast > 1.5f && blackContrast < 1.5f) {
+                    changeColor = true
+                    Color.White
                 } else {
                     changeColor = false
                     MaterialTheme.colorScheme.onSurface
                 }
+            }
         }
 
     val download by LocalDownloadUtil.current.getDownload(mediaMetadata?.id ?: "").collectAsState(initial = null)
@@ -798,6 +823,8 @@ fun BottomSheetPlayer(
                     modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
                 )
             }
+
+            Spacer(Modifier.height(4.dp))
 
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
