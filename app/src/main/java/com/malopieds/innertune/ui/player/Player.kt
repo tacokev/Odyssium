@@ -8,7 +8,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -130,7 +132,7 @@ import me.saket.squiggles.SquigglySlider
 import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BottomSheetPlayer(
     state: BottomSheetState,
@@ -535,7 +537,7 @@ fun BottomSheetPlayer(
         val controlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { mediaMetadata ->
             val playPauseRoundness by animateDpAsState(
                 targetValue = if (isPlaying) 24.dp else 36.dp,
-                animationSpec = tween(durationMillis = 100, easing = LinearEasing),
+                animationSpec = tween(durationMillis = 90, easing = LinearEasing),
                 label = "playPauseRoundness",
             )
 
@@ -546,21 +548,27 @@ fun BottomSheetPlayer(
                         .fillMaxWidth()
                         .padding(horizontal = PlayerHorizontalPadding),
             ) {
-                Text(
-                    text = mediaMetadata.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = onBackgroundColor,
-                    modifier =
-                        Modifier
-                            .basicMarquee()
-                            .clickable(enabled = mediaMetadata.album != null) {
-                                navController.navigate("album/${mediaMetadata.album!!.id}")
-                                state.collapseSoft()
-                            },
-                )
+                AnimatedContent(
+                    targetState = mediaMetadata.title,
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    label = "",
+                ) { title ->
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = onBackgroundColor,
+                        modifier =
+                            Modifier
+                                .basicMarquee()
+                                .clickable(enabled = mediaMetadata.album != null) {
+                                    navController.navigate("album/${mediaMetadata.album!!.id}")
+                                    state.collapseSoft()
+                                },
+                    )
+                }
             }
 
             Spacer(Modifier.height(6.dp))
@@ -573,24 +581,36 @@ fun BottomSheetPlayer(
                         .padding(horizontal = PlayerHorizontalPadding),
             ) {
                 mediaMetadata.artists.fastForEachIndexed { index, artist ->
-                    Text(
-                        text = artist.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = onBackgroundColor,
-                        maxLines = 1,
-                        modifier =
-                            Modifier.clickable(enabled = artist.id != null) {
-                                navController.navigate("artist/${artist.id}")
-                                state.collapseSoft()
-                            },
-                    )
-
-                    if (index != mediaMetadata.artists.lastIndex) {
+                    AnimatedContent(
+                        targetState = artist.name,
+                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                        label = "",
+                    ) { name ->
                         Text(
-                            text = ", ",
+                            text = name,
                             style = MaterialTheme.typography.titleMedium,
                             color = onBackgroundColor,
+                            maxLines = 1,
+                            modifier =
+                                Modifier.clickable(enabled = artist.id != null) {
+                                    navController.navigate("artist/${artist.id}")
+                                    state.collapseSoft()
+                                },
                         )
+                    }
+
+                    if (index != mediaMetadata.artists.lastIndex) {
+                        AnimatedContent(
+                            targetState = ", ",
+                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+                            label = "",
+                        ) { comma ->
+                            Text(
+                                text = comma,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = onBackgroundColor,
+                            )
+                        }
                     }
                 }
             }
