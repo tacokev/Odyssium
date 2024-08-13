@@ -38,7 +38,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -107,7 +106,7 @@ import org.burnoutcrew.reorderable.rememberReorderableLazyListState
 import org.burnoutcrew.reorderable.reorderable
 
 @SuppressLint("UnrememberedMutableState")
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Queue(
     state: BottomSheetState,
@@ -409,6 +408,7 @@ fun Queue(
                                                 }
                                             },
                                             onLongClick = {
+                                                println(window.mediaItem.metadata!!.title)
                                                 menuState.show {
                                                     PlayerMenu(
                                                         mediaMetadata = window.mediaItem.metadata!!,

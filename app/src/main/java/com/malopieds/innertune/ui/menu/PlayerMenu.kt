@@ -57,6 +57,7 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.malopieds.innertube.models.WatchEndpoint
 import com.malopieds.innertune.LocalDatabase
 import com.malopieds.innertune.LocalDownloadUtil
 import com.malopieds.innertune.LocalPlayerConnection
@@ -67,6 +68,7 @@ import com.malopieds.innertune.constants.ThumbnailCornerRadius
 import com.malopieds.innertune.db.entities.PlaylistSongMap
 import com.malopieds.innertune.models.MediaMetadata
 import com.malopieds.innertune.playback.ExoDownloadService
+import com.malopieds.innertune.playback.queues.YouTubeQueue
 import com.malopieds.innertune.ui.component.BigSeekBar
 import com.malopieds.innertune.ui.component.BottomSheetState
 import com.malopieds.innertune.ui.component.DownloadGridMenu
@@ -264,7 +266,7 @@ fun PlayerMenu(
             icon = R.drawable.radio,
             title = R.string.start_radio,
         ) {
-            playerConnection.service.startRadioSeamlessly()
+            playerConnection.playQueue(YouTubeQueue(WatchEndpoint(videoId = mediaMetadata.id), mediaMetadata))
             onDismiss()
         }
         GridMenuItem(
