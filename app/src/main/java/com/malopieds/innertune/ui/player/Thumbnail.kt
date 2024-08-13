@@ -89,7 +89,6 @@ fun Thumbnail(
                                     }
                                 },
                                 onDragEnd = {
-                                    println(offsetX)
                                     if (offsetX > 400) {
                                         if (playerConnection.player.previousMediaItemIndex != -1) {
                                             playerConnection.player.seekToPreviousMediaItem()

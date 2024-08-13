@@ -1,4 +1,5 @@
 package com.malopieds.innertune.ui.player
+irintln(offsetX)
 
 import android.annotation.SuppressLint
 import android.text.format.Formatter
@@ -261,14 +262,9 @@ fun Queue(
                     }
                 },
                 onDragEnd = { fromIndex, toIndex ->
-                    println(fromIndex)
-                    println(toIndex)
                     val to = if (toIndex == 0) 1 else toIndex
                     if (!playerConnection.player.shuffleModeEnabled) {
                         playerConnection.player.moveMediaItem(fromIndex - headerItems, to - headerItems)
-                        queueWindows.forEach {
-                            println(it.mediaItem.metadata?.title)
-                        }
                     } else {
                         playerConnection.player.setShuffleOrder(
                             DefaultShuffleOrder(
@@ -414,7 +410,6 @@ fun Queue(
                                                 }
                                             },
                                             onLongClick = {
-                                                println(window.mediaItem.metadata!!.title)
                                                 menuState.show {
                                                     PlayerMenu(
                                                         mediaMetadata = window.mediaItem.metadata!!,
