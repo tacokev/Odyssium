@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.malopieds.innertune.BuildConfig
 import com.malopieds.innertune.LocalPlayerConnection
 import com.malopieds.innertune.R
+import com.malopieds.innertune.constants.LyricsClickKey
 import com.malopieds.innertune.constants.LyricsTextPositionKey
 import com.malopieds.innertune.constants.PlayerBackgroundStyle
 import com.malopieds.innertune.constants.PlayerBackgroundStyleKey
@@ -82,6 +83,7 @@ fun Lyrics(
 
     val lyricsTextPosition by rememberEnumPreference(LyricsTextPositionKey, LyricsPosition.CENTER)
     var translationEnabled by rememberPreference(TranslateLyricsKey, false)
+    var changeLyrics by rememberPreference(LyricsClickKey, false)
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val translating by playerConnection.translating.collectAsState()
@@ -277,7 +279,7 @@ fun Lyrics(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .clickable(enabled = isSynced) {
+                                .clickable(enabled = isSynced && changeLyrics) {
                                     playerConnection.player.seekTo(item.time)
                                     lastPreviewTime = 0L
                                 }.padding(horizontal = 24.dp, vertical = 8.dp)
