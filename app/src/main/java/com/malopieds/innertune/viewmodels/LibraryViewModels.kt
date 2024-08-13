@@ -50,8 +50,10 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.text.Collator
 import java.time.Duration
 import java.time.LocalDateTime
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -88,10 +90,26 @@ class LibrarySongsViewModel
                                         when (sortType) {
                                             SongSortType.CREATE_DATE -> songs.sortedBy { downloads[it.id]?.updateTimeMs ?: 0L }
                                             SongSortType.NAME -> songs.sortedBy { it.song.title }
-                                            SongSortType.ARTIST ->
-                                                songs.sortedBy { song ->
-                                                    song.artists.joinToString(separator = "") { it.name }
-                                                }
+                                            SongSortType.ARTIST -> {
+                                                val collator =
+                                                    Collator.getInstance(Locale.getDefault())
+                                                collator.strength = Collator.PRIMARY
+                                                songs
+                                                    .sortedWith(
+                                                        compareBy(collator) { song ->
+                                                            song.artists.joinToString(
+                                                                "",
+                                                            ) { it.name }
+                                                        },
+                                                    ).groupBy { it.album?.title }
+                                                    .flatMap { (_, songsByAlbum) ->
+                                                        songsByAlbum.sortedBy { album ->
+                                                            album.artists.joinToString(
+                                                                "",
+                                                            ) { it.name }
+                                                        }
+                                                    }
+                                            }
 
                                             SongSortType.PLAY_TIME -> songs.sortedBy { it.song.totalPlayTime }
                                         }.reversed(descending)
