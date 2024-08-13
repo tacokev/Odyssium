@@ -20,6 +20,8 @@ import com.malopieds.innertune.constants.DarkModeKey
 import com.malopieds.innertune.constants.DefaultOpenTabKey
 import com.malopieds.innertune.constants.DynamicThemeKey
 import com.malopieds.innertune.constants.EnableSquigglySlider
+import com.malopieds.innertune.constants.GridItemSize
+import com.malopieds.innertune.constants.GridItemsSizeKey
 import com.malopieds.innertune.constants.LyricsClickKey
 import com.malopieds.innertune.constants.LyricsTextPositionKey
 import com.malopieds.innertune.constants.PlayerBackgroundStyle
@@ -52,6 +54,7 @@ fun AppearanceSettings(
     val (lyricsClick, onLyricsClickChange) = rememberPreference(LyricsClickKey, defaultValue = true)
     val (squigglySlider, onSquigglySliderChange) = rememberPreference(EnableSquigglySlider, defaultValue = true)
     val (swipeThumbnail, onSwipeThumbnailChange) = rememberPreference(SwipeThumbnailKey, defaultValue = true)
+    val (gridItemSize, onGridItemSizeChange) = rememberEnumPreference(GridItemsSizeKey, defaultValue = GridItemSize.BIG)
 
     Column(
         Modifier
@@ -142,6 +145,19 @@ fun AppearanceSettings(
             icon = { Icon(painterResource(R.drawable.lyrics), null) },
             checked = lyricsClick,
             onCheckedChange = onLyricsClickChange,
+        )
+
+        EnumListPreference(
+            title = { Text(stringResource(R.string.grid_cell_size)) },
+            icon = { Icon(painterResource(R.drawable.grid_view), null) },
+            selectedValue = gridItemSize,
+            onValueSelected = onGridItemSizeChange,
+            valueText = {
+                when (it) {
+                    GridItemSize.SMALL -> stringResource(R.string.small)
+                    GridItemSize.BIG -> stringResource(R.string.big)
+                }
+            },
         )
     }
 

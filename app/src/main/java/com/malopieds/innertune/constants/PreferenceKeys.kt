@@ -11,6 +11,7 @@ val DynamicThemeKey = booleanPreferencesKey("dynamicTheme")
 val DarkModeKey = stringPreferencesKey("darkMode")
 val PureBlackKey = booleanPreferencesKey("pureBlack")
 val DefaultOpenTabKey = stringPreferencesKey("defaultOpenTab")
+val GridItemsSizeKey = stringPreferencesKey("gridItemSize")
 
 const val SYSTEM_DEFAULT = "SYSTEM_DEFAULT"
 val ContentLanguageKey = stringPreferencesKey("contentLanguage")
@@ -154,6 +155,11 @@ enum class MixSortType {
     CREATE_DATE,
     NAME,
     LAST_UPDATED,
+}
+
+enum class GridItemSize {
+    SMALL,
+    BIG,
 }
 
 enum class MyTopFilter {
