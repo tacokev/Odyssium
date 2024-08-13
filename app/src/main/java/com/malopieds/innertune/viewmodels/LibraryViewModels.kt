@@ -10,7 +10,29 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.exoplayer.offline.Download
 import com.malopieds.innertube.YouTube
-import com.malopieds.innertune.constants.*
+import com.malopieds.innertune.constants.AlbumFilter
+import com.malopieds.innertune.constants.AlbumFilterKey
+import com.malopieds.innertune.constants.AlbumSortDescendingKey
+import com.malopieds.innertune.constants.AlbumSortType
+import com.malopieds.innertune.constants.AlbumSortTypeKey
+import com.malopieds.innertune.constants.ArtistFilter
+import com.malopieds.innertune.constants.ArtistFilterKey
+import com.malopieds.innertune.constants.ArtistSongSortDescendingKey
+import com.malopieds.innertune.constants.ArtistSongSortType
+import com.malopieds.innertune.constants.ArtistSongSortTypeKey
+import com.malopieds.innertune.constants.ArtistSortDescendingKey
+import com.malopieds.innertune.constants.ArtistSortType
+import com.malopieds.innertune.constants.ArtistSortTypeKey
+import com.malopieds.innertune.constants.LibraryFilter
+import com.malopieds.innertune.constants.PlaylistSortDescendingKey
+import com.malopieds.innertune.constants.PlaylistSortType
+import com.malopieds.innertune.constants.PlaylistSortTypeKey
+import com.malopieds.innertune.constants.SongFilter
+import com.malopieds.innertune.constants.SongFilterKey
+import com.malopieds.innertune.constants.SongSortDescendingKey
+import com.malopieds.innertune.constants.SongSortType
+import com.malopieds.innertune.constants.SongSortTypeKey
+import com.malopieds.innertune.constants.TopSize
 import com.malopieds.innertune.db.MusicDatabase
 import com.malopieds.innertune.extensions.reversed
 import com.malopieds.innertune.extensions.toEnum
@@ -21,7 +43,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDateTime
@@ -173,7 +200,6 @@ class LibraryPlaylistsViewModel
         @ApplicationContext context: Context,
         database: MusicDatabase,
     ) : ViewModel() {
-        @OptIn(ExperimentalCoroutinesApi::class)
         val allPlaylists =
             context.dataStore.data
                 .map {
@@ -182,7 +208,6 @@ class LibraryPlaylistsViewModel
                 .flatMapLatest { (sortType, descending) ->
                     database.playlists(sortType, descending)
                 }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-        val topSongs = database.mostPlayedSongs(0, 100)
         val topValue =
             context.dataStore.data
                 .map { it[TopSize] ?: "50" }
@@ -254,6 +279,25 @@ class LibraryMixViewModel
                                         }
                                     }
                                 }
+                        }
+                }
+            }
+            viewModelScope.launch(Dispatchers.IO) {
+                artists.collect { artists ->
+                    artists
+                        .map { it.artist }
+                        .filter {
+                            it.thumbnailUrl == null ||
+                                Duration.between(
+                                    it.lastUpdateTime,
+                                    LocalDateTime.now(),
+                                ) > Duration.ofDays(10)
+                        }.forEach { artist ->
+                            YouTube.artist(artist.id).onSuccess { artistPage ->
+                                database.query {
+                                    update(artist, artistPage)
+                                }
+                            }
                         }
                 }
             }
