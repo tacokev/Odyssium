@@ -39,7 +39,6 @@ import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -326,17 +325,20 @@ class MainActivity : ComponentActivity() {
                                 .add(WindowInsets(top = AppBarHeight, bottom = bottom))
                         }
 
-                    val (searchBarScrollBehavior, topAppBarScrollBehavior) =
+                    val searchBarScrollBehavior =
                         appBarScrollBehavior(
                             canScroll = {
                                 navBackStackEntry?.destination?.route?.startsWith("search/") == false &&
                                     (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
                             },
                         )
-
-                    SideEffect {
-                        topAppBarScrollBehavior.state.heightOffsetLimit = with(density) { -AppBarHeight.toPx() }
-                    }
+                    val topAppBarScrollBehavior =
+                        appBarScrollBehavior(
+                            canScroll = {
+                                navBackStackEntry?.destination?.route?.startsWith("search/") == false &&
+                                    (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
+                            },
+                        )
 
                     LaunchedEffect(navBackStackEntry) {
                         if (navBackStackEntry?.destination?.route?.startsWith("search/") == true) {
@@ -362,11 +364,13 @@ class MainActivity : ComponentActivity() {
                         } else if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
                             onQueryChange(TextFieldValue())
                         }
-                        searchBarScrollBehavior.resetHeightOffset()
+                        searchBarScrollBehavior.state.resetHeightOffset()
+                        topAppBarScrollBehavior.state.resetHeightOffset()
                     }
                     LaunchedEffect(active) {
                         if (active) {
-                            searchBarScrollBehavior.resetHeightOffset()
+                            searchBarScrollBehavior.state.resetHeightOffset()
+                            topAppBarScrollBehavior.state.resetHeightOffset()
                         }
                     }
 
@@ -484,7 +488,16 @@ class MainActivity : ComponentActivity() {
                                 }.route,
                             enterTransition = { fadeIn(animationSpec = tween(200)) },
                             exitTransition = { fadeOut(animationSpec = tween(200)) },
-                            modifier = Modifier.nestedScroll(searchBarScrollBehavior.nestedScrollConnection),
+                            modifier =
+                                Modifier.nestedScroll(
+                                    if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route } ||
+                                        navBackStackEntry?.destination?.route?.startsWith("search/") == true
+                                    ) {
+                                        searchBarScrollBehavior.nestedScrollConnection
+                                    } else {
+                                        topAppBarScrollBehavior.nestedScrollConnection
+                                    },
+                                ),
                         ) {
                             navigationBuilder(
                                 navController,
