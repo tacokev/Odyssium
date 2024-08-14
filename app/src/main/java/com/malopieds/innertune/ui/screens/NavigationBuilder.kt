@@ -20,6 +20,8 @@ import com.malopieds.innertune.ui.screens.settings.AboutScreen
 import com.malopieds.innertune.ui.screens.settings.AppearanceSettings
 import com.malopieds.innertune.ui.screens.settings.BackupAndRestore
 import com.malopieds.innertune.ui.screens.settings.ContentSettings
+import com.malopieds.innertune.ui.screens.settings.DiscordLoginScreen
+import com.malopieds.innertune.ui.screens.settings.DiscordSettings
 import com.malopieds.innertune.ui.screens.settings.PlayerSettings
 import com.malopieds.innertune.ui.screens.settings.PrivacySettings
 import com.malopieds.innertune.ui.screens.settings.SettingsScreen
@@ -205,6 +207,12 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("settings/backup_restore") {
         BackupAndRestore(navController, scrollBehavior)
+    }
+    composable("settings/discord") {
+        DiscordSettings(navController, scrollBehavior)
+    }
+    composable("settings/discord/login") {
+        DiscordLoginScreen(navController)
     }
     composable("settings/about") {
         AboutScreen(navController, scrollBehavior)
