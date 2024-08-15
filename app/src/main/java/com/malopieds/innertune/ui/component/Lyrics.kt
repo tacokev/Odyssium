@@ -75,7 +75,8 @@ import kotlin.time.Duration.Companion.seconds
 fun Lyrics(
     sliderPositionProvider: () -> Long?,
     modifier: Modifier = Modifier,
-    changeColor: Boolean = false,
+    changeColor: Boolean,
+    color: Color,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val menuState = LocalMenuState.current
@@ -83,7 +84,7 @@ fun Lyrics(
 
     val lyricsTextPosition by rememberEnumPreference(LyricsTextPositionKey, LyricsPosition.CENTER)
     var translationEnabled by rememberPreference(TranslateLyricsKey, false)
-    var changeLyrics by rememberPreference(LyricsClickKey, false)
+    val changeLyrics by rememberPreference(LyricsClickKey, true)
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val translating by playerConnection.translating.collectAsState()
@@ -113,7 +114,7 @@ fun Lyrics(
         }
 
     var currentLineIndex by remember {
-        mutableStateOf(-1)
+        mutableIntStateOf(-1)
     }
     // Because LaunchedEffect has delay, which leads to inconsistent with current line color and scroll animation,
     // we use deferredCurrentLineIndex when user is scrolling
@@ -172,7 +173,7 @@ fun Lyrics(
             PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.primary
             else ->
                 if (changeColor) {
-                    Color.Black
+                    color
                 } else {
                     MaterialTheme.colorScheme.primary
                 }
@@ -183,7 +184,7 @@ fun Lyrics(
             PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.secondary
             else ->
                 if (changeColor) {
-                    MaterialTheme.colorScheme.onSecondary
+                    MaterialTheme.colorScheme.onSurface
                 } else {
                     MaterialTheme.colorScheme.secondary
                 }
