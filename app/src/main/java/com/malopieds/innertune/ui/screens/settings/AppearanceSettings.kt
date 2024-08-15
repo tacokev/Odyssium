@@ -1,5 +1,7 @@
 package com.malopieds.innertune.ui.screens.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -61,6 +64,12 @@ fun AppearanceSettings(
     val (squigglySlider, onSquigglySliderChange) = rememberPreference(EnableSquigglySlider, defaultValue = true)
     val (swipeThumbnail, onSwipeThumbnailChange) = rememberPreference(SwipeThumbnailKey, defaultValue = true)
     val (gridItemSize, onGridItemSizeChange) = rememberEnumPreference(GridItemsSizeKey, defaultValue = GridItemSize.BIG)
+
+    val isSystemInDarkTheme = isSystemInDarkTheme()
+    val useDarkTheme =
+        remember(darkMode, isSystemInDarkTheme) {
+            if (darkMode == DarkMode.AUTO) isSystemInDarkTheme else darkMode == DarkMode.ON
+        }
 
     Column(
         Modifier
@@ -114,12 +123,14 @@ fun AppearanceSettings(
             onCheckedChange = onSwipeThumbnailChange,
         )
 
-        SwitchPreference(
-            title = { Text(stringResource(R.string.pure_black)) },
-            icon = { Icon(painterResource(R.drawable.contrast), null) },
-            checked = pureBlack,
-            onCheckedChange = onPureBlackChange,
-        )
+        AnimatedVisibility(useDarkTheme) {
+            SwitchPreference(
+                title = { Text(stringResource(R.string.pure_black)) },
+                icon = { Icon(painterResource(R.drawable.contrast), null) },
+                checked = pureBlack,
+                onCheckedChange = onPureBlackChange,
+            )
+        }
         EnumListPreference(
             title = { Text(stringResource(R.string.default_open_tab)) },
             icon = { Icon(painterResource(R.drawable.tab), null) },
@@ -135,7 +146,7 @@ fun AppearanceSettings(
         )
         EnumListPreference(
             title = { Text(stringResource(R.string.player_text_alignment)) },
-            icon = { Icon(painterResource(R.drawable.format_align_center), null) },
+            icon = { Icon(painterResource(R.drawable.format_align_left), null) },
             selectedValue = playerTextAlignment,
             onValueSelected = onPlayerTextAlignmentChange,
             valueText = {
