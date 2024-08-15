@@ -26,6 +26,7 @@ import com.malopieds.innertune.constants.LyricsClickKey
 import com.malopieds.innertune.constants.LyricsTextPositionKey
 import com.malopieds.innertune.constants.PlayerBackgroundStyle
 import com.malopieds.innertune.constants.PlayerBackgroundStyleKey
+import com.malopieds.innertune.constants.PlayerTextAlignmentKey
 import com.malopieds.innertune.constants.PureBlackKey
 import com.malopieds.innertune.constants.SwipeThumbnailKey
 import com.malopieds.innertune.ui.component.EnumListPreference
@@ -51,6 +52,11 @@ fun AppearanceSettings(
     val (pureBlack, onPureBlackChange) = rememberPreference(PureBlackKey, defaultValue = false)
     val (defaultOpenTab, onDefaultOpenTabChange) = rememberEnumPreference(DefaultOpenTabKey, defaultValue = NavigationTab.HOME)
     val (lyricsPosition, onLyricsPositionChange) = rememberEnumPreference(LyricsTextPositionKey, defaultValue = LyricsPosition.CENTER)
+    val (playerTextAlignment, onPlayerTextAlignmentChange) =
+        rememberEnumPreference(
+            PlayerTextAlignmentKey,
+            defaultValue = PlayerTextAlignment.CENTER,
+        )
     val (lyricsClick, onLyricsClickChange) = rememberPreference(LyricsClickKey, defaultValue = true)
     val (squigglySlider, onSquigglySliderChange) = rememberPreference(EnableSquigglySlider, defaultValue = true)
     val (swipeThumbnail, onSwipeThumbnailChange) = rememberPreference(SwipeThumbnailKey, defaultValue = true)
@@ -128,6 +134,18 @@ fun AppearanceSettings(
             },
         )
         EnumListPreference(
+            title = { Text(stringResource(R.string.player_text_alignment)) },
+            icon = { Icon(painterResource(R.drawable.format_align_center), null) },
+            selectedValue = playerTextAlignment,
+            onValueSelected = onPlayerTextAlignmentChange,
+            valueText = {
+                when (it) {
+                    PlayerTextAlignment.SIDED -> stringResource(R.string.sided)
+                    PlayerTextAlignment.CENTER -> stringResource(R.string.center)
+                }
+            },
+        )
+        EnumListPreference(
             title = { Text(stringResource(R.string.lyrics_text_position)) },
             icon = { Icon(painterResource(R.drawable.lyrics), null) },
             selectedValue = lyricsPosition,
@@ -193,4 +211,9 @@ enum class LyricsPosition {
     LEFT,
     CENTER,
     RIGHT,
+}
+
+enum class PlayerTextAlignment {
+    SIDED,
+    CENTER,
 }

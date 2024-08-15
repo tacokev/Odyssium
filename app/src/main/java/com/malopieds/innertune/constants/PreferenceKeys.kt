@@ -227,6 +227,7 @@ val TopSize = stringPreferencesKey("topSize")
 val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
 val ShowLyricsKey = booleanPreferencesKey("showLyrics")
 val LyricsTextPositionKey = stringPreferencesKey("lyricsTextPosition")
+val PlayerTextAlignmentKey = stringPreferencesKey("playerTextAlignment")
 val LyricsClickKey = booleanPreferencesKey("lyricsClick")
 val TranslateLyricsKey = booleanPreferencesKey("translateLyrics")
 

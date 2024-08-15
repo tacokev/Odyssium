@@ -101,6 +101,7 @@ import com.malopieds.innertune.constants.ListThumbnailSize
 import com.malopieds.innertune.constants.PlayerBackgroundStyle
 import com.malopieds.innertune.constants.PlayerBackgroundStyleKey
 import com.malopieds.innertune.constants.PlayerHorizontalPadding
+import com.malopieds.innertune.constants.PlayerTextAlignmentKey
 import com.malopieds.innertune.constants.PureBlackKey
 import com.malopieds.innertune.constants.QueuePeekHeight
 import com.malopieds.innertune.constants.ShowLyricsKey
@@ -119,6 +120,7 @@ import com.malopieds.innertune.ui.component.rememberBottomSheetState
 import com.malopieds.innertune.ui.menu.AddToPlaylistDialog
 import com.malopieds.innertune.ui.menu.PlayerMenu
 import com.malopieds.innertune.ui.screens.settings.DarkMode
+import com.malopieds.innertune.ui.screens.settings.PlayerTextAlignment
 import com.malopieds.innertune.ui.theme.extractGradientColors
 import com.malopieds.innertune.utils.joinByBullet
 import com.malopieds.innertune.utils.makeTimeString
@@ -155,6 +157,8 @@ fun BottomSheetPlayer(
             val useDarkTheme = if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
             useDarkTheme && pureBlack
         }
+
+    val playerTextAlignment by rememberEnumPreference(PlayerTextAlignmentKey, PlayerTextAlignment.SIDED)
 
     val playbackState by playerConnection.playbackState.collectAsState()
     val isPlaying by playerConnection.isPlaying.collectAsState()
@@ -544,7 +548,11 @@ fun BottomSheetPlayer(
             )
 
             Row(
-                horizontalArrangement = Arrangement.Start,
+                horizontalArrangement =
+                    when (playerTextAlignment) {
+                        PlayerTextAlignment.SIDED -> Arrangement.Start
+                        PlayerTextAlignment.CENTER -> Arrangement.Center
+                    },
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -576,7 +584,11 @@ fun BottomSheetPlayer(
             Spacer(Modifier.height(6.dp))
 
             Row(
-                horizontalArrangement = Arrangement.Start,
+                horizontalArrangement =
+                    when (playerTextAlignment) {
+                        PlayerTextAlignment.SIDED -> Arrangement.Start
+                        PlayerTextAlignment.CENTER -> Arrangement.Center
+                    },
                 modifier =
                     Modifier
                         .fillMaxWidth()

@@ -54,6 +54,7 @@ import com.malopieds.innertune.constants.LyricsClickKey
 import com.malopieds.innertune.constants.LyricsTextPositionKey
 import com.malopieds.innertune.constants.PlayerBackgroundStyle
 import com.malopieds.innertune.constants.PlayerBackgroundStyleKey
+import com.malopieds.innertune.constants.PlayerTextAlignmentKey
 import com.malopieds.innertune.constants.TranslateLyricsKey
 import com.malopieds.innertune.db.entities.LyricsEntity.Companion.LYRICS_NOT_FOUND
 import com.malopieds.innertune.lyrics.LyricsEntry
@@ -64,6 +65,7 @@ import com.malopieds.innertune.ui.component.shimmer.ShimmerHost
 import com.malopieds.innertune.ui.component.shimmer.TextPlaceholder
 import com.malopieds.innertune.ui.menu.LyricsMenu
 import com.malopieds.innertune.ui.screens.settings.LyricsPosition
+import com.malopieds.innertune.ui.screens.settings.PlayerTextAlignment
 import com.malopieds.innertune.ui.utils.fadingEdge
 import com.malopieds.innertune.utils.rememberEnumPreference
 import com.malopieds.innertune.utils.rememberPreference
@@ -83,6 +85,7 @@ fun Lyrics(
     val density = LocalDensity.current
 
     val lyricsTextPosition by rememberEnumPreference(LyricsTextPositionKey, LyricsPosition.CENTER)
+    val playerTextAlignment by rememberEnumPreference(PlayerTextAlignmentKey, PlayerTextAlignment.SIDED)
     var translationEnabled by rememberPreference(TranslateLyricsKey, false)
     val changeLyrics by rememberPreference(LyricsClickKey, true)
 
@@ -265,9 +268,7 @@ fun Lyrics(
                                 displayedCurrentLineIndex
                             ) {
                                 currentLine
-//                                MaterialTheme.colorScheme.primary
                             } else {
-//                                MaterialTheme.colorScheme.secondary
                                 outLines
                             },
                         textAlign =
