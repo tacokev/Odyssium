@@ -216,6 +216,8 @@ fun BottomSheetPlayer(
         }
     }
 
+    val changeBound = state.expandedBound / 3
+
     val onBackgroundColor =
         when (playerBackground) {
             PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.onBackground
@@ -512,7 +514,7 @@ fun BottomSheetPlayer(
         brushBackgroundColor =
             if (gradientColors.size >=
                 2 &&
-                state.value > state.expandedBound / 3
+                state.value > changeBound
             ) {
                 Brush.verticalGradient(gradientColors)
             } else {
@@ -977,15 +979,6 @@ fun BottomSheetPlayer(
             }
         }
 
-        if (gradientColors.size >= 2 && state.isExpanded) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .background(Brush.verticalGradient(gradientColors)),
-            )
-        }
-
         when (LocalConfiguration.current.orientation) {
             Configuration.ORIENTATION_LANDSCAPE -> {
                 Row(
@@ -1002,6 +995,7 @@ fun BottomSheetPlayer(
                             sliderPositionProvider = { sliderPosition },
                             modifier = Modifier.nestedScroll(state.preUpPostDownNestedScrollConnection),
                             changeColor = changeColor,
+                            color = onBackgroundColor,
                         )
                     }
 
@@ -1039,6 +1033,7 @@ fun BottomSheetPlayer(
                             sliderPositionProvider = { sliderPosition },
                             modifier = Modifier.nestedScroll(state.preUpPostDownNestedScrollConnection),
                             changeColor = changeColor,
+                            color = onBackgroundColor,
                         )
                     }
 
