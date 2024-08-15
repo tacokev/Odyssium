@@ -133,6 +133,8 @@ dependencies {
     implementation(projects.lrclib)
     implementation(projects.kizzy)
 
+    implementation(libs.ktor.client.core)
+
     coreLibraryDesugaring(libs.desugaring)
 
     implementation(libs.timber)

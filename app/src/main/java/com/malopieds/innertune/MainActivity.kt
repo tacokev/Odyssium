@@ -41,7 +41,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -117,12 +116,12 @@ import com.malopieds.innertune.ui.theme.extractThemeColor
 import com.malopieds.innertune.ui.utils.appBarScrollBehavior
 import com.malopieds.innertune.ui.utils.backToMain
 import com.malopieds.innertune.ui.utils.resetHeightOffset
+import com.malopieds.innertune.utils.Updater
 import com.malopieds.innertune.utils.dataStore
 import com.malopieds.innertune.utils.get
 import com.malopieds.innertune.utils.rememberEnumPreference
 import com.malopieds.innertune.utils.rememberPreference
 import com.malopieds.innertune.utils.reportException
-import com.malopieds.innertune.utils.setupRemoteConfig
 import com.valentinilk.shimmer.LocalShimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -132,6 +131,7 @@ import kotlinx.coroutines.withContext
 import java.net.URLDecoder
 import java.net.URLEncoder
 import javax.inject.Inject
+import kotlin.time.Duration.Companion.days
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -158,7 +158,8 @@ class MainActivity : ComponentActivity() {
                 playerConnection = null
             }
         }
-    private var latestVersion by mutableLongStateOf(BuildConfig.VERSION_CODE.toLong())
+
+    private var latestVersionName by mutableStateOf(BuildConfig.VERSION_NAME)
 
     override fun onStart() {
         super.onStart()
@@ -177,9 +178,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        setupRemoteConfig()
-
         setContent {
+            LaunchedEffect(Unit) {
+                if (System.currentTimeMillis() - Updater.lastCheckTime > 1.days.inWholeMilliseconds) {
+                    Updater.getLatestVersionName().onSuccess {
+                        latestVersionName = it
+                    }
+                }
+            }
+
             val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
             val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
             val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
@@ -499,11 +506,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                 ),
                         ) {
-                            navigationBuilder(
-                                navController,
-                                topAppBarScrollBehavior,
-                                latestVersion,
-                            )
+                            navigationBuilder(navController, topAppBarScrollBehavior, latestVersionName)
                         }
 
                         AnimatedVisibility(
@@ -618,7 +621,7 @@ class MainActivity : ComponentActivity() {
                                         ) {
                                             BadgedBox(
                                                 badge = {
-                                                    if (latestVersion > BuildConfig.VERSION_CODE) {
+                                                    if (latestVersionName != "v${BuildConfig.VERSION_NAME}") {
                                                         Badge()
                                                     }
                                                 },

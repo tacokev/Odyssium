@@ -31,7 +31,7 @@ import com.malopieds.innertune.ui.screens.settings.StorageSettings
 fun NavGraphBuilder.navigationBuilder(
     navController: NavHostController,
     scrollBehavior: TopAppBarScrollBehavior,
-    latestVersion: Long,
+    latestVersionName: String,
 ) {
     composable(Screens.Home.route) {
         HomeScreen(navController)
@@ -188,7 +188,7 @@ fun NavGraphBuilder.navigationBuilder(
         YouTubeBrowseScreen(navController, scrollBehavior)
     }
     composable("settings") {
-        SettingsScreen(latestVersion, navController, scrollBehavior)
+        SettingsScreen(navController, scrollBehavior, latestVersionName)
     }
     composable("settings/appearance") {
         AppearanceSettings(navController, scrollBehavior)
