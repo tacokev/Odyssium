@@ -26,12 +26,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavController
 import com.malopieds.innertune.LocalPlayerAwareWindowInsets
 import com.malopieds.innertune.R
-import com.malopieds.innertune.constants.DiscordNameKey
 import com.malopieds.innertune.constants.DiscordTokenKey
-import com.malopieds.innertune.constants.DiscordUsernameKey
 import com.malopieds.innertune.ui.component.IconButton
 import com.malopieds.innertune.ui.utils.backToMain
 import com.malopieds.innertune.utils.rememberPreference
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,8 +39,6 @@ import com.malopieds.innertune.utils.rememberPreference
 fun DiscordLoginScreen(navController: NavController) {
     val scope = rememberCoroutineScope()
     var discordToken by rememberPreference(DiscordTokenKey, "")
-    var discordUsername by rememberPreference(DiscordUsernameKey, "")
-    var discordName by rememberPreference(DiscordNameKey, "")
 
     var webView: WebView? = null
 
@@ -88,7 +86,9 @@ fun DiscordLoginScreen(navController: NavController) {
                         @JavascriptInterface
                         fun onRetrieveToken(token: String) {
                             discordToken = token
-                            navController.navigateUp()
+                            scope.launch(Dispatchers.Main) {
+                                navController.navigateUp()
+                            }
                         }
                     },
                     "Android",
