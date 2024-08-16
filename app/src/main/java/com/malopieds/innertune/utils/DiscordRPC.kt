@@ -3,8 +3,8 @@ package com.malopieds.innertune.utils
 import android.content.Context
 import com.malopieds.innertune.R
 import com.malopieds.innertune.db.entities.Song
-import com.my.kizzy.data.rpc.KizzyRPC
-import com.my.kizzy.data.rpc.RpcImage
+import com.my.kizzy.rpc.KizzyRPC
+import com.my.kizzy.rpc.RpcImage
 
 class DiscordRPC(
     val context: Context,

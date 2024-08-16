@@ -63,7 +63,7 @@ import com.malopieds.innertune.ui.component.PreferenceGroupTitle
 import com.malopieds.innertune.ui.component.SwitchPreference
 import com.malopieds.innertune.ui.utils.backToMain
 import com.malopieds.innertune.utils.rememberPreference
-import com.my.kizzy.data.rpc.KizzyRPC
+import com.my.kizzy.rpc.KizzyRPC
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
