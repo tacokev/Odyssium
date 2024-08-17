@@ -61,6 +61,7 @@ import com.malopieds.innertune.constants.AudioQuality
 import com.malopieds.innertune.constants.AudioQualityKey
 import com.malopieds.innertune.constants.DiscordTokenKey
 import com.malopieds.innertune.constants.EnableDiscordRPCKey
+import com.malopieds.innertune.constants.HideExplicitKey
 import com.malopieds.innertune.constants.MediaSessionConstants.CommandToggleLike
 import com.malopieds.innertune.constants.MediaSessionConstants.CommandToggleRepeatMode
 import com.malopieds.innertune.constants.MediaSessionConstants.CommandToggleShuffle
@@ -92,6 +93,7 @@ import com.malopieds.innertune.playback.queues.EmptyQueue
 import com.malopieds.innertune.playback.queues.ListQueue
 import com.malopieds.innertune.playback.queues.Queue
 import com.malopieds.innertune.playback.queues.YouTubeQueue
+import com.malopieds.innertune.playback.queues.filterExplicit
 import com.malopieds.innertune.utils.CoilBitmapLoader
 import com.malopieds.innertune.utils.DiscordRPC
 import com.malopieds.innertune.utils.dataStore
@@ -457,7 +459,10 @@ class MusicService :
             player.playWhenReady = playWhenReady
         }
         scope.launch(SilentHandler) {
-            val initialStatus = withContext(Dispatchers.IO) { queue.getInitialStatus() }
+            val initialStatus =
+                withContext(Dispatchers.IO) {
+                    queue.getInitialStatus().filterExplicit(dataStore.get(HideExplicitKey, false))
+                }
             if (queue.preloadItem != null && player.playbackState == STATE_IDLE) return@launch
             if (initialStatus.title != null) {
                 queueTitle = initialStatus.title
@@ -563,7 +568,7 @@ class MusicService :
             currentQueue.hasNextPage()
         ) {
             scope.launch(SilentHandler) {
-                val mediaItems = currentQueue.nextPage()
+                val mediaItems = currentQueue.nextPage().filterExplicit(dataStore.get(HideExplicitKey, false))
                 if (player.playbackState != STATE_IDLE) {
                     player.addMediaItems(mediaItems)
                 }
