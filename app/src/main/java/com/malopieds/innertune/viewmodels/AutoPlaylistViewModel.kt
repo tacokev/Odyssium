@@ -52,7 +52,7 @@ class AutoPlaylistViewModel
                         }.distinctUntilChanged(),
                 ) { songs, (sortType, sortDescending) ->
                     when (sortType) {
-                        AutoPlaylistSongSortType.CREATE_DATE -> songs.sortedBy { it.id }
+                        AutoPlaylistSongSortType.CREATE_DATE -> songs.sortedBy { it.song.inLibrary }
                         AutoPlaylistSongSortType.NAME -> songs.sortedBy { it.song.title }
                         AutoPlaylistSongSortType.ARTIST -> {
                             val collator = Collator.getInstance(Locale.getDefault())

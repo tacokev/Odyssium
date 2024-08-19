@@ -41,6 +41,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -101,6 +102,7 @@ import com.malopieds.innertune.constants.ListThumbnailSize
 import com.malopieds.innertune.constants.PlayerBackgroundStyle
 import com.malopieds.innertune.constants.PlayerBackgroundStyleKey
 import com.malopieds.innertune.constants.PlayerHorizontalPadding
+import com.malopieds.innertune.constants.PlayerTextAlignmentKey
 import com.malopieds.innertune.constants.PureBlackKey
 import com.malopieds.innertune.constants.QueuePeekHeight
 import com.malopieds.innertune.constants.ShowLyricsKey
@@ -119,6 +121,7 @@ import com.malopieds.innertune.ui.component.rememberBottomSheetState
 import com.malopieds.innertune.ui.menu.AddToPlaylistDialog
 import com.malopieds.innertune.ui.menu.PlayerMenu
 import com.malopieds.innertune.ui.screens.settings.DarkMode
+import com.malopieds.innertune.ui.screens.settings.PlayerTextAlignment
 import com.malopieds.innertune.ui.theme.extractGradientColors
 import com.malopieds.innertune.utils.joinByBullet
 import com.malopieds.innertune.utils.makeTimeString
@@ -155,6 +158,8 @@ fun BottomSheetPlayer(
             val useDarkTheme = if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
             useDarkTheme && pureBlack
         }
+
+    val playerTextAlignment by rememberEnumPreference(PlayerTextAlignmentKey, PlayerTextAlignment.SIDED)
 
     val playbackState by playerConnection.playbackState.collectAsState()
     val isPlaying by playerConnection.isPlaying.collectAsState()
@@ -215,6 +220,8 @@ fun BottomSheetPlayer(
             gradientColors = emptyList()
         }
     }
+
+    val changeBound = state.expandedBound / 3
 
     val onBackgroundColor =
         when (playerBackground) {
@@ -424,7 +431,7 @@ fun BottomSheetPlayer(
     LaunchedEffect(playbackState) {
         if (playbackState == STATE_READY) {
             while (isActive) {
-                delay(500)
+                delay(100)
                 position = playerConnection.player.currentPosition
                 duration = playerConnection.player.duration
             }
@@ -441,6 +448,7 @@ fun BottomSheetPlayer(
         AlertDialog(
             properties = DialogProperties(usePlatformDefaultWidth = false),
             onDismissRequest = { showDetailsDialog = false },
+            containerColor = if (useBlackBackground) Color.Black else AlertDialogDefaults.containerColor,
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.info),
@@ -512,7 +520,7 @@ fun BottomSheetPlayer(
         brushBackgroundColor =
             if (gradientColors.size >=
                 2 &&
-                state.value > state.expandedBound / 3
+                state.value > changeBound
             ) {
                 Brush.verticalGradient(gradientColors)
             } else {
@@ -542,7 +550,11 @@ fun BottomSheetPlayer(
             )
 
             Row(
-                horizontalArrangement = Arrangement.Start,
+                horizontalArrangement =
+                    when (playerTextAlignment) {
+                        PlayerTextAlignment.SIDED -> Arrangement.Start
+                        PlayerTextAlignment.CENTER -> Arrangement.Center
+                    },
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -574,7 +586,11 @@ fun BottomSheetPlayer(
             Spacer(Modifier.height(6.dp))
 
             Row(
-                horizontalArrangement = Arrangement.Start,
+                horizontalArrangement =
+                    when (playerTextAlignment) {
+                        PlayerTextAlignment.SIDED -> Arrangement.Start
+                        PlayerTextAlignment.CENTER -> Arrangement.Center
+                    },
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -977,15 +993,6 @@ fun BottomSheetPlayer(
             }
         }
 
-        if (gradientColors.size >= 2 && state.isExpanded) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .background(Brush.verticalGradient(gradientColors)),
-            )
-        }
-
         when (LocalConfiguration.current.orientation) {
             Configuration.ORIENTATION_LANDSCAPE -> {
                 Row(
@@ -1002,6 +1009,7 @@ fun BottomSheetPlayer(
                             sliderPositionProvider = { sliderPosition },
                             modifier = Modifier.nestedScroll(state.preUpPostDownNestedScrollConnection),
                             changeColor = changeColor,
+                            color = onBackgroundColor,
                         )
                     }
 
@@ -1039,6 +1047,7 @@ fun BottomSheetPlayer(
                             sliderPositionProvider = { sliderPosition },
                             modifier = Modifier.nestedScroll(state.preUpPostDownNestedScrollConnection),
                             changeColor = changeColor,
+                            color = onBackgroundColor,
                         )
                     }
 

@@ -23,9 +23,30 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.contentColorFor
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -95,12 +116,12 @@ import com.malopieds.innertune.ui.theme.extractThemeColor
 import com.malopieds.innertune.ui.utils.appBarScrollBehavior
 import com.malopieds.innertune.ui.utils.backToMain
 import com.malopieds.innertune.ui.utils.resetHeightOffset
+import com.malopieds.innertune.utils.Updater
 import com.malopieds.innertune.utils.dataStore
 import com.malopieds.innertune.utils.get
 import com.malopieds.innertune.utils.rememberEnumPreference
 import com.malopieds.innertune.utils.rememberPreference
 import com.malopieds.innertune.utils.reportException
-import com.malopieds.innertune.utils.setupRemoteConfig
 import com.valentinilk.shimmer.LocalShimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -110,6 +131,7 @@ import kotlinx.coroutines.withContext
 import java.net.URLDecoder
 import java.net.URLEncoder
 import javax.inject.Inject
+import kotlin.time.Duration.Companion.days
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -136,7 +158,8 @@ class MainActivity : ComponentActivity() {
                 playerConnection = null
             }
         }
-    var latestVersion by mutableStateOf(BuildConfig.VERSION_CODE.toLong())
+
+    private var latestVersionName by mutableStateOf(BuildConfig.VERSION_NAME)
 
     override fun onStart() {
         super.onStart()
@@ -155,9 +178,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        setupRemoteConfig()
-
         setContent {
+            LaunchedEffect(Unit) {
+                if (System.currentTimeMillis() - Updater.lastCheckTime > 1.days.inWholeMilliseconds) {
+                    Updater.getLatestVersionName().onSuccess {
+                        latestVersionName = it
+                    }
+                }
+            }
+
             val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
             val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
             val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
@@ -303,7 +332,14 @@ class MainActivity : ComponentActivity() {
                                 .add(WindowInsets(top = AppBarHeight, bottom = bottom))
                         }
 
-                    val (searchBarScrollBehavior, topAppBarScrollBehavior) =
+                    val searchBarScrollBehavior =
+                        appBarScrollBehavior(
+                            canScroll = {
+                                navBackStackEntry?.destination?.route?.startsWith("search/") == false &&
+                                    (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
+                            },
+                        )
+                    val topAppBarScrollBehavior =
                         appBarScrollBehavior(
                             canScroll = {
                                 navBackStackEntry?.destination?.route?.startsWith("search/") == false &&
@@ -335,11 +371,13 @@ class MainActivity : ComponentActivity() {
                         } else if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
                             onQueryChange(TextFieldValue())
                         }
-                        searchBarScrollBehavior.resetHeightOffset()
+                        searchBarScrollBehavior.state.resetHeightOffset()
+                        topAppBarScrollBehavior.state.resetHeightOffset()
                     }
                     LaunchedEffect(active) {
                         if (active) {
-                            searchBarScrollBehavior.resetHeightOffset()
+                            searchBarScrollBehavior.state.resetHeightOffset()
+                            topAppBarScrollBehavior.state.resetHeightOffset()
                         }
                     }
 
@@ -457,13 +495,18 @@ class MainActivity : ComponentActivity() {
                                 }.route,
                             enterTransition = { fadeIn(animationSpec = tween(200)) },
                             exitTransition = { fadeOut(animationSpec = tween(200)) },
-                            modifier = Modifier.nestedScroll(searchBarScrollBehavior.nestedScrollConnection),
+                            modifier =
+                                Modifier.nestedScroll(
+                                    if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route } ||
+                                        navBackStackEntry?.destination?.route?.startsWith("search/") == true
+                                    ) {
+                                        searchBarScrollBehavior.nestedScrollConnection
+                                    } else {
+                                        topAppBarScrollBehavior.nestedScrollConnection
+                                    },
+                                ),
                         ) {
-                            navigationBuilder(
-                                navController,
-                                topAppBarScrollBehavior,
-                                latestVersion,
-                            )
+                            navigationBuilder(navController, topAppBarScrollBehavior, latestVersionName)
                         }
 
                         AnimatedVisibility(
@@ -578,7 +621,7 @@ class MainActivity : ComponentActivity() {
                                         ) {
                                             BadgedBox(
                                                 badge = {
-                                                    if (latestVersion > BuildConfig.VERSION_CODE) {
+                                                    if (latestVersionName != "v${BuildConfig.VERSION_NAME}") {
                                                         Badge()
                                                     }
                                                 },

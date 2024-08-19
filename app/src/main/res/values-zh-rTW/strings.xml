@@ -234,7 +234,9 @@
     <string name="pure_black">純黑</string>
     <string name="default_open_tab">預設啟動標籤</string>
     <string name="customize_navigation_tabs">自訂導覽列</string>
+    <string name="player_text_alignment">播放器文字對齊</string>
     <string name="lyrics_text_position">歌詞文字位置</string>
+    <string name="sided">靠邊</string>
     <string name="left">靠左</string>
     <string name="center">置中</string>
     <string name="right">靠右</string>
@@ -290,6 +292,7 @@
     <string name="enable_kugou">使用酷狗音樂提供歌詞</string>
     <string name="enable_lrclib">使用 LrcLib 提供歌詞</string>
     <string name="set_first_lyrics_provider">設定首選的歌詞提供服務商</string>
+    <string name="hide_explicit">移除不適當內容</string>
 
     <string name="backup_restore">備份與還原</string>
     <string name="backup">備份</string>
@@ -298,6 +301,15 @@
     <string name="backup_create_success">成功建立備份</string>
     <string name="backup_create_failed">無法建立備份</string>
     <string name="restore_failed">無法還原備份</string>
+
+    <string name="discord_integration">Discord 整合</string>
+    <string name="discord_information">你可以安心的登入，InnerTune只會提取你的token，所有東西都存在本機。</string>
+    <string name="dismiss">了解</string>
+    <string name="options">選項</string>
+    <string name="preview">預覽</string>
+    <string name="login_failed">登入失敗</string>
+    <string name="logout">登出</string>
+    <string name="enable_discord_rpc">啟用 Rich Presence</string>
 
     <string name="about">關於</string>
     <string name="app_version">應用程式版本</string>

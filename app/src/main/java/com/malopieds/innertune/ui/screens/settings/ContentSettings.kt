@@ -1,5 +1,6 @@
 package com.malopieds.innertune.ui.screens.settings
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +27,7 @@ import com.malopieds.innertune.constants.ChipSortTypeKey
 import com.malopieds.innertune.constants.ContentCountryKey
 import com.malopieds.innertune.constants.ContentLanguageKey
 import com.malopieds.innertune.constants.CountryCodeToName
+import com.malopieds.innertune.constants.HideExplicitKey
 import com.malopieds.innertune.constants.InnerTubeCookieKey
 import com.malopieds.innertune.constants.LanguageCodeToName
 import com.malopieds.innertune.constants.LibraryFilter
@@ -63,6 +65,7 @@ fun ContentSettings(
         }
     val (contentLanguage, onContentLanguageChange) = rememberPreference(key = ContentLanguageKey, defaultValue = "system")
     val (contentCountry, onContentCountryChange) = rememberPreference(key = ContentCountryKey, defaultValue = "system")
+    val (hideExplicit, onHideExplicitChange) = rememberPreference(key = HideExplicitKey, defaultValue = false)
     val (proxyEnabled, onProxyEnabledChange) = rememberPreference(key = ProxyEnabledKey, defaultValue = false)
     val (proxyType, onProxyTypeChange) = rememberEnumPreference(key = ProxyTypeKey, defaultValue = Proxy.Type.HTTP)
     val (proxyUrl, onProxyUrlChange) = rememberPreference(key = ProxyUrlKey, defaultValue = "host:port")
@@ -112,29 +115,39 @@ fun ContentSettings(
             onValueSelected = onContentCountryChange,
         )
 
+        SwitchPreference(
+            title = { Text(stringResource(R.string.hide_explicit)) },
+            icon = { Icon(painterResource(R.drawable.explicit), null) },
+            checked = hideExplicit,
+            onCheckedChange = onHideExplicitChange,
+        )
+
         PreferenceGroupTitle(
             title = stringResource(R.string.proxy),
         )
 
         SwitchPreference(
             title = { Text(stringResource(R.string.enable_proxy)) },
+            icon = { Icon(painterResource(R.drawable.wifi_proxy), null) },
             checked = proxyEnabled,
             onCheckedChange = onProxyEnabledChange,
         )
 
-        if (proxyEnabled) {
-            ListPreference(
-                title = { Text(stringResource(R.string.proxy_type)) },
-                selectedValue = proxyType,
-                values = listOf(Proxy.Type.HTTP, Proxy.Type.SOCKS),
-                valueText = { it.name },
-                onValueSelected = onProxyTypeChange,
-            )
-            EditTextPreference(
-                title = { Text(stringResource(R.string.proxy_url)) },
-                value = proxyUrl,
-                onValueChange = onProxyUrlChange,
-            )
+        AnimatedVisibility(proxyEnabled) {
+            Column {
+                ListPreference(
+                    title = { Text(stringResource(R.string.proxy_type)) },
+                    selectedValue = proxyType,
+                    values = listOf(Proxy.Type.HTTP, Proxy.Type.SOCKS),
+                    valueText = { it.name },
+                    onValueSelected = onProxyTypeChange,
+                )
+                EditTextPreference(
+                    title = { Text(stringResource(R.string.proxy_url)) },
+                    value = proxyUrl,
+                    onValueChange = onProxyUrlChange,
+                )
+            }
         }
 
         EditTextPreference(

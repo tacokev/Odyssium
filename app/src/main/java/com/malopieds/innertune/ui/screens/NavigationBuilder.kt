@@ -20,6 +20,8 @@ import com.malopieds.innertune.ui.screens.settings.AboutScreen
 import com.malopieds.innertune.ui.screens.settings.AppearanceSettings
 import com.malopieds.innertune.ui.screens.settings.BackupAndRestore
 import com.malopieds.innertune.ui.screens.settings.ContentSettings
+import com.malopieds.innertune.ui.screens.settings.DiscordLoginScreen
+import com.malopieds.innertune.ui.screens.settings.DiscordSettings
 import com.malopieds.innertune.ui.screens.settings.PlayerSettings
 import com.malopieds.innertune.ui.screens.settings.PrivacySettings
 import com.malopieds.innertune.ui.screens.settings.SettingsScreen
@@ -29,7 +31,7 @@ import com.malopieds.innertune.ui.screens.settings.StorageSettings
 fun NavGraphBuilder.navigationBuilder(
     navController: NavHostController,
     scrollBehavior: TopAppBarScrollBehavior,
-    latestVersion: Long,
+    latestVersionName: String,
 ) {
     composable(Screens.Home.route) {
         HomeScreen(navController)
@@ -186,7 +188,7 @@ fun NavGraphBuilder.navigationBuilder(
         YouTubeBrowseScreen(navController, scrollBehavior)
     }
     composable("settings") {
-        SettingsScreen(latestVersion, navController, scrollBehavior)
+        SettingsScreen(navController, scrollBehavior, latestVersionName)
     }
     composable("settings/appearance") {
         AppearanceSettings(navController, scrollBehavior)
@@ -205,6 +207,12 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("settings/backup_restore") {
         BackupAndRestore(navController, scrollBehavior)
+    }
+    composable("settings/discord") {
+        DiscordSettings(navController, scrollBehavior)
+    }
+    composable("settings/discord/login") {
+        DiscordLoginScreen(navController)
     }
     composable("settings/about") {
         AboutScreen(navController, scrollBehavior)
