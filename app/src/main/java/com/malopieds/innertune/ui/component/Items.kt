@@ -890,6 +890,7 @@ fun AlbumGridItem(
                                     ?.songs
                                     ?.map { it.toMediaItem() }
                                     ?.let {
+                                        playerConnection.service.getAutomixAlbum(albumId = album.id)
                                         playerConnection.playQueue(
                                             ListQueue(
                                                 title = album.album.title,
@@ -1506,6 +1507,7 @@ fun YouTubeGridItem(
                             .clip(CircleShape)
                             .background(Color.Black.copy(alpha = 0.4f))
                             .clickable {
+                                var playlistId = ""
                                 coroutineScope?.launch(Dispatchers.IO) {
                                     var songs =
                                         database
@@ -1517,6 +1519,7 @@ fun YouTubeGridItem(
                                         YouTube
                                             .album(item.id)
                                             .onSuccess { albumPage ->
+                                                playlistId = albumPage.album.playlistId
                                                 database.transaction {
                                                     insert(albumPage)
                                                 }
@@ -1527,6 +1530,7 @@ fun YouTubeGridItem(
                                     }
                                     songs?.let {
                                         withContext(Dispatchers.Main) {
+                                            playerConnection.service.getAutomix(playlistId)
                                             playerConnection.playQueue(
                                                 ListQueue(
                                                     title = item.title,
