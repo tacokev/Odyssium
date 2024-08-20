@@ -62,6 +62,7 @@ import com.malopieds.innertune.constants.AudioQualityKey
 import com.malopieds.innertune.constants.DiscordTokenKey
 import com.malopieds.innertune.constants.EnableDiscordRPCKey
 import com.malopieds.innertune.constants.HideExplicitKey
+import com.malopieds.innertune.constants.HistoryDuration
 import com.malopieds.innertune.constants.MediaSessionConstants.CommandToggleLike
 import com.malopieds.innertune.constants.MediaSessionConstants.CommandToggleRepeatMode
 import com.malopieds.innertune.constants.MediaSessionConstants.CommandToggleShuffle
@@ -836,7 +837,13 @@ class MusicService :
         playbackStats: PlaybackStats,
     ) {
         val mediaItem = eventTime.timeline.getWindow(eventTime.windowIndex, Timeline.Window()).mediaItem
-        if (playbackStats.totalPlayTimeMs >= 30000 && !dataStore.get(PauseListenHistoryKey, false)) {
+
+        if (playbackStats.totalPlayTimeMs >= (
+                dataStore[HistoryDuration]?.times(1000f)
+                    ?: 30000f
+            ) &&
+            !dataStore.get(PauseListenHistoryKey, false)
+        ) {
             database.query {
                 incrementTotalPlayTime(mediaItem.mediaId, playbackStats.totalPlayTimeMs)
                 try {
