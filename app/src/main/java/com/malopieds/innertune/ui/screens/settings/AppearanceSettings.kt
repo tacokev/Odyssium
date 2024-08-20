@@ -34,6 +34,7 @@ import com.malopieds.innertune.constants.PureBlackKey
 import com.malopieds.innertune.constants.SwipeThumbnailKey
 import com.malopieds.innertune.ui.component.EnumListPreference
 import com.malopieds.innertune.ui.component.IconButton
+import com.malopieds.innertune.ui.component.PreferenceGroupTitle
 import com.malopieds.innertune.ui.component.SwitchPreference
 import com.malopieds.innertune.ui.utils.backToMain
 import com.malopieds.innertune.utils.rememberEnumPreference
@@ -76,12 +77,17 @@ fun AppearanceSettings(
             .windowInsetsPadding(LocalPlayerAwareWindowInsets.current)
             .verticalScroll(rememberScrollState()),
     ) {
+        PreferenceGroupTitle(
+            title = stringResource(R.string.theme),
+        )
+
         SwitchPreference(
             title = { Text(stringResource(R.string.enable_dynamic_theme)) },
             icon = { Icon(painterResource(R.drawable.palette), null) },
             checked = dynamicTheme,
             onCheckedChange = onDynamicThemeChange,
         )
+
         EnumListPreference(
             title = { Text(stringResource(R.string.dark_theme)) },
             icon = { Icon(painterResource(R.drawable.dark_mode), null) },
@@ -131,22 +137,25 @@ fun AppearanceSettings(
                 onCheckedChange = onPureBlackChange,
             )
         }
-        EnumListPreference(
-            title = { Text(stringResource(R.string.default_open_tab)) },
-            icon = { Icon(painterResource(R.drawable.tab), null) },
-            selectedValue = defaultOpenTab,
-            onValueSelected = onDefaultOpenTabChange,
-            valueText = {
-                when (it) {
-                    NavigationTab.HOME -> stringResource(R.string.home)
-                    NavigationTab.EXPLORE -> stringResource(R.string.explore)
-                    NavigationTab.LIBRARY -> stringResource(R.string.filter_library)
-                }
-            },
+
+        PreferenceGroupTitle(
+            title = stringResource(R.string.player),
         )
+
         EnumListPreference(
             title = { Text(stringResource(R.string.player_text_alignment)) },
-            icon = { Icon(painterResource(R.drawable.format_align_left), null) },
+            icon = {
+                Icon(
+                    painter =
+                        painterResource(
+                            when (playerTextAlignment) {
+                                PlayerTextAlignment.CENTER -> R.drawable.format_align_center
+                                PlayerTextAlignment.SIDED -> R.drawable.format_align_left
+                            },
+                        ),
+                    contentDescription = null,
+                )
+            },
             selectedValue = playerTextAlignment,
             onValueSelected = onPlayerTextAlignmentChange,
             valueText = {
@@ -156,6 +165,7 @@ fun AppearanceSettings(
                 }
             },
         )
+
         EnumListPreference(
             title = { Text(stringResource(R.string.lyrics_text_position)) },
             icon = { Icon(painterResource(R.drawable.lyrics), null) },
@@ -169,11 +179,30 @@ fun AppearanceSettings(
                 }
             },
         )
+
         SwitchPreference(
             title = { Text(stringResource(R.string.lyrics_click_change)) },
             icon = { Icon(painterResource(R.drawable.lyrics), null) },
             checked = lyricsClick,
             onCheckedChange = onLyricsClickChange,
+        )
+
+        PreferenceGroupTitle(
+            title = stringResource(R.string.misc),
+        )
+
+        EnumListPreference(
+            title = { Text(stringResource(R.string.default_open_tab)) },
+            icon = { Icon(painterResource(R.drawable.tab), null) },
+            selectedValue = defaultOpenTab,
+            onValueSelected = onDefaultOpenTabChange,
+            valueText = {
+                when (it) {
+                    NavigationTab.HOME -> stringResource(R.string.home)
+                    NavigationTab.EXPLORE -> stringResource(R.string.explore)
+                    NavigationTab.LIBRARY -> stringResource(R.string.filter_library)
+                }
+            },
         )
 
         EnumListPreference(
