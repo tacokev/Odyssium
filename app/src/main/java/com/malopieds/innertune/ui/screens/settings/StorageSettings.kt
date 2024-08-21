@@ -71,11 +71,11 @@ fun StorageSettings(
     var downloadCacheSize by remember {
         mutableStateOf(tryOrNull { downloadCache.cacheSpace } ?: 0)
     }
-    val animatedImageCacheSize by animateFloatAsState(
+    val imageCacheProgress by animateFloatAsState(
         targetValue = (imageCacheSize.toFloat() / imageDiskCache.maxSize).coerceIn(0f, 1f),
         label = "",
     )
-    val animatedPlayerCacheSize by animateFloatAsState(
+    val playerCacheProgress by animateFloatAsState(
         targetValue = (playerCacheSize.toFloat() / (maxSongCacheSize * 1024 * 1024L)).coerceIn(0f, 1f),
         label = "",
     )
@@ -137,7 +137,7 @@ fun StorageSettings(
             )
         } else {
             LinearProgressIndicator(
-                progress = { animatedPlayerCacheSize },
+                progress = { playerCacheProgress },
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -183,7 +183,7 @@ fun StorageSettings(
         )
 
         LinearProgressIndicator(
-            progress = { animatedImageCacheSize },
+            progress = { imageCacheProgress },
             modifier =
                 Modifier
                     .fillMaxWidth()
