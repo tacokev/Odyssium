@@ -1,28 +1,47 @@
 package com.malopieds.innertune.ui.screens.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.malopieds.innertune.LocalPlayerAwareWindowInsets
 import com.malopieds.innertune.R
 import com.malopieds.innertune.constants.DarkModeKey
 import com.malopieds.innertune.constants.DefaultOpenTabKey
 import com.malopieds.innertune.constants.DynamicThemeKey
-import com.malopieds.innertune.constants.EnableSquigglySlider
 import com.malopieds.innertune.constants.GridItemSize
 import com.malopieds.innertune.constants.GridItemsSizeKey
 import com.malopieds.innertune.constants.LyricsClickKey
@@ -31,14 +50,19 @@ import com.malopieds.innertune.constants.PlayerBackgroundStyle
 import com.malopieds.innertune.constants.PlayerBackgroundStyleKey
 import com.malopieds.innertune.constants.PlayerTextAlignmentKey
 import com.malopieds.innertune.constants.PureBlackKey
+import com.malopieds.innertune.constants.SliderStyle
+import com.malopieds.innertune.constants.SliderStyleKey
 import com.malopieds.innertune.constants.SwipeThumbnailKey
+import com.malopieds.innertune.ui.component.DefaultDialog
 import com.malopieds.innertune.ui.component.EnumListPreference
 import com.malopieds.innertune.ui.component.IconButton
+import com.malopieds.innertune.ui.component.PreferenceEntry
 import com.malopieds.innertune.ui.component.PreferenceGroupTitle
 import com.malopieds.innertune.ui.component.SwitchPreference
 import com.malopieds.innertune.ui.utils.backToMain
 import com.malopieds.innertune.utils.rememberEnumPreference
 import com.malopieds.innertune.utils.rememberPreference
+import me.saket.squiggles.SquigglySlider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,7 +86,7 @@ fun AppearanceSettings(
             defaultValue = PlayerTextAlignment.CENTER,
         )
     val (lyricsClick, onLyricsClickChange) = rememberPreference(LyricsClickKey, defaultValue = true)
-    val (squigglySlider, onSquigglySliderChange) = rememberPreference(EnableSquigglySlider, defaultValue = true)
+    val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = SliderStyle.DEFAULT)
     val (swipeThumbnail, onSwipeThumbnailChange) = rememberPreference(SwipeThumbnailKey, defaultValue = true)
     val (gridItemSize, onGridItemSizeChange) = rememberEnumPreference(GridItemsSizeKey, defaultValue = GridItemSize.BIG)
 
@@ -71,6 +95,117 @@ fun AppearanceSettings(
         remember(darkMode, isSystemInDarkTheme) {
             if (darkMode == DarkMode.AUTO) isSystemInDarkTheme else darkMode == DarkMode.ON
         }
+
+    var showSliderOptionDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    if (showSliderOptionDialog) {
+        DefaultDialog(
+            buttons = {
+                TextButton(
+                    onClick = { showSliderOptionDialog = false },
+                ) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+            },
+            onDismiss = {
+                showSliderOptionDialog = false
+            },
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier =
+                        Modifier
+                            .aspectRatio(1f)
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(
+                                1.dp,
+                                if (sliderStyle ==
+                                    SliderStyle.DEFAULT
+                                ) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                },
+                                RoundedCornerShape(16.dp),
+                            ).clickable {
+                                onSliderStyleChange(SliderStyle.DEFAULT)
+                                showSliderOptionDialog = false
+                            }.padding(16.dp),
+                ) {
+                    var sliderValue by remember {
+                        mutableFloatStateOf(0.5f)
+                    }
+                    Slider(
+                        value = sliderValue,
+                        valueRange = 0f..1f,
+                        onValueChange = {
+                            sliderValue = it
+                        },
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onPress = {},
+                                    )
+                                },
+                    )
+
+                    Text(
+                        text = stringResource(R.string.default_),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier =
+                        Modifier
+                            .aspectRatio(1f)
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(
+                                1.dp,
+                                if (sliderStyle ==
+                                    SliderStyle.SQUIGGLY
+                                ) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                },
+                                RoundedCornerShape(16.dp),
+                            ).clickable {
+                                onSliderStyleChange(SliderStyle.SQUIGGLY)
+                                showSliderOptionDialog = false
+                            }.padding(16.dp),
+                ) {
+                    var sliderValue by remember {
+                        mutableFloatStateOf(0.5f)
+                    }
+                    SquigglySlider(
+                        value = sliderValue,
+                        valueRange = 0f..1f,
+                        onValueChange = {
+                            sliderValue = it
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    Text(
+                        text = stringResource(R.string.squiggly),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
+        }
+    }
 
     Column(
         Modifier
@@ -102,6 +237,19 @@ fun AppearanceSettings(
             },
         )
 
+        AnimatedVisibility(useDarkTheme) {
+            SwitchPreference(
+                title = { Text(stringResource(R.string.pure_black)) },
+                icon = { Icon(painterResource(R.drawable.contrast), null) },
+                checked = pureBlack,
+                onCheckedChange = onPureBlackChange,
+            )
+        }
+
+        PreferenceGroupTitle(
+            title = stringResource(R.string.player),
+        )
+
         EnumListPreference(
             title = { Text(stringResource(R.string.player_background_style)) },
             icon = { Icon(painterResource(R.drawable.gradient), null) },
@@ -115,11 +263,17 @@ fun AppearanceSettings(
             },
         )
 
-        SwitchPreference(
-            title = { Text(stringResource(R.string.enable_squiggly_slider)) },
-            icon = { Icon(painterResource(R.drawable.waves), null) },
-            checked = squigglySlider,
-            onCheckedChange = onSquigglySliderChange,
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.player_slider_style)) },
+            description =
+                when (sliderStyle) {
+                    SliderStyle.DEFAULT -> stringResource(R.string.default_)
+                    SliderStyle.SQUIGGLY -> stringResource(R.string.squiggly)
+                },
+            icon = { Icon(painterResource(R.drawable.sliders), null) },
+            onClick = {
+                showSliderOptionDialog = true
+            },
         )
 
         SwitchPreference(
@@ -127,19 +281,6 @@ fun AppearanceSettings(
             icon = { Icon(painterResource(R.drawable.swipe), null) },
             checked = swipeThumbnail,
             onCheckedChange = onSwipeThumbnailChange,
-        )
-
-        AnimatedVisibility(useDarkTheme) {
-            SwitchPreference(
-                title = { Text(stringResource(R.string.pure_black)) },
-                icon = { Icon(painterResource(R.drawable.contrast), null) },
-                checked = pureBlack,
-                onCheckedChange = onPureBlackChange,
-            )
-        }
-
-        PreferenceGroupTitle(
-            title = stringResource(R.string.player),
         )
 
         EnumListPreference(

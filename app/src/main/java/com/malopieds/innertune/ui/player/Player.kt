@@ -97,7 +97,6 @@ import com.malopieds.innertune.LocalDownloadUtil
 import com.malopieds.innertune.LocalPlayerConnection
 import com.malopieds.innertune.R
 import com.malopieds.innertune.constants.DarkModeKey
-import com.malopieds.innertune.constants.EnableSquigglySlider
 import com.malopieds.innertune.constants.ListThumbnailSize
 import com.malopieds.innertune.constants.PlayerBackgroundStyle
 import com.malopieds.innertune.constants.PlayerBackgroundStyleKey
@@ -106,6 +105,8 @@ import com.malopieds.innertune.constants.PlayerTextAlignmentKey
 import com.malopieds.innertune.constants.PureBlackKey
 import com.malopieds.innertune.constants.QueuePeekHeight
 import com.malopieds.innertune.constants.ShowLyricsKey
+import com.malopieds.innertune.constants.SliderStyle
+import com.malopieds.innertune.constants.SliderStyleKey
 import com.malopieds.innertune.constants.ThumbnailCornerRadius
 import com.malopieds.innertune.db.entities.PlaylistSongMap
 import com.malopieds.innertune.extensions.togglePlayPause
@@ -173,7 +174,7 @@ fun BottomSheetPlayer(
     var showLyrics by rememberPreference(ShowLyricsKey, defaultValue = false)
     val playerBackground by rememberEnumPreference(key = PlayerBackgroundStyleKey, defaultValue = PlayerBackgroundStyle.DEFAULT)
 
-    val enableSquigglySlider by rememberPreference(EnableSquigglySlider, defaultValue = true)
+    val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.DEFAULT)
 
     var position by rememberSaveable(playbackState) {
         mutableLongStateOf(playerConnection.player.currentPosition)
@@ -828,43 +829,47 @@ fun BottomSheetPlayer(
 
             Spacer(Modifier.height(6.dp))
 
-            if (enableSquigglySlider) {
-                SquigglySlider(
-                    value = (sliderPosition ?: position).toFloat(),
-                    valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                    onValueChange = {
-                        sliderPosition = it.toLong()
-                    },
-                    onValueChangeFinished = {
-                        sliderPosition?.let {
-                            playerConnection.player.seekTo(it)
-                            position = it
-                        }
-                        sliderPosition = null
-                    },
-                    modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
-                    squigglesSpec =
-                        SquigglySlider.SquigglesSpec(
-                            amplitude = if (isPlaying) (2.dp).coerceAtLeast(2.dp) else 0.dp,
-                            strokeWidth = 3.dp,
-                        ),
-                )
-            } else {
-                Slider(
-                    value = (sliderPosition ?: position).toFloat(),
-                    valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                    onValueChange = {
-                        sliderPosition = it.toLong()
-                    },
-                    onValueChangeFinished = {
-                        sliderPosition?.let {
-                            playerConnection.player.seekTo(it)
-                            position = it
-                        }
-                        sliderPosition = null
-                    },
-                    modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
-                )
+            when (sliderStyle) {
+                SliderStyle.SQUIGGLY -> {
+                    SquigglySlider(
+                        value = (sliderPosition ?: position).toFloat(),
+                        valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
+                        onValueChange = {
+                            sliderPosition = it.toLong()
+                        },
+                        onValueChangeFinished = {
+                            sliderPosition?.let {
+                                playerConnection.player.seekTo(it)
+                                position = it
+                            }
+                            sliderPosition = null
+                        },
+                        modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
+                        squigglesSpec =
+                            SquigglySlider.SquigglesSpec(
+                                amplitude = if (isPlaying) (2.dp).coerceAtLeast(2.dp) else 0.dp,
+                                strokeWidth = 3.dp,
+                            ),
+                    )
+                }
+
+                SliderStyle.DEFAULT -> {
+                    Slider(
+                        value = (sliderPosition ?: position).toFloat(),
+                        valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
+                        onValueChange = {
+                            sliderPosition = it.toLong()
+                        },
+                        onValueChangeFinished = {
+                            sliderPosition?.let {
+                                playerConnection.player.seekTo(it)
+                                position = it
+                            }
+                            sliderPosition = null
+                        },
+                        modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
+                    )
+                }
             }
 
             Spacer(Modifier.height(4.dp))
