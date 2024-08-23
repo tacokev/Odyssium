@@ -13,11 +13,11 @@ plugins {
 
 android {
     namespace = "com.malopieds.innertune"
-    compileSdk = 34
+    compileSdk = 35
     defaultConfig {
         applicationId = "com.malopieds.innertune"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 26
         versionName = "0.5.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

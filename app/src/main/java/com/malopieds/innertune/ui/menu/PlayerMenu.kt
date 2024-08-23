@@ -102,6 +102,11 @@ fun PlayerMenu(
 
     val download by LocalDownloadUtil.current.getDownload(mediaMetadata.id).collectAsState(initial = null)
 
+    val artists =
+        remember(mediaMetadata.artists) {
+            mediaMetadata.artists.filter { it.id != null }
+        }
+
     var showChoosePlaylistDialog by rememberSaveable {
         mutableStateOf(false)
     }
@@ -194,7 +199,7 @@ fun PlayerMenu(
         ListDialog(
             onDismiss = { showSelectArtistDialog = false },
         ) {
-            items(mediaMetadata.artists) { artist ->
+            items(artists) { artist ->
                 Box(
                     contentAlignment = Alignment.CenterStart,
                     modifier =
@@ -225,7 +230,7 @@ fun PlayerMenu(
     }
 
     if (showPitchTempoDialog) {
-        PitchTempoDialog(
+        TempoPitchDialog(
             onDismiss = { showPitchTempoDialog = false },
         )
     }
@@ -323,16 +328,18 @@ fun PlayerMenu(
                 }
             }
         }
-        GridMenuItem(
-            icon = R.drawable.artist,
-            title = R.string.view_artist,
-        ) {
-            if (mediaMetadata.artists.size == 1) {
-                navController.navigate("artist/${mediaMetadata.artists[0].id}")
-                playerBottomSheetState.collapseSoft()
-                onDismiss()
-            } else {
-                showSelectArtistDialog = true
+        if (artists.isNotEmpty()) {
+            GridMenuItem(
+                icon = R.drawable.artist,
+                title = R.string.view_artist,
+            ) {
+                if (mediaMetadata.artists.size == 1) {
+                    navController.navigate("artist/${mediaMetadata.artists[0].id}")
+                    playerBottomSheetState.collapseSoft()
+                    onDismiss()
+                } else {
+                    showSelectArtistDialog = true
+                }
             }
         }
         if (mediaMetadata.album != null) {
@@ -395,7 +402,7 @@ fun PlayerMenu(
 }
 
 @Composable
-fun PitchTempoDialog(onDismiss: () -> Unit) {
+fun TempoPitchDialog(onDismiss: () -> Unit) {
     val playerConnection = LocalPlayerConnection.current ?: return
     var tempo by remember {
         mutableFloatStateOf(playerConnection.player.playbackParameters.speed)
@@ -410,6 +417,9 @@ fun PitchTempoDialog(onDismiss: () -> Unit) {
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         onDismissRequest = onDismiss,
+        title = {
+            Text(stringResource(R.string.tempo_and_pitch))
+        },
         dismissButton = {
             TextButton(
                 onClick = {
@@ -431,7 +441,7 @@ fun PitchTempoDialog(onDismiss: () -> Unit) {
         text = {
             Column {
                 ValueAdjuster(
-                    icon = R.drawable.slow_motion_video,
+                    icon = R.drawable.speed,
                     currentValue = tempo,
                     values = (0..35).map { round((0.25f + it * 0.05f) * 100) / 100 },
                     onValueUpdate = {

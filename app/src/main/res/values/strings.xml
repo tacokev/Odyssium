@@ -104,6 +104,7 @@
     <string name="advanced">Advanced</string>
     <string name="select">Select all</string>
     <string name="like_all">Like all</string>
+    <string name="tempo_and_pitch">Tempo and Pitch</string>
 
     <!-- Sort menu -->
     <string name="sort_by_create_date">Date added</string>
@@ -214,6 +215,7 @@
     <!-- Queue Title -->
     <string name="queue_all_songs">All songs</string>
     <string name="queue_searched_songs">Searched songs</string>
+    <string name="similar_content">Similar content</string>
 
     <!-- Notification name -->
     <string name="music_player">Music Player</string>
@@ -221,6 +223,7 @@
     <!-- Settings -->
     <string name="settings">Settings</string>
     <string name="appearance">Appearance</string>
+    <string name="theme">Theme</string>
     <string name="enable_dynamic_theme">Enable dynamic theme</string>
     <string name="dark_theme">Dark theme</string>
     <string name="dark_theme_on">On</string>
@@ -232,8 +235,8 @@
     <string name="enable_squiggly_slider">Enable squiggly slider</string>
     <string name="enable_swipe_thumbnail">Enable swipe on thumbnail to change song</string>
     <string name="pure_black">Pure black</string>
-    <string name="default_open_tab">Default open tab</string>
     <string name="customize_navigation_tabs">Customize navigation tabs</string>
+    <string name="player">Player</string>
     <string name="player_text_alignment">Player text alignment</string>
     <string name="lyrics_text_position">Lyrics text position</string>
     <string name="sided">Sided</string>
@@ -244,6 +247,11 @@
     <string name="grid_cell_size">Grid cell size</string>
     <string name="small">Small</string>
     <string name="big">Big</string>
+    <string name="player_slider_style">Player slider style</string>
+    <string name="default_">Default</string>
+    <string name="squiggly">Squiggly</string>
+    <string name="misc">Misc</string>
+    <string name="default_open_tab">Default open tab</string>
 
     <string name="content">Content</string>
     <string name="login">Login</string>
@@ -286,10 +294,10 @@
     <string name="privacy">Privacy</string>
     <string name="pause_listen_history">Pause listen history</string>
     <string name="clear_listen_history">Clear listen history</string>
-    <string name="clear_listen_history_confirm">Are you sure to clear all listen history?</string>
+    <string name="clear_listen_history_confirm">Are you sure you want to clear all listen history?</string>
     <string name="pause_search_history">Pause search history</string>
     <string name="clear_search_history">Clear search history</string>
-    <string name="clear_search_history_confirm">Are you sure to clear all search history?</string>
+    <string name="clear_search_history_confirm">Are you sure you want to clear all search history?</string>
     <string name="enable_kugou">Enable KuGou lyrics provider</string>
     <string name="enable_lrclib">Enable LrcLib lyrics provider</string>
     <string name="set_first_lyrics_provider">Set the first lyrics provider</string>
@@ -304,13 +312,13 @@
     <string name="restore_failed">Failed to restore backup</string>
 
     <string name="discord_integration">Discord Integration</string>
-    <string name="discord_information">You can log in safely. InnerTune will only extract your token, and everything else is stored locally.</string>
+    <string name="discord_information">InnerTune uses the KizzyRPC library to set your Discord account\'s status. This involves using the Discord Gateway connection, which may be considered a violation of Discord\'s TOS. However, there are no known cases of user accounts being suspended for this reason. Use at your own risk.\n\nInnerTune will only extract your token, and everything else is stored locally.</string>
     <string name="dismiss">Dismiss</string>
     <string name="options">Options</string>
     <string name="preview">Preview</string>
     <string name="login_failed">Login failed</string>
     <string name="logout">Logout</string>
-    <string name="enable_discord_rpc">Enable Rich Presense</string>
+    <string name="enable_discord_rpc">Enable Rich Presence</string>
 
     <string name="about">About</string>
     <string name="app_version">App version</string>
@@ -325,4 +333,9 @@
     <string name="past_month">Past month</string>
     <string name="past_year">Past year</string>
     <string name="top_length">My Top list length</string>
+    <string name="history_duration">History duration</string>
+    <plurals name="seconds">
+        <item quantity="one">1 second</item>
+        <item quantity="other">%d seconds</item>
+    </plurals>
 </resources>

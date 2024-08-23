@@ -214,13 +214,15 @@
     <!-- Queue Title -->
     <string name="queue_all_songs">全部歌曲</string>
     <string name="queue_searched_songs">搜尋的歌曲</string>
-
+    <string name="similar_content">類似內容</string>
+  
     <!-- Notification name -->
     <string name="music_player">音樂播放器</string>
 
     <!-- Settings -->
     <string name="settings">設定</string>
     <string name="appearance">外觀</string>
+    <string name="theme">主題</string>
     <string name="enable_dynamic_theme">使用動態主題</string>
     <string name="dark_theme">深色主題</string>
     <string name="dark_theme_on">開</string>
@@ -232,8 +234,8 @@
     <string name="enable_squiggly_slider">啟用波浪滑塊</string>
     <string name="enable_swipe_thumbnail">啟用輕掃縮圖更換歌曲</string>
     <string name="pure_black">純黑</string>
-    <string name="default_open_tab">預設啟動標籤</string>
     <string name="customize_navigation_tabs">自訂導覽列</string>
+    <string name="player">播放器</string>
     <string name="player_text_alignment">播放器文字對齊</string>
     <string name="lyrics_text_position">歌詞文字位置</string>
     <string name="sided">靠邊</string>
@@ -303,7 +305,7 @@
     <string name="restore_failed">無法還原備份</string>
 
     <string name="discord_integration">Discord 整合</string>
-    <string name="discord_information">你可以安心的登入，InnerTune只會提取你的token，所有東西都存在本機。</string>
+    <string name="discord_information">InnerTune使用KizzyRPC函式庫來設定您的Discord狀態。這會用到Discord Gateway連線，可能會違反Discord服務條款，但是目前沒有使用者為此被停用帳號。使用此功能需自行承擔此風險。\n\nInnerTune只會提取你的token，所有東西都存在本機。</string>
     <string name="dismiss">了解</string>
     <string name="options">選項</string>
     <string name="preview">預覽</string>
