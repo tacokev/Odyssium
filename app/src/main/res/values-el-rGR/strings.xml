@@ -179,10 +179,6 @@
         <item quantity="one">%d χρόνος</item>
         <item quantity="other">%d χρόνια</item>
     </plurals>
-    <plurals name="n_elements">
-        <item quantity="one">%d στοιχείο</item>
-        <item quantity="other">%d στοιχεία</item>
-    </plurals>
 
     <!-- Snackbar -->
     <string name="playlist_imported">Το playlist εισαχθεί</string>
