@@ -30,6 +30,7 @@ class DiscordRPC(
                         "Visit InnerTune" to "https://github.com/Malopieds/InnerTune",
                     ),
                 type = Type.LISTENING,
+                since = System.currentTimeMillis(),
                 applicationId = APPLICATION_ID,
             )
         }
