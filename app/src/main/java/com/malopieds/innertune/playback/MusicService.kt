@@ -59,6 +59,7 @@ import com.malopieds.innertune.R
 import com.malopieds.innertune.constants.AudioNormalizationKey
 import com.malopieds.innertune.constants.AudioQuality
 import com.malopieds.innertune.constants.AudioQualityKey
+import com.malopieds.innertune.constants.AutoSkipNextOnErrorKey
 import com.malopieds.innertune.constants.DiscordTokenKey
 import com.malopieds.innertune.constants.EnableDiscordRPCKey
 import com.malopieds.innertune.constants.HideExplicitKey
@@ -155,7 +156,7 @@ class MusicService :
 
     private lateinit var connectivityManager: ConnectivityManager
 
-    private val audioQuality by enumPreference(this, AudioQualityKey, AudioQuality.AUTO)
+    private val audioQuality by enumPreference(this, AudioQualityKey, com.malopieds.innertune.constants.AudioQuality.AUTO)
 
     private var currentQueue: Queue = EmptyQueue
     var queueTitle: String? = null
@@ -687,6 +688,14 @@ class MusicService :
             dataStore.edit { settings ->
                 settings[RepeatModeKey] = repeatMode
             }
+        }
+    }
+
+    override fun onPlayerError(error: PlaybackException) {
+        if (dataStore.get(AutoSkipNextOnErrorKey, false) && player.hasNextMediaItem()) {
+            player.seekToNext()
+            player.prepare()
+            player.playWhenReady = true
         }
     }
 
