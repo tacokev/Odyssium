@@ -311,19 +311,19 @@ object YouTube {
                                 ?.thumbnails
                                 ?.lastOrNull()
                                 ?.url!!,
-                        otherVersions =
-                            response.contents.twoColumnBrowseResultsRenderer.secondaryContents
-                                ?.sectionListRenderer
-                                ?.contents
-                                ?.getOrNull(
-                                    1,
-                                )?.musicCarouselShelfRenderer
-                                ?.contents
-                                ?.mapNotNull { it.musicTwoRowItemRenderer }
-                                ?.mapNotNull(NewReleaseAlbumPage::fromMusicTwoRowItemRenderer)
-                                .orEmpty(),
                     ),
                 songs = if (withSongs) albumSongs(playlistId).getOrThrow() else emptyList(),
+                otherVersions =
+                    response.contents.twoColumnBrowseResultsRenderer.secondaryContents
+                        ?.sectionListRenderer
+                        ?.contents
+                        ?.getOrNull(
+                            1,
+                        )?.musicCarouselShelfRenderer
+                        ?.contents
+                        ?.mapNotNull { it.musicTwoRowItemRenderer }
+                        ?.mapNotNull(NewReleaseAlbumPage::fromMusicTwoRowItemRenderer)
+                        .orEmpty(),
             )
         }
 
@@ -922,7 +922,16 @@ object YouTube {
                         endpoint.params,
                         continuation,
                     ).body<NextResponse>()
-            val title = response.contents.singleColumnMusicWatchNextResultsRenderer.tabbedRenderer.watchNextTabbedResultsRenderer.tabs[0].tabRenderer.content?.musicQueueRenderer?.header?.musicQueueHeaderRenderer?.subtitle?.runs?.firstOrNull()?.text
+            val title =
+                response.contents.singleColumnMusicWatchNextResultsRenderer.tabbedRenderer.watchNextTabbedResultsRenderer.tabs[0]
+                    .tabRenderer.content
+                    ?.musicQueueRenderer
+                    ?.header
+                    ?.musicQueueHeaderRenderer
+                    ?.subtitle
+                    ?.runs
+                    ?.firstOrNull()
+                    ?.text
             val playlistPanelRenderer =
                 response.continuationContents?.playlistPanelContinuation
                     ?: response.contents.singleColumnMusicWatchNextResultsRenderer.tabbedRenderer.watchNextTabbedResultsRenderer.tabs[0]

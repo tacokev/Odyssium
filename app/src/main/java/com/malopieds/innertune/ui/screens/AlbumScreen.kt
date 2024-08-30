@@ -107,6 +107,9 @@ fun AlbumScreen(
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val playerConnection = LocalPlayerConnection.current ?: return
+
+    val scope = rememberCoroutineScope()
+
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
@@ -520,7 +523,7 @@ fun AlbumScreen(
                                 item = item,
                                 isActive = mediaMetadata?.album?.id == item.id,
                                 isPlaying = isPlaying,
-                                coroutineScope = coroutineScope,
+                                coroutineScope = scope,
                                 modifier =
                                     Modifier
                                         .combinedClickable(
