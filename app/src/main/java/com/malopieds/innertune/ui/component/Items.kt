@@ -214,6 +214,7 @@ fun GridItem(
             },
     ) {
         BoxWithConstraints(
+            contentAlignment = Alignment.Center,
             modifier =
                 if (fillMaxWidth) {
                     Modifier.fillMaxWidth()
