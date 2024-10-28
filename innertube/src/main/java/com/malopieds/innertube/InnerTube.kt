@@ -12,8 +12,10 @@ import com.malopieds.innertube.models.body.GetTranscriptBody
 import com.malopieds.innertube.models.body.NextBody
 import com.malopieds.innertube.models.body.PlayerBody
 import com.malopieds.innertube.models.body.SearchBody
+import com.malopieds.innertube.utils.nSigDecode
 import com.malopieds.innertube.utils.parseCookieString
 import com.malopieds.innertube.utils.sha1
+import com.malopieds.innertube.utils.sigDecode
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.compression.ContentEncoding
@@ -26,7 +28,9 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.URLBuilder
 import io.ktor.http.contentType
+import io.ktor.http.parseQueryString
 import io.ktor.http.userAgent
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.util.encodeBase64
@@ -269,4 +273,17 @@ class InnerTube {
             ytClient(client, setLogin = true)
             setBody(AccountMenuBody(client.toContext(locale, visitorData)))
         }
+
+    fun decodeCipher(cipher: String): String? {
+        val params = parseQueryString(cipher)
+        val signature = params["s"] ?: return null
+        val signatureParam = params["sp"] ?: return null
+        val url = params["url"]?.let { URLBuilder(it) } ?: return null
+        val n = url.parameters["n"]
+        url.parameters["n"] = nSigDecode(n.toString())
+        url.parameters[signatureParam] = sigDecode(signature)
+        url.parameters["c"] = "ANDROID_MUSIC"
+        println("url = $url")
+        return url.toString()
+    }
 }
