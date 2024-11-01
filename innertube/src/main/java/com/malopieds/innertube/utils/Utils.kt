@@ -2,6 +2,8 @@ package com.malopieds.innertube.utils
 
 import com.malopieds.innertube.YouTube
 import com.malopieds.innertube.pages.PlaylistPage
+import io.ktor.http.URLBuilder
+import io.ktor.http.parseQueryString
 import java.security.MessageDigest
 
 suspend fun Result<PlaylistPage>.completed() =
@@ -114,4 +116,28 @@ fun sigDecode(input: String): String {
             append(input[38])
         }
     return result
+}
+
+fun createUrl(
+    url: String? = null,
+    cipher: String? = null,
+): String? {
+    val resUrl: URLBuilder
+    var signature = ""
+    var signatureParam = "sig"
+    if (cipher != null) {
+        val params = parseQueryString(cipher)
+        signature = params["s"] ?: return null
+        signatureParam = params["sp"] ?: return null
+        resUrl = params["url"]?.let { URLBuilder(it) } ?: return null
+    } else {
+        resUrl = url?.let { URLBuilder(it) } ?: return null
+    }
+    val n = resUrl.parameters["n"]
+    resUrl.parameters["n"] = nSigDecode(n.toString())
+    if (cipher != null) {
+        resUrl.parameters[signatureParam] = sigDecode(signature)
+    }
+    resUrl.parameters["c"] = "ANDROID_MUSIC"
+    return resUrl.toString()
 }
