@@ -450,6 +450,9 @@ interface DatabaseDao {
     @Query("SELECT * FROM song WHERE id = :songId")
     fun song(songId: String?): Flow<Song?>
 
+    @Query("SELECT * FROM Song WHERE id = :songId LIMIT 1")
+    fun getSongById(songId: String): Song?
+
     @Query("SELECT * FROM song_artist_map WHERE songId = :songId")
     fun songArtistMap(songId: String): List<SongArtistMap>
 
@@ -967,15 +970,10 @@ interface DatabaseDao {
             .map(SongItem::toMediaMetadata)
             .onEach(::insert)
             .onEach {
-                update(
-                    it.toSongEntity().copy(
-                        title = it.title,
-                        duration = it.duration,
-                        thumbnailUrl = it.thumbnailUrl,
-                        albumId = it.album?.id,
-                        albumName = it.album?.title,
-                    ),
-                )
+                val existingSong = getSongById(it.id)
+                if (existingSong != null) {
+                    update(existingSong, it)
+                }
             }.mapIndexed { index, song ->
                 SongAlbumMap(
                     songId = song.id,
@@ -1083,15 +1081,10 @@ interface DatabaseDao {
             .map(SongItem::toMediaMetadata)
             .onEach(::insert)
             .onEach {
-                update(
-                    it.toSongEntity().copy(
-                        title = it.title,
-                        duration = it.duration,
-                        thumbnailUrl = it.thumbnailUrl,
-                        albumId = it.album?.id,
-                        albumName = it.album?.title,
-                    ),
-                )
+                val existingSong = getSongById(it.id)
+                if (existingSong != null) {
+                    update(existingSong, it)
+                }
             }.mapIndexed { index, song ->
                 SongAlbumMap(
                     songId = song.id,
