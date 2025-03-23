@@ -36,7 +36,7 @@ jobs:
           MUSIC_DEBUG_SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app
           path: app/build/outputs/apk/foss/debug/*.apk
