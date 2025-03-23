@@ -79,3 +79,9 @@
 -keep class com.my.kizzy.remote.** { <fields>; }
 # Keep Gateway data classes
 -keep class com.my.kizzy.gateway.entities.** { <fields>; }
+
+-dontwarn java.beans.BeanDescriptor
+-dontwarn java.beans.BeanInfo
+-dontwarn java.beans.IntrospectionException
+-dontwarn java.beans.Introspector
+-dontwarn java.beans.PropertyDescriptor
