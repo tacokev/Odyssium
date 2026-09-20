@@ -200,6 +200,7 @@
 
     <!-- Player -->
     <string name="lyrics_not_found">Lyrics not found</string>
+    <string name="no_description_available">No description available.</string>
     <string name="sleep_timer">Sleep timer</string>
     <string name="end_of_song">End of song</string>
     <plurals name="minute">
@@ -238,8 +239,16 @@
     <string name="dark_theme_off">Off</string>
     <string name="dark_theme_follow_system">Follow system</string>
     <string name="player_background_style">Player background style</string>
+    <string name="mini_player_style">Mini player style</string>
+    <string name="apple_music">Apple Music</string>
+    <string name="modern">Modern</string>
+    <string name="mini_player_background_style">Mini player background style</string>
+    <string name="pure_black_mini_player">Pure black mini player</string>
+    <string name="player_style">Player style</string>
+    <string name="player_style_m3e">M3 Expressive</string>
     <string name="follow_theme">Follow theme</string>
     <string name="gradient">Gradient</string>
+    <string name="blur">Blur</string>
     <string name="enable_squiggly_slider">Enable squiggly slider</string>
     <string name="enable_swipe_thumbnail">Enable swipe on thumbnail to change song</string>
     <string name="pure_black">Pure black</string>
@@ -255,6 +264,11 @@
     <string name="grid_cell_size">Grid cell size</string>
     <string name="small">Small</string>
     <string name="big">Big</string>
+    <string name="album_grid_columns">Album grid columns</string>
+    <string name="two_columns">2 columns</string>
+    <string name="three_columns">3 columns</string>
+    <string name="album_grid_connected_squares">Connected square tiles</string>
+    <string name="compact_navigation_bar">Compact bottom bar</string>
     <string name="player_slider_style">Player slider style</string>
     <string name="default_">Default</string>
     <string name="squiggly">Squiggly</string>
@@ -295,6 +309,8 @@
     <string name="auto_skip_next_on_error">Auto skip to next song when error occurs</string>
     <string name="auto_skip_next_on_error_desc">Ensure your continuous playback experience</string>
     <string name="stop_music_on_task_clear">Stop music on task clear</string>
+    <string name="seek_extra_thirty_seconds">30 second seek buttons</string>
+    <string name="seek_extra_thirty_seconds_desc">Seek back/forward 30 seconds instead of 10, on all player styles</string>
     <string name="equalizer">Equalizer</string>
 
     <string name="storage">Storage</string>

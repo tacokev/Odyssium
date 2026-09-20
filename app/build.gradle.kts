@@ -1,6 +1,14 @@
 @file:Suppress("UnstableApiUsage")
 
+import java.util.Properties
+
 val isFullBuild: Boolean by rootProject.extra
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
 
 plugins {
     id("com.android.application")
@@ -12,32 +20,15 @@ plugins {
 }
 
 android {
-    namespace = "com.malopieds.innertune"
+    namespace = "com.skintclub.odyssey"
     compileSdk = 35
     defaultConfig {
-        applicationId = "com.malopieds.innertune"
+        applicationId = "com.skintclub.odyssey"
         minSdk = 24
         targetSdk = 35
         versionCode = 31
         versionName = "0.5.14"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            isCrunchPngs = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        }
-        debug {
-            applicationIdSuffix = ".debug"
-        }
-    }
-    flavorDimensions += "version"
-    productFlavors {
-        create("foss") {
-            dimension = "version"
-        }
     }
     signingConfigs {
         getByName("debug") {
@@ -47,6 +38,37 @@ android {
                 keyAlias = "debug"
                 keyPassword = System.getenv("MUSIC_DEBUG_SIGNING_KEY_PASSWORD")
             }
+        }
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isCrunchPngs = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+        debug {
+            applicationIdSuffix = ".debug"
+            // TEMP: isolate the debuggable-vs-not perf difference without pulling in R8.
+            // Revert before any real debug build.
+            isDebuggable = false
+        }
+    }
+    flavorDimensions += "version"
+    productFlavors {
+        create("foss") {
+            dimension = "version"
         }
     }
     buildFeatures {
@@ -124,6 +146,7 @@ dependencies {
     implementation(libs.room.ktx)
 
     implementation(libs.apache.lang3)
+    implementation(libs.gson)
 
     implementation(libs.hilt)
     kapt(libs.hilt.compiler)
@@ -131,7 +154,6 @@ dependencies {
     implementation(projects.innertube)
     implementation(projects.kugou)
     implementation(projects.lrclib)
-    implementation(projects.kizzy)
 
     implementation(libs.ktor.client.core)
 
