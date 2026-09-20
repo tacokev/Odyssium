@@ -82,6 +82,9 @@ fun NavGraphBuilder.navigationBuilder(
     composable("odyssey_login") {
         OdysseyLoginScreen(navController)
     }
+    composable("odyssey_logout") {
+        OdysseyLogoutScreen(navController)
+    }
     composable("odyssey_profile_select") {
         OdysseyProfileSelectScreen(
             navController = navController,

@@ -38,7 +38,7 @@ fun extractDescription(episode: Map<String, Any>): String? =
 
 /** The contentgrouping API has no per-episode air date; the only release-date signal it
  * exposes at all is this copyright year on the episode's album, stashed onto the episode
- * map by [com.skintclub.odyssey.odyssey.OdysseyClient.fetchEpisodes]. */
+ * map by [com.skintclub.odyssey.club.ClubClient.fetchAlbumEpisodes]. */
 fun extractAlbumYear(episode: Map<String, Any>): String? =
     when (val value = episode["album_copyright_year"]) {
         is String -> value.takeIf { it.isNotBlank() }

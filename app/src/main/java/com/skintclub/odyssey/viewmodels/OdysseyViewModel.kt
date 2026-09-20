@@ -4,8 +4,8 @@ import android.app.Application
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.constants.OdysseySortReversedKey
-import com.skintclub.odyssey.odyssey.OdysseyClient
 import com.skintclub.odyssey.utils.dataStore
 import com.skintclub.odyssey.utils.get
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,7 +19,7 @@ import javax.inject.Inject
 class OdysseyViewModel @Inject constructor(
     application: Application
 ) : AndroidViewModel(application) {
-    private val odysseyClient = OdysseyClient(application)
+    private val clubClient = ClubClient(application)
 
     private val _albums = MutableStateFlow<List<OdysseyAlbum>>(emptyList())
     val albums = _albums.asStateFlow()
@@ -48,7 +48,7 @@ class OdysseyViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val cached = odysseyClient.getCachedEpisodes()
+            val cached = clubClient.getCachedEpisodes()
             if (cached != null) {
                 applyEpisodes(cached)
             }
@@ -81,22 +81,21 @@ class OdysseyViewModel @Inject constructor(
     private suspend fun performRefresh(silent: Boolean) {
         if (!silent) _isRefreshing.value = true
         try {
-            if (odysseyClient.isLoggedIn()) {
-                if (odysseyClient.getViewerId() == null) {
-                    val profiles = odysseyClient.fetchProfiles()
+            if (clubClient.isLoggedIn()) {
+                if (clubClient.getViewerId() == null) {
+                    val profiles = clubClient.fetchProfiles()
                     if (profiles.isNotEmpty()) {
-                        odysseyClient.selectProfile(profiles[0])
+                        clubClient.selectProfile(profiles[0])
                     }
                 }
-                val episodes = odysseyClient.fetchEpisodes()
-                _signedCookie.value = odysseyClient.fetchSignedCookie()
+                val episodes = clubClient.fetchAlbumEpisodes()
+                _signedCookie.value = clubClient.fetchSignedCookie()
 
                 applyEpisodes(episodes)
-                odysseyClient.setCachedEpisodes(episodes)
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            odysseyClient.logout()
+            clubClient.logout()
             _needsRelogin.value = true
         }
         _isRefreshing.value = false

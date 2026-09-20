@@ -285,13 +285,13 @@ enum class SearchSource {
         }
 }
 
-val OdysseyAccessTokenKey = stringPreferencesKey("odysseyAccessToken")
-val OdysseyRefreshTokenKey = stringPreferencesKey("odysseyRefreshToken")
-val OdysseyViewerIdKey = stringPreferencesKey("odysseyViewerId")
-val OdysseyPinKey = stringPreferencesKey("odysseyPin")
+val ClubAccessTokenKey = stringPreferencesKey("odysseyAccessToken")
+val ClubRefreshTokenKey = stringPreferencesKey("odysseyRefreshToken")
+val ClubViewerIdKey = stringPreferencesKey("odysseyViewerId")
+val ClubPinKey = stringPreferencesKey("odysseyPin")
 val OdysseySortReversedKey = booleanPreferencesKey("odysseySortReversed")
 val OdysseySignedCookieKey = stringPreferencesKey("odysseySignedCookie")
-val OdysseyEpisodesCacheKey = stringPreferencesKey("odysseyEpisodesCache")
+val ClubContentGroupingsCacheKey = stringPreferencesKey("clubContentGroupingsCache")
 val InnerTubeCookieKey = stringPreferencesKey("innerTubeCookie")
 val VisitorDataKey = stringPreferencesKey("visitorData")
 val AccountNameKey = stringPreferencesKey("accountName")
