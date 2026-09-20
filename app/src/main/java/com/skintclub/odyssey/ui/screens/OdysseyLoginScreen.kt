@@ -29,7 +29,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavController
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
-import com.skintclub.odyssey.odyssey.OdysseyClient
+import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.ui.component.IconButton
 import com.skintclub.odyssey.ui.utils.backToMain
 import kotlinx.coroutines.launch
@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
 fun OdysseyLoginScreen(navController: NavController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val odysseyClient = remember { OdysseyClient(context) }
+    val clubClient = remember { ClubClient(context) }
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
@@ -76,7 +76,7 @@ fun OdysseyLoginScreen(navController: NavController) {
                                     if (code != null) {
                                         isLoading = true
                                         scope.launch {
-                                            val success = odysseyClient.exchangeCodeForToken(code)
+                                            val success = clubClient.exchangeCodeForToken(code)
                                             if (success) {
                                                 navController.navigate("odyssey_profile_select") {
                                                     popUpTo("odyssey_login") { inclusive = true }
@@ -93,7 +93,7 @@ fun OdysseyLoginScreen(navController: NavController) {
                         }
                         settings.javaScriptEnabled = true
                         webViewInstance = this
-                        loadUrl(odysseyClient.generateLoginUrl())
+                        loadUrl(clubClient.generateLoginUrl())
                     }
                 }
             )

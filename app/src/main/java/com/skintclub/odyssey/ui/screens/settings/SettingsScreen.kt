@@ -1,11 +1,15 @@
 package com.skintclub.odyssey.ui.screens.settings
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import com.skintclub.odyssey.odyssey.OdysseyClient
+import com.skintclub.odyssey.club.ClubClient
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.launch
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -35,8 +39,8 @@ fun SettingsScreen(
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val odysseyClient = remember { OdysseyClient(context) }
+    val clubClient = remember { ClubClient(context) }
+    val isLoggedIntoClub by clubClient.isLoggedInFlow().collectAsState(initial = false)
 
     Column(
         Modifier
@@ -45,6 +49,24 @@ fun SettingsScreen(
     ) {
         Spacer(Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)))
 
+        PreferenceEntry(
+            title = { Text(if (isLoggedIntoClub) "Logout" else "Login") },
+            icon = {
+                Image(
+                    painter = painterResource(R.drawable.club_logo),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(24.dp),
+                )
+            },
+            onClick = {
+                if (isLoggedIntoClub) {
+                    navController.navigate("odyssey_logout")
+                } else {
+                    navController.navigate("odyssey_login")
+                }
+            },
+        )
         PreferenceEntry(
             title = { Text(stringResource(R.string.appearance)) },
             icon = { Icon(painterResource(R.drawable.palette), null) },
@@ -59,21 +81,6 @@ fun SettingsScreen(
             title = { Text(stringResource(R.string.storage)) },
             icon = { Icon(painterResource(R.drawable.storage), null) },
             onClick = { navController.navigate("settings/storage") },
-        )
-        PreferenceEntry(
-            title = { Text("Odyssey Logout") },
-            icon = { Icon(painterResource(R.drawable.person), null) },
-            onClick = {
-                scope.launch {
-                    odysseyClient.logout()
-                    navController.navigateUp()
-                }
-            },
-        )
-        PreferenceEntry(
-            title = { Text("Odyssey Login") },
-            icon = { Icon(painterResource(R.drawable.person), null) },
-            onClick = { navController.navigate("odyssey_login") },
         )
         PreferenceEntry(
             title = { Text(stringResource(R.string.about)) },

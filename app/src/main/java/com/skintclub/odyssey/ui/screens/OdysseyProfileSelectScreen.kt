@@ -35,12 +35,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
-import com.skintclub.odyssey.odyssey.OdysseyClient
+import com.skintclub.odyssey.club.ClubClient
+import com.skintclub.odyssey.club.ClubProfile
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 import kotlinx.coroutines.launch
 
@@ -50,22 +53,24 @@ fun OdysseyProfileSelectScreen(
     odysseyViewModel: OdysseyViewModel,
 ) {
     val context = LocalContext.current
-    val odysseyClient = remember { OdysseyClient(context) }
+    val clubClient = remember { ClubClient(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    var profiles by remember { mutableStateOf<List<Map<String, Any>>?>(null) }
+    var profiles by remember { mutableStateOf<List<ClubProfile>?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isSelecting by remember { mutableStateOf(false) }
-    var pendingPinProfile by remember { mutableStateOf<Map<String, Any>?>(null) }
+    var pendingPinProfile by remember { mutableStateOf<ClubProfile?>(null) }
     var pinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
+    var isVerifyingPin by remember { mutableStateOf(false) }
 
     fun finishSelection(
-        profile: Map<String, Any>,
+        profile: ClubProfile,
         pin: String? = null,
     ) {
         isSelecting = true
         coroutineScope.launch {
-            odysseyClient.selectProfile(profile, pin)
+            clubClient.selectProfile(profile, pin)
             odysseyViewModel.refresh()
             navController.navigate(Screens.Home.route) {
                 popUpTo(0)
@@ -73,12 +78,34 @@ fun OdysseyProfileSelectScreen(
         }
     }
 
+    fun submitPin(profile: ClubProfile, pin: String) {
+        isVerifyingPin = true
+        pinError = null
+        coroutineScope.launch {
+            val correct = try {
+                clubClient.verifyPin(profile.viewerId, pin)
+            } catch (e: Exception) {
+                isVerifyingPin = false
+                pinError = "Couldn't verify PIN. Please try again."
+                return@launch
+            }
+            isVerifyingPin = false
+            if (correct) {
+                pendingPinProfile = null
+                finishSelection(profile, pin)
+            } else {
+                pinError = "Incorrect PIN."
+                pinInput = ""
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         val fetched = try {
-            odysseyClient.fetchProfiles()
+            clubClient.fetchProfiles()
         } catch (e: Exception) {
             errorMessage = "Couldn't load profiles. Please log in again."
-            odysseyClient.logout()
+            clubClient.logout()
             navController.navigate("odyssey_login") {
                 popUpTo(0)
             }
@@ -87,7 +114,7 @@ fun OdysseyProfileSelectScreen(
         when {
             fetched.isEmpty() -> errorMessage = "No profiles found on this account."
             // Nothing to choose between - skip straight to the app, same as the official client.
-            fetched.size == 1 -> finishSelection(fetched[0])
+            fetched.size == 1 && !fetched[0].hasPin -> finishSelection(fetched[0])
             else -> profiles = fetched
         }
     }
@@ -126,10 +153,12 @@ fun OdysseyProfileSelectScreen(
                     ) {
                         items(profiles.orEmpty()) { profile ->
                             ProfileTile(
-                                name = odysseyClient.profileDisplayName(profile),
+                                name = profile.username.ifBlank { "Profile" },
+                                imageUrl = profile.profilePictureUrl,
                                 onClick = {
-                                    if (odysseyClient.profileRequiresPin(profile)) {
+                                    if (profile.hasPin) {
                                         pinInput = ""
+                                        pinError = null
                                         pendingPinProfile = profile
                                     } else {
                                         finishSelection(profile)
@@ -145,30 +174,45 @@ fun OdysseyProfileSelectScreen(
 
     pendingPinProfile?.let { profile ->
         AlertDialog(
-            onDismissRequest = { pendingPinProfile = null },
-            title = { Text("Enter PIN for ${odysseyClient.profileDisplayName(profile)}") },
+            onDismissRequest = { if (!isVerifyingPin) pendingPinProfile = null },
+            title = { Text("Enter PIN for ${profile.username.ifBlank { "Profile" }}") },
             text = {
-                OutlinedTextField(
-                    value = pinInput,
-                    onValueChange = { pinInput = it.filter(Char::isDigit).take(6) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    singleLine = true,
-                    label = { Text("PIN") },
-                )
+                Column {
+                    OutlinedTextField(
+                        value = pinInput,
+                        onValueChange = {
+                            pinInput = it.filter(Char::isDigit).take(6)
+                            pinError = null
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        singleLine = true,
+                        label = { Text("PIN") },
+                        isError = pinError != null,
+                        enabled = !isVerifyingPin,
+                    )
+                    pinError?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        val pin = pinInput
-                        pendingPinProfile = null
-                        finishSelection(profile, pin)
-                    },
+                    enabled = !isVerifyingPin && pinInput.isNotEmpty(),
+                    onClick = { submitPin(profile, pinInput) },
                 ) {
                     Text("Continue")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingPinProfile = null }) {
+                TextButton(
+                    enabled = !isVerifyingPin,
+                    onClick = { pendingPinProfile = null },
+                ) {
                     Text("Cancel")
                 }
             },
@@ -179,6 +223,7 @@ fun OdysseyProfileSelectScreen(
 @Composable
 private fun ProfileTile(
     name: String,
+    imageUrl: String?,
     onClick: () -> Unit,
 ) {
     Column(
@@ -193,12 +238,21 @@ private fun ProfileTile(
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.secondaryContainer),
         ) {
-            Icon(
-                painter = painterResource(R.drawable.person),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.size(36.dp),
-            )
+            if (imageUrl.isNullOrBlank()) {
+                Icon(
+                    painter = painterResource(R.drawable.person),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(36.dp),
+                )
+            } else {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         Text(
