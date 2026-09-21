@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -28,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -500,6 +502,65 @@ class MainActivity : ComponentActivity() {
                             navigationBuilder(navController, topAppBarScrollBehavior, odysseyViewModel)
                         }
 
+                        // The random-episode button lives here, above NavHost, as a sibling
+                        // of the animated route content rather than inside each screen's own
+                        // composable - otherwise it got swept up in NavHost's horizontal slide
+                        // transition along with the episode content every time a new random
+                        // episode replaced the current one.
+                        val excludeBonusEpisodes by rememberPreference(ExcludeBonusEpisodesKey, defaultValue = true)
+                        val excludeSubsequentParts by rememberPreference(ExcludeSubsequentPartsKey, defaultValue = true)
+                        val randomizerListMode by rememberEnumPreference(RandomizerListModeKey, defaultValue = RandomizerListMode.OFF)
+                        val randomizerPlaylistId by rememberPreference(RandomizerPlaylistIdKey, defaultValue = "")
+                        val randomizerPlayOnPress by rememberPreference(RandomizerPlayOnPressKey, defaultValue = false)
+                        val randomizerNonRepeating by rememberPreference(RandomizerNonRepeatingKey, defaultValue = true)
+                        var randomizerDiceFace by remember { mutableStateOf((1..6).random()) }
+
+                        AnimatedVisibility(
+                            visible = navBackStackEntry?.destination?.route == Screens.Home.route ||
+                                navBackStackEntry?.destination?.route == ODYSSEY_EPISODE_ROUTE,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            modifier = Modifier.align(Alignment.BottomEnd),
+                        ) {
+                            FloatingActionButton(
+                                onClick = {
+                                    val (albumName, episodeIndex) =
+                                        odysseyViewModel.pickRandomEpisode(
+                                            excludeBonusEpisodes,
+                                            excludeSubsequentParts,
+                                            randomizerListMode,
+                                            randomizerPlaylistId,
+                                            randomizerNonRepeating,
+                                        ) ?: return@FloatingActionButton
+                                    randomizerDiceFace = (1..6).random()
+                                    if (randomizerPlayOnPress) {
+                                        val album = odysseyAlbums.find { it.name == albumName }
+                                        if (album != null && album.episodes.getOrNull(episodeIndex) != null) {
+                                            playerConnection?.playQueue(
+                                                OdysseyQueue(
+                                                    episodes = album.episodes,
+                                                    startIndex = episodeIndex,
+                                                    signedCookie = odysseySignedCookie,
+                                                ),
+                                            )
+                                        }
+                                    } else {
+                                        navController.navigate("odyssey_episode/${Uri.encode(albumName)}/$episodeIndex") {
+                                            popUpTo(ODYSSEY_EPISODE_ROUTE) { inclusive = true }
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .windowInsetsPadding(playerAwareWindowInsets.only(WindowInsetsSides.Bottom))
+                                    .padding(16.dp),
+                            ) {
+                                Icon(
+                                    painter = painterResource(diceFaceDrawable(randomizerDiceFace)),
+                                    contentDescription = null,
+                                )
+                            }
+                        }
+
                         // Scrim behind the status bar so its icons stay legible over whatever
                         // scrolls up underneath, instead of the transparent edge-to-edge status
                         // bar showing busy content straight through. Skipped on the episode
@@ -862,6 +923,18 @@ private fun CompactNavigationBarButton(
         )
     }
 }
+
+/** The random-episode button's face, re-rolled on every press to sell the "randomizer" bit
+ * instead of always showing the same static die face. */
+private fun diceFaceDrawable(face: Int): Int =
+    when (face) {
+        1 -> R.drawable.dice_1
+        2 -> R.drawable.dice_2
+        3 -> R.drawable.dice_3
+        4 -> R.drawable.dice_4
+        5 -> R.drawable.dice_5
+        else -> R.drawable.dice_6
+    }
 
 val LocalDatabase = staticCompositionLocalOf<MusicDatabase> { error("No database provided") }
 val LocalPlayerConnection = staticCompositionLocalOf<PlayerConnection?> { error("No PlayerConnection provided") }

@@ -24,7 +24,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -228,24 +227,5 @@ fun OdysseyEpisodeDetailsScreen(
             )
         }
 
-        FloatingActionButton(
-            onClick = {
-                val nonEmptyAlbums = albums.filter { it.episodes.isNotEmpty() }
-                val randomAlbum = nonEmptyAlbums.randomOrNull() ?: return@FloatingActionButton
-                val randomIndex = randomAlbum.episodes.indices.random()
-                navController.navigate("odyssey_episode/${Uri.encode(randomAlbum.name)}/$randomIndex") {
-                    popUpTo(ODYSSEY_EPISODE_ROUTE) { inclusive = true }
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Bottom))
-                .padding(16.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.casino),
-                contentDescription = null,
-            )
-        }
     }
 }

@@ -22,8 +22,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -43,7 +41,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,7 +50,6 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
-import com.skintclub.odyssey.R
 import com.skintclub.odyssey.constants.AlbumGridColumns
 import com.skintclub.odyssey.constants.AlbumGridColumnsKey
 import com.skintclub.odyssey.constants.AlbumGridConnectedSquaresKey
@@ -128,26 +124,6 @@ fun HomeScreen(
                     ),
                 )
             }
-        }
-
-        FloatingActionButton(
-            onClick = {
-                val nonEmptyAlbums = albums.filter { it.episodes.isNotEmpty() }
-                val album = nonEmptyAlbums.randomOrNull() ?: return@FloatingActionButton
-                val startIndex = album.episodes.indices.random()
-                navController.navigate("odyssey_episode/${Uri.encode(album.name)}/$startIndex") {
-                    popUpTo(ODYSSEY_EPISODE_ROUTE) { inclusive = true }
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Bottom))
-                .padding(16.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.casino),
-                contentDescription = null,
-            )
         }
     }
 }

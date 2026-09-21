@@ -8,8 +8,10 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.skintclub.odyssey.ui.screens.settings.AboutScreen
+import com.skintclub.odyssey.ui.screens.settings.AccountSettings
 import com.skintclub.odyssey.ui.screens.settings.AppearanceSettings
 import com.skintclub.odyssey.ui.screens.settings.PlayerSettings
+import com.skintclub.odyssey.ui.screens.settings.RandomizerSettings
 import com.skintclub.odyssey.ui.screens.settings.SettingsScreen
 import com.skintclub.odyssey.ui.screens.settings.StorageSettings
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
@@ -72,6 +74,12 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("settings/player") {
         PlayerSettings(navController, scrollBehavior)
+    }
+    composable("settings/randomizer") {
+        RandomizerSettings(navController, scrollBehavior)
+    }
+    composable("settings/account") {
+        AccountSettings(navController, scrollBehavior)
     }
     composable("settings/storage") {
         StorageSettings(navController, scrollBehavior)

@@ -5,7 +5,12 @@ import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.skintclub.odyssey.club.ClubClient
+import com.skintclub.odyssey.club.ClubGrouping
+import com.skintclub.odyssey.club.ClubPlaylistOption
 import com.skintclub.odyssey.constants.OdysseySortReversedKey
+import com.skintclub.odyssey.constants.RandomizerListMode
+import com.skintclub.odyssey.playback.queues.isBonusEpisode
+import com.skintclub.odyssey.playback.queues.isSubsequentPart
 import com.skintclub.odyssey.utils.dataStore
 import com.skintclub.odyssey.utils.get
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,6 +28,14 @@ class OdysseyViewModel @Inject constructor(
 
     private val _albums = MutableStateFlow<List<OdysseyAlbum>>(emptyList())
     val albums = _albums.asStateFlow()
+
+    private val _playlists = MutableStateFlow<List<ClubPlaylistOption>>(emptyList())
+    val playlists = _playlists.asStateFlow()
+
+    /** The raw groupings behind [_albums]/[_playlists], kept around only so
+     * [pickRandomEpisode] can look up a selected playlist's episode membership without a
+     * separate DataStore round-trip on every button press. */
+    private var groupings: List<ClubGrouping> = emptyList()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
@@ -48,11 +61,11 @@ class OdysseyViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val cached = clubClient.getCachedEpisodes()
-            if (cached != null) {
-                applyEpisodes(cached)
+            val cached = clubClient.getCachedGroupings()
+            if (cached.isNotEmpty()) {
+                applyGroupings(cached)
             }
-            performRefresh(silent = cached != null)
+            performRefresh(silent = cached.isNotEmpty())
         }
     }
 
@@ -88,10 +101,10 @@ class OdysseyViewModel @Inject constructor(
                         clubClient.selectProfile(profiles[0])
                     }
                 }
-                val episodes = clubClient.fetchAlbumEpisodes()
+                val fetchedGroupings = clubClient.fetchAllGroupings()
                 _signedCookie.value = clubClient.fetchSignedCookie()
 
-                applyEpisodes(episodes)
+                applyGroupings(fetchedGroupings)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -99,6 +112,106 @@ class OdysseyViewModel @Inject constructor(
             _needsRelogin.value = true
         }
         _isRefreshing.value = false
+    }
+
+    /** The exact filter combination a [nonRepeatingBag] was built from; a call with a
+     * different combination invalidates the bag immediately instead of finishing it out. */
+    private data class RandomizerFilter(
+        val excludeBonusEpisodes: Boolean,
+        val excludeSubsequentParts: Boolean,
+        val listMode: RandomizerListMode,
+        val playlistId: String?,
+    )
+
+    /** The shuffled, not-yet-served pool backing "Non-Repeating Randomizer": every eligible
+     * (album, episode index) pair for [nonRepeatingBagFilter], consumed from the end until
+     * empty, then rebuilt fresh (episodes can repeat across cycles, just not within one). */
+    private var nonRepeatingBag: MutableList<Pair<OdysseyAlbum, Int>> = mutableListOf()
+    private var nonRepeatingBagFilter: RandomizerFilter? = null
+
+    private fun isEligibleEpisode(
+        episode: Map<String, Any>,
+        excludeBonusEpisodes: Boolean,
+        excludeSubsequentParts: Boolean,
+        listMode: RandomizerListMode,
+        listEpisodeIds: Set<String>?,
+    ): Boolean {
+        val passesBonus = !excludeBonusEpisodes || !isBonusEpisode(episode)
+        val passesParts = !excludeSubsequentParts || !isSubsequentPart(episode)
+        val passesList = when {
+            listEpisodeIds == null -> true
+            listMode == RandomizerListMode.WHITELIST -> (episode["id"] as? String) in listEpisodeIds
+            else -> (episode["id"] as? String) !in listEpisodeIds
+        }
+        return passesBonus && passesParts && passesList
+    }
+
+    /** Picks an eligible episode per the randomizer settings. Returns the album name and an
+     * index into that album's full, unfiltered episode list, so bonus episodes stay visible
+     * when browsing even when the randomizer setting excludes them from being picked. Null
+     * if nothing is eligible.
+     *
+     * [listMode]/[playlistId] apply on top of the other filters: BLACKLIST excludes the
+     * playlist's episodes from being picked, WHITELIST restricts picks to only that
+     * playlist's episodes. A blank/unresolved [playlistId] is treated like [RandomizerListMode.OFF]
+     * (no restriction) rather than picking nothing, since it means the setting isn't fully
+     * configured yet.
+     *
+     * [nonRepeating] switches from an independent random pick every time (a random album,
+     * weighted equally regardless of episode count, then a random episode within it) to
+     * drawing from [nonRepeatingBag] so the same episode can't repeat until every other
+     * eligible episode has been served at least once. */
+    fun pickRandomEpisode(
+        excludeBonusEpisodes: Boolean,
+        excludeSubsequentParts: Boolean,
+        listMode: RandomizerListMode,
+        playlistId: String?,
+        nonRepeating: Boolean,
+    ): Pair<String, Int>? {
+        val listEpisodeIds = if (listMode != RandomizerListMode.OFF && !playlistId.isNullOrBlank()) {
+            clubClient.playlistEpisodeIds(groupings, playlistId)
+        } else {
+            null
+        }
+
+        if (!nonRepeating) {
+            val eligibleAlbums = _albums.value.mapNotNull { album ->
+                val eligibleIndices = album.episodes.indices.filter { index ->
+                    isEligibleEpisode(album.episodes[index], excludeBonusEpisodes, excludeSubsequentParts, listMode, listEpisodeIds)
+                }
+                eligibleIndices.takeIf { it.isNotEmpty() }?.let { album to it }
+            }
+            val (album, indices) = eligibleAlbums.randomOrNull() ?: return null
+            return album.name to indices.random()
+        }
+
+        val filter = RandomizerFilter(excludeBonusEpisodes, excludeSubsequentParts, listMode, playlistId)
+        if (filter != nonRepeatingBagFilter || nonRepeatingBag.isEmpty()) {
+            nonRepeatingBag = _albums.value
+                .flatMap { album ->
+                    album.episodes.indices
+                        .filter { index ->
+                            isEligibleEpisode(album.episodes[index], excludeBonusEpisodes, excludeSubsequentParts, listMode, listEpisodeIds)
+                        }
+                        .map { index -> album to index }
+                }
+                .shuffled()
+                .toMutableList()
+            nonRepeatingBagFilter = filter
+        }
+        if (nonRepeatingBag.isEmpty()) return null
+        val (album, index) = nonRepeatingBag.removeAt(nonRepeatingBag.lastIndex)
+        return album.name to index
+    }
+
+    private fun applyGroupings(newGroupings: List<ClubGrouping>) {
+        groupings = newGroupings
+        _playlists.value = clubClient.playlistsFrom(newGroupings)
+        // Freshly fetched content may have changed what's eligible, so let the next pick
+        // rebuild the bag from scratch rather than finishing out one built from old data.
+        nonRepeatingBag = mutableListOf()
+        nonRepeatingBagFilter = null
+        applyEpisodes(clubClient.albumEpisodesFrom(newGroupings))
     }
 
     private fun applyEpisodes(episodes: List<Map<String, Any>>) {
