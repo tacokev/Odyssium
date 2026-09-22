@@ -538,6 +538,7 @@ class MainActivity : ComponentActivity() {
                                         if (album != null && album.episodes.getOrNull(episodeIndex) != null) {
                                             playerConnection?.playQueue(
                                                 OdysseyQueue(
+                                                    context = this@MainActivity,
                                                     episodes = album.episodes,
                                                     startIndex = episodeIndex,
                                                     signedCookie = odysseySignedCookie,
@@ -679,8 +680,8 @@ class MainActivity : ComponentActivity() {
                                         items = searchResults,
                                         key = { (album, index, _) -> "${album.name}_$index" },
                                     ) { (album, index, episode) ->
-                                        val metadata = odysseyEpisodeToMediaMetadata(episode)
-                                        val mediaItem = odysseyEpisodeToMediaItem(episode, odysseySignedCookie)
+                                        val metadata = odysseyEpisodeToMediaMetadata(this@MainActivity, episode)
+                                        val mediaItem = odysseyEpisodeToMediaItem(this@MainActivity, episode, odysseySignedCookie)
                                         val episodeMenuState = LocalMenuState.current
 
                                         MediaMetadataListItem(
@@ -691,10 +692,12 @@ class MainActivity : ComponentActivity() {
                                                         episodeMenuState.show {
                                                             OdysseyEpisodeMenu(
                                                                 navController = navController,
+                                                                viewModel = odysseyViewModel,
                                                                 mediaMetadata = metadata,
                                                                 mediaItem = mediaItem,
                                                                 albumName = album.name,
                                                                 episodeIndex = index,
+                                                                isLiked = episode["is_bookmarked"] == true,
                                                                 onDismiss = episodeMenuState::dismiss,
                                                             )
                                                         }
@@ -713,6 +716,7 @@ class MainActivity : ComponentActivity() {
                                                     .clickable {
                                                         playerConnection?.playQueue(
                                                             OdysseyQueue(
+                                                                context = this@MainActivity,
                                                                 episodes = album.episodes,
                                                                 startIndex = index,
                                                                 signedCookie = odysseySignedCookie,

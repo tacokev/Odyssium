@@ -134,6 +134,7 @@ import com.skintclub.odyssey.db.entities.PlaylistSongMap
 import com.skintclub.odyssey.extensions.togglePlayPause
 import com.skintclub.odyssey.models.MediaMetadata
 import com.skintclub.odyssey.playback.ExoDownloadService
+import com.skintclub.odyssey.playback.queues.ODYSSEY_GROUPING_ARTIST_ID_PREFIX
 import com.skintclub.odyssey.ui.component.BottomSheet
 import com.skintclub.odyssey.ui.component.BottomSheetState
 import com.skintclub.odyssey.ui.component.COLLAPSED_ANCHOR
@@ -298,6 +299,25 @@ fun BottomSheetPlayer(
     val playbackState by playerConnection.playbackState.collectAsState()
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+    // The "artist" shown for an Odyssey episode is actually its containing album/grouping
+    // (see odysseyEpisodeToMediaMetadata) - its Artist.id carries a marker prefix so it can
+    // be told apart from an actual artist and made to open that grouping instead.
+    val odysseyGroupingName =
+        mediaMetadata?.artists?.firstOrNull()?.id
+            ?.takeIf { it.startsWith(ODYSSEY_GROUPING_ARTIST_ID_PREFIX) }
+            ?.removePrefix(ODYSSEY_GROUPING_ARTIST_ID_PREFIX)
+    val onArtistClick: (() -> Unit)? =
+        odysseyGroupingName?.let { groupingName ->
+            {
+                state.collapseSoft()
+                // Pop up to Home first so repeated taps (or a tap when an album page is
+                // already stacked underneath) don't keep pushing duplicate copies of the
+                // same album screen onto the back stack.
+                navController.navigate("odyssey_album/${Uri.encode(groupingName)}") {
+                    popUpTo(Screens.Home.route)
+                }
+            }
+        }
 
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
@@ -772,7 +792,8 @@ fun BottomSheetPlayer(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = PlayerHorizontalPadding),
+                        .padding(horizontal = PlayerHorizontalPadding)
+                        .then(if (onArtistClick != null) Modifier.clickable(onClick = onArtistClick) else Modifier),
             ) {
                 mediaMetadata.artists.fastForEachIndexed { index, artist ->
                     AnimatedContent(
@@ -911,6 +932,7 @@ fun BottomSheetPlayer(
                                         mediaMetadata = mediaMetadata,
                                         navController = navController,
                                         playerBottomSheetState = state,
+                                        viewModel = odysseyViewModel,
                                         onShowDetailsDialog = onShowDetails,
                                         onDismiss = menuState::dismiss,
                                     )
@@ -1179,6 +1201,7 @@ fun BottomSheetPlayer(
                             color = onBackgroundColor.copy(alpha = 0.7f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = if (onArtistClick != null) Modifier.clickable(onClick = onArtistClick) else Modifier,
                         )
                     }
 
@@ -1230,6 +1253,7 @@ fun BottomSheetPlayer(
                                             mediaMetadata = metadata,
                                             navController = navController,
                                             playerBottomSheetState = state,
+                                            viewModel = odysseyViewModel,
                                             onShowDetailsDialog = onShowDetails,
                                             onDismiss = menuState::dismiss,
                                         )
@@ -1475,6 +1499,7 @@ fun BottomSheetPlayer(
                     color = onBackgroundColor.copy(alpha = 0.7f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = if (onArtistClick != null) Modifier.clickable(onClick = onArtistClick) else Modifier,
                 )
 
                 Spacer(Modifier.height(20.dp))
@@ -1664,6 +1689,7 @@ fun BottomSheetPlayer(
                                     mediaMetadata = metadata,
                                     navController = navController,
                                     playerBottomSheetState = state,
+                                    viewModel = odysseyViewModel,
                                     onShowDetailsDialog = onShowDetails,
                                     onDismiss = menuState::dismiss,
                                 )

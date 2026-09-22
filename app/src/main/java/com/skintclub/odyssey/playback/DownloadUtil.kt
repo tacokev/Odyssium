@@ -9,6 +9,7 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper
+import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.db.MusicDatabase
 import com.skintclub.odyssey.di.DownloadCache
 import com.skintclub.odyssey.di.PlayerCache
@@ -32,6 +33,12 @@ class DownloadUtil
         @DownloadCache val downloadCache: SimpleCache,
         @PlayerCache val playerCache: SimpleCache,
     ) {
+        private val clubClient = ClubClient(context)
+
+        // Resolves the same way MusicService's playback DataSource does (see
+        // resolveOdysseyDataSpec), so an Odyssey download follows a "Content request"
+        // placeholder to its real URL and gets the same CDN headers a playback request would -
+        // otherwise a download would either fetch the wrong thing or get rejected outright.
         private val dataSourceFactory =
             ResolvingDataSource.Factory(
                 CacheDataSource
@@ -45,7 +52,7 @@ class DownloadUtil
                         ).setUserAgent("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
                     ),
             ) { dataSpec ->
-                dataSpec
+                resolveOdysseyDataSpec(clubClient, dataSpec)
             }
         val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
         val downloadManager: DownloadManager =

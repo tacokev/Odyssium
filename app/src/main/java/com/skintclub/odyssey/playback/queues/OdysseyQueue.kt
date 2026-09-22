@@ -1,11 +1,19 @@
 package com.skintclub.odyssey.playback.queues
 
+import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata.MEDIA_TYPE_MUSIC
+import com.skintclub.odyssey.constants.ClubAudioLoadMode
+import com.skintclub.odyssey.constants.ClubAudioLoadModeKey
+import com.skintclub.odyssey.constants.ShowEpisodeNumberKey
+import com.skintclub.odyssey.extensions.toEnum
 import com.skintclub.odyssey.models.MediaMetadata
+import com.skintclub.odyssey.utils.dataStore
+import com.skintclub.odyssey.utils.get
 
 class OdysseyQueue(
+    val context: Context,
     val episodes: List<Map<String, Any>>,
     val startIndex: Int,
     val signedCookie: String?,
@@ -14,7 +22,7 @@ class OdysseyQueue(
     override suspend fun getInitialStatus(): Queue.Status =
         Queue.Status(
             title = episodes.getOrNull(startIndex)?.get("album_name") as? String,
-            items = episodes.map { odysseyEpisodeToMediaItem(it, signedCookie) },
+            items = episodes.map { odysseyEpisodeToMediaItem(context, it, signedCookie) },
             mediaItemIndex = startIndex,
         )
 
@@ -64,18 +72,31 @@ fun isSubsequentPart(episode: Map<String, Any>): Boolean {
     return partNumber != 1
 }
 
-fun odysseyEpisodeToMediaMetadata(episode: Map<String, Any>): MediaMetadata {
+/** Prefix marking a [MediaMetadata.Artist.id] as standing in for the episode's containing
+ * album/content-grouping rather than a real artist, so the player UI knows to make that name
+ * clickable (opening the grouping) without mistaking it for an actual artist to navigate to. */
+const val ODYSSEY_GROUPING_ARTIST_ID_PREFIX = "odyssey_grouping:"
+
+fun odysseyEpisodeToMediaMetadata(context: Context, episode: Map<String, Any>): MediaMetadata {
     val artUrl =
         (episode["image_large"] as? String)?.takeIf { it.isNotBlank() }
             ?: (episode["image_medium"] as? String)?.takeIf { it.isNotBlank() }
     val id = episode["id"] as? String ?: episode["download_url"] as? String ?: ""
-    val title = episode["name"] as? String ?: "Unknown"
+    // Today an episode's containing grouping is always its Album, but other grouping types
+    // (playlists, themes) may become browsable later - if an episode ever appears without an
+    // album, this should prefer that other grouping's name rather than falling back blindly.
     val albumName = episode["album_name"] as? String ?: "Unknown"
+    val showEpisodeNumber = context.dataStore.get(ShowEpisodeNumberKey, false)
+    val title = if (showEpisodeNumber) {
+        (episode["short_name"] as? String)?.takeIf { it.isNotBlank() } ?: (episode["name"] as? String ?: "Unknown")
+    } else {
+        episode["name"] as? String ?: "Unknown"
+    }
 
     return MediaMetadata(
         id = id,
         title = title,
-        artists = listOf(MediaMetadata.Artist(id = null, name = "Adventures in Odyssey")),
+        artists = listOf(MediaMetadata.Artist(id = "$ODYSSEY_GROUPING_ARTIST_ID_PREFIX$albumName", name = albumName)),
         duration = -1,
         thumbnailUrl = artUrl,
         album = MediaMetadata.Album(id = albumName, title = albumName),
@@ -83,20 +104,32 @@ fun odysseyEpisodeToMediaMetadata(episode: Map<String, Any>): MediaMetadata {
     )
 }
 
+/** Scheme for a placeholder URI that stands in for an episode's real streaming URL when the
+ * "Content request" audio-loading mode is active. [MusicService]'s [ResolvingDataSource]
+ * resolves it to a fresh, ready-to-stream `download_url` right before that episode actually
+ * loads, via [com.skintclub.odyssey.club.ClubClient.fetchContentDownloadUrl] - so the extra
+ * per-episode round trip only happens for episodes actually played, not the whole queue. */
+const val ODYSSEY_CONTENT_URI_SCHEME = "odyssey-content"
+
 fun odysseyEpisodeToMediaItem(
+    context: Context,
     episode: Map<String, Any>,
     signedCookie: String?,
 ): MediaItem {
     val urlPrefix = "https://media.adventuresinodyssey.com/"
     val downloadUrl = episode["download_url"] as? String ?: ""
+    val contentId = episode["id"] as? String
+    val loadMode = context.dataStore[ClubAudioLoadModeKey].toEnum(ClubAudioLoadMode.SIGNED_COOKIE)
     val url =
-        if (signedCookie != null) {
+        if (loadMode == ClubAudioLoadMode.CONTENT_REQUEST && !contentId.isNullOrBlank()) {
+            "$ODYSSEY_CONTENT_URI_SCHEME://$contentId"
+        } else if (signedCookie != null) {
             "$urlPrefix$downloadUrl$signedCookie"
         } else {
             "$urlPrefix$downloadUrl"
         }
 
-    val metadata = odysseyEpisodeToMediaMetadata(episode)
+    val metadata = odysseyEpisodeToMediaMetadata(context, episode)
 
     return MediaItem.Builder()
         .setMediaId(metadata.id)
@@ -106,7 +139,7 @@ fun odysseyEpisodeToMediaItem(
         .setMediaMetadata(
             androidx.media3.common.MediaMetadata.Builder()
                 .setTitle(metadata.title)
-                .setArtist("Adventures in Odyssey")
+                .setArtist(metadata.artists.joinToString { it.name })
                 .setArtworkUri(metadata.thumbnailUrl?.let { Uri.parse(it) })
                 .setAlbumTitle(metadata.album?.title)
                 .setDescription(metadata.description)
