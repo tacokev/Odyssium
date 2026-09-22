@@ -29,15 +29,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
 import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
+import com.skintclub.odyssey.LocalDownloadUtil
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
+import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.constants.MaxImageCacheSizeKey
 import com.skintclub.odyssey.constants.MaxSongCacheSizeKey
 import com.skintclub.odyssey.extensions.tryOrNull
+import com.skintclub.odyssey.playback.ExoDownloadService
 import com.skintclub.odyssey.ui.component.IconButton
 import com.skintclub.odyssey.ui.component.ListPreference
 import com.skintclub.odyssey.ui.component.PreferenceEntry
@@ -49,6 +53,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @OptIn(ExperimentalCoilApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -60,8 +67,14 @@ fun StorageSettings(
     val imageDiskCache = context.imageLoader.diskCache ?: return
     val playerCache = LocalPlayerConnection.current?.service?.playerCache ?: return
     val downloadCache = LocalPlayerConnection.current?.service?.downloadCache ?: return
+    val downloadUtil = LocalDownloadUtil.current
+    val clubClient = remember { ClubClient(context) }
 
     val coroutineScope = rememberCoroutineScope()
+    var membershipExpiry by remember { mutableStateOf<LocalDate?>(null) }
+    LaunchedEffect(Unit) {
+        membershipExpiry = clubClient.getMembershipExpiry()?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    }
     val (maxImageCacheSize, onMaxImageCacheSizeChange) = rememberPreference(key = MaxImageCacheSizeKey, defaultValue = 512)
     val (maxSongCacheSize, onMaxSongCacheSizeChange) = rememberPreference(key = MaxSongCacheSizeKey, defaultValue = 1024)
 
@@ -109,8 +122,19 @@ fun StorageSettings(
     ) {
         Spacer(Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)))
 
+        if (membershipExpiry != null) {
+            Text(
+                text = "Downloaded episodes and the episode cache will be cleared on " +
+                    "${membershipExpiry!!.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG))} " +
+                    "unless your club membership is renewed before then.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+        }
+
         PreferenceGroupTitle(
-            title = stringResource(R.string.downloaded_songs),
+            title = "Downloaded episodes",
         )
 
         Text(
@@ -122,16 +146,20 @@ fun StorageSettings(
         PreferenceEntry(
             title = { Text(stringResource(R.string.clear_all_downloads)) },
             onClick = {
-                coroutineScope.launch(Dispatchers.IO) {
-                    downloadCache.keys.forEach { key ->
-                        downloadCache.removeResource(key)
-                    }
+                // Going through DownloadService (same call every individual delete button
+                // uses) rather than clearing downloadCache directly - the cache is just where
+                // the bytes live, but DownloadManager keeps its own separate index of what's
+                // "downloaded" that every download indicator in the app actually reads from.
+                // Wiping the cache without telling DownloadManager left that index (and the
+                // whole app's downloaded/downloading state) stale until next restart.
+                downloadUtil.downloads.value.keys.forEach { id ->
+                    DownloadService.sendRemoveDownload(context, ExoDownloadService::class.java, id, false)
                 }
             },
         )
 
         PreferenceGroupTitle(
-            title = stringResource(R.string.song_cache),
+            title = "Episode Cache",
         )
 
         if (maxSongCacheSize == -1) {
@@ -173,7 +201,7 @@ fun StorageSettings(
         )
 
         PreferenceEntry(
-            title = { Text(stringResource(R.string.clear_song_cache)) },
+            title = { Text("Clear episode cache") },
             onClick = {
                 coroutineScope.launch(Dispatchers.IO) {
                     playerCache.keys.forEach { key ->

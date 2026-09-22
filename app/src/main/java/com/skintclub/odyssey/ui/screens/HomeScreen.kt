@@ -109,7 +109,7 @@ fun HomeScreen(
                 // key's tile pinned in the viewport (which is what caused the jump-to-bottom).
                 key = { "${sortDescending}_${it.name}" },
             ) { album ->
-                AlbumTile(
+                CoverGridTile(
                     title = album.name,
                     subtitle = "${album.episodes.size} episodes",
                     thumbnailUrl = album.coverUrl,
@@ -133,14 +133,20 @@ fun HomeScreen(
  * `GridItem`'s `BoxWithConstraints`, and no marquee. `BoxWithConstraints` forces a
  * subcomposition pass per item, which is cheap for the handful of items a LazyRow
  * used to show but noticeably janks a full-screen 2-column grid of album covers.
+ *
+ * Shared between the Albums and Playlists tabs. Most tiles show a cover image
+ * ([thumbnailUrl]); the Playlists tab's fixed "Liked"/"Downloaded" entries instead pass
+ * [icon] (with [iconBackgroundColor]) for a big icon in place of artwork.
  */
 @Composable
-private fun AlbumTile(
+fun CoverGridTile(
     title: String,
     subtitle: String,
     thumbnailUrl: String?,
     modifier: Modifier = Modifier,
     connectedSquare: Boolean = false,
+    icon: (@Composable () -> Unit)? = null,
+    iconBackgroundColor: Color = MaterialTheme.colorScheme.secondaryContainer,
 ) {
     val context = LocalContext.current
 
@@ -158,17 +164,31 @@ private fun AlbumTile(
             .build()
     }
 
+    @Composable
+    fun Cover(modifier: Modifier) {
+        if (icon != null) {
+            Box(
+                modifier = modifier.background(iconBackgroundColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                icon()
+            }
+        } else {
+            AsyncImage(
+                model = request,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = modifier,
+            )
+        }
+    }
+
     if (connectedSquare) {
         // Edge-to-edge: no gap between tiles and no rounded corners, so the covers
         // form one unbroken grid of squares. There's no room below the image for
         // the label in that layout, so it's scrimmed onto the bottom of the cover.
         Box(modifier = modifier.aspectRatio(1f)) {
-            AsyncImage(
-                model = request,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
+            Cover(modifier = Modifier.fillMaxSize())
 
             Box(
                 modifier = Modifier
@@ -202,19 +222,12 @@ private fun AlbumTile(
         }
     } else {
         Column(modifier = modifier.padding(12.dp)) {
-            Box(
+            Cover(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(ThumbnailCornerRadius)),
-            ) {
-                AsyncImage(
-                    model = request,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.height(6.dp))
 

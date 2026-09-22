@@ -10,6 +10,7 @@ import androidx.navigation.navArgument
 import com.skintclub.odyssey.ui.screens.settings.AboutScreen
 import com.skintclub.odyssey.ui.screens.settings.AccountSettings
 import com.skintclub.odyssey.ui.screens.settings.AppearanceSettings
+import com.skintclub.odyssey.ui.screens.settings.ClubContentSettings
 import com.skintclub.odyssey.ui.screens.settings.PlayerSettings
 import com.skintclub.odyssey.ui.screens.settings.RandomizerSettings
 import com.skintclub.odyssey.ui.screens.settings.SettingsScreen
@@ -31,7 +32,35 @@ fun NavGraphBuilder.navigationBuilder(
         HomeScreen(navController, odysseyViewModel)
     }
     composable(Screens.Playlists.route) {
-        OdysseyPlaylistsScreen()
+        OdysseyPlaylistsScreen(navController, odysseyViewModel)
+    }
+    composable("odyssey_liked") {
+        OdysseyLikedScreen(navController, odysseyViewModel)
+    }
+    composable("odyssey_downloaded") {
+        OdysseyDownloadedScreen(navController, odysseyViewModel)
+    }
+    composable(
+        "odyssey_playlist/{playlistId}",
+        arguments = listOf(navArgument("playlistId") { type = NavType.StringType }),
+    ) { backStackEntry ->
+        val playlistId = backStackEntry.arguments?.getString("playlistId").orEmpty()
+        OdysseyPlaylistScreen(
+            navController = navController,
+            viewModel = odysseyViewModel,
+            playlistId = playlistId,
+        )
+    }
+    composable(
+        "odyssey_playlist_edit/{playlistId}",
+        arguments = listOf(navArgument("playlistId") { type = NavType.StringType }),
+    ) { backStackEntry ->
+        val playlistId = backStackEntry.arguments?.getString("playlistId").orEmpty()
+        OdysseyPlaylistEditScreen(
+            navController = navController,
+            viewModel = odysseyViewModel,
+            playlistId = playlistId,
+        )
     }
     composable(
         "odyssey_album/{albumName}",
@@ -77,6 +106,9 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("settings/randomizer") {
         RandomizerSettings(navController, scrollBehavior)
+    }
+    composable("settings/content") {
+        ClubContentSettings(navController, scrollBehavior)
     }
     composable("settings/account") {
         AccountSettings(navController, scrollBehavior)

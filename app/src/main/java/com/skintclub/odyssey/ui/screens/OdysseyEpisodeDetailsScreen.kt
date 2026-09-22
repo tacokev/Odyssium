@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -66,13 +67,14 @@ fun OdysseyEpisodeDetailsScreen(
     albumName: String,
     episodeIndex: Int,
 ) {
+    val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val albums by viewModel.albums.collectAsState()
     val signedCookie by viewModel.signedCookie.collectAsState()
 
     val album = albums.find { it.name == albumName } ?: return
     val episode = album.episodes.getOrNull(episodeIndex) ?: return
-    val metadata = odysseyEpisodeToMediaMetadata(episode)
+    val metadata = odysseyEpisodeToMediaMetadata(context, episode)
     val year = extractAlbumYear(episode)
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -164,6 +166,7 @@ fun OdysseyEpisodeDetailsScreen(
                         onClick = {
                             playerConnection.playQueue(
                                 OdysseyQueue(
+                                    context = context,
                                     episodes = album.episodes,
                                     startIndex = episodeIndex,
                                     signedCookie = signedCookie,
@@ -184,7 +187,7 @@ fun OdysseyEpisodeDetailsScreen(
 
                     OutlinedButton(
                         onClick = {
-                            playerConnection.playNext(odysseyEpisodeToMediaItem(episode, signedCookie))
+                            playerConnection.playNext(odysseyEpisodeToMediaItem(context, episode, signedCookie))
                         },
                         contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                         modifier = Modifier.weight(1f),
