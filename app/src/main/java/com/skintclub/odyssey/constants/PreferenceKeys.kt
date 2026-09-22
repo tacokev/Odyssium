@@ -292,6 +292,18 @@ val ClubPinKey = stringPreferencesKey("odysseyPin")
 val OdysseySortReversedKey = booleanPreferencesKey("odysseySortReversed")
 val OdysseySignedCookieKey = stringPreferencesKey("odysseySignedCookie")
 val ClubContentGroupingsCacheKey = stringPreferencesKey("clubContentGroupingsCache")
+val ExcludeBonusEpisodesKey = booleanPreferencesKey("excludeBonusEpisodes")
+val ExcludeSubsequentPartsKey = booleanPreferencesKey("excludeSubsequentParts")
+val RandomizerListModeKey = stringPreferencesKey("randomizerListMode")
+val RandomizerPlaylistIdKey = stringPreferencesKey("randomizerPlaylistId")
+val RandomizerPlayOnPressKey = booleanPreferencesKey("randomizerPlayOnPress")
+val RandomizerNonRepeatingKey = booleanPreferencesKey("randomizerNonRepeating")
+
+enum class RandomizerListMode {
+    OFF,
+    BLACKLIST,
+    WHITELIST,
+}
 val InnerTubeCookieKey = stringPreferencesKey("innerTubeCookie")
 val VisitorDataKey = stringPreferencesKey("visitorData")
 val AccountNameKey = stringPreferencesKey("accountName")

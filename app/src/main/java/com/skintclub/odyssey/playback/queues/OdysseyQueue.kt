@@ -38,7 +38,7 @@ fun extractDescription(episode: Map<String, Any>): String? =
 
 /** The contentgrouping API has no per-episode air date; the only release-date signal it
  * exposes at all is this copyright year on the episode's album, stashed onto the episode
- * map by [com.skintclub.odyssey.club.ClubClient.fetchAlbumEpisodes]. */
+ * map by [com.skintclub.odyssey.club.ClubClient.albumEpisodesFrom]. */
 fun extractAlbumYear(episode: Map<String, Any>): String? =
     when (val value = episode["album_copyright_year"]) {
         is String -> value.takeIf { it.isNotBlank() }
@@ -46,6 +46,23 @@ fun extractAlbumYear(episode: Map<String, Any>): String? =
         is Int -> value.takeIf { it > 0 }?.toString()
         else -> null
     }
+
+/** Used by the "Exclude bonus episodes" randomizer setting to keep bonus content out of the
+ * random-episode pick; bonus episodes stay visible everywhere else (album lists, etc.). */
+fun isBonusEpisode(episode: Map<String, Any>): Boolean =
+    (episode["short_name"] as? String)?.contains("BONUS", ignoreCase = true) == true
+
+private val partOfRegex = Regex("""Part\s+(\d+)\s+of\s+(\d+)""", RegexOption.IGNORE_CASE)
+
+/** Used by the "Exclude subsequent parts" randomizer setting to keep the random-episode
+ * picker from landing on part 2, 3, etc. of a multi-part story - e.g. a short_name like
+ * "#571: For Better or for Worse, Part 2 of 2". Part 1 (and any non-multipart episode,
+ * which won't match at all) is always eligible. */
+fun isSubsequentPart(episode: Map<String, Any>): Boolean {
+    val shortName = episode["short_name"] as? String ?: return false
+    val partNumber = partOfRegex.find(shortName)?.groupValues?.get(1)?.toIntOrNull() ?: return false
+    return partNumber != 1
+}
 
 fun odysseyEpisodeToMediaMetadata(episode: Map<String, Any>): MediaMetadata {
     val artUrl =
