@@ -1,5 +1,6 @@
 package com.skintclub.odyssey.ui.menu
 
+import android.content.Intent
 import android.media.audiofx.AudioEffect
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -24,8 +26,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
@@ -48,11 +49,12 @@ import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.models.MediaMetadata
 import com.skintclub.odyssey.playback.ExoDownloadService
+import com.skintclub.odyssey.playback.queues.odysseyEpisodeToMediaItem
 import com.skintclub.odyssey.ui.component.BigSeekBar
 import com.skintclub.odyssey.ui.component.BottomSheetState
-import com.skintclub.odyssey.ui.component.DownloadGridMenu
 import com.skintclub.odyssey.ui.component.GridMenu
 import com.skintclub.odyssey.ui.component.GridMenuItem
+import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 import kotlin.math.log2
 import kotlin.math.pow
 import kotlin.math.round
@@ -63,6 +65,7 @@ fun PlayerMenu(
     navController: NavController,
     playerBottomSheetState: BottomSheetState,
     isQueueTrigger: Boolean? = false,
+    viewModel: OdysseyViewModel? = null,
     onShowDetailsDialog: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -72,9 +75,21 @@ fun PlayerMenu(
     val playerConnection = LocalPlayerConnection.current ?: return
     val playerVolume = playerConnection.service.playerVolume.collectAsState()
     val activityResultLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
-    val librarySong by database.song(mediaMetadata.id).collectAsState(initial = null)
 
     val download by LocalDownloadUtil.current.getDownload(mediaMetadata.id).collectAsState(initial = null)
+
+    // If this is an Odyssey episode, the raw episode map (needed for a correct download URL
+    // and the like/share/add-to-playlist actions below) rather than just the generic
+    // MediaMetadata the player otherwise works with.
+    val odysseyAlbums = viewModel?.albums?.collectAsState()?.value.orEmpty()
+    val currentEpisode = remember(odysseyAlbums, mediaMetadata.id) {
+        odysseyAlbums.firstNotNullOfOrNull { album -> album.episodes.firstOrNull { (it["id"] as? String) == mediaMetadata.id } }
+    }
+    val signedCookie = viewModel?.signedCookie?.collectAsState()?.value
+    val showOdysseyActions = viewModel != null && isQueueTrigger != true && currentEpisode != null
+    val isLiked = currentEpisode?.get("is_bookmarked") == true
+
+    var showPlaylistPicker by remember { mutableStateOf(false) }
 
     if (isQueueTrigger != true) {
         Row(
@@ -110,6 +125,18 @@ fun PlayerMenu(
         )
     }
 
+    if (showPlaylistPicker && viewModel != null) {
+        OdysseyPlaylistPickerDialog(
+            viewModel = viewModel,
+            onDismiss = { showPlaylistPicker = false },
+            onPlaylistSelected = { playlistId ->
+                viewModel.addEpisodesToPlaylist(playlistId, listOf(mediaMetadata.id))
+                showPlaylistPicker = false
+                onDismiss()
+            },
+        )
+    }
+
     GridMenu(
         contentPadding =
             PaddingValues(
@@ -119,52 +146,96 @@ fun PlayerMenu(
                 bottom = 8.dp + WindowInsets.systemBars.asPaddingValues().calculateBottomPadding(),
             ),
     ) {
-        DownloadGridMenu(
-            state = download?.state,
-            onDownload = {
-                database.transaction {
-                    insert(mediaMetadata)
-                }
-                val downloadRequest =
-                    DownloadRequest
-                        .Builder(mediaMetadata.id, mediaMetadata.id.toUri())
-                        .setCustomCacheKey(mediaMetadata.id)
-                        .setData(mediaMetadata.title.toByteArray())
-                        .build()
-                DownloadService.sendAddDownload(
-                    context,
-                    ExoDownloadService::class.java,
-                    downloadRequest,
-                    false,
-                )
-            },
-            onRemoveDownload = {
-                DownloadService.sendRemoveDownload(
-                    context,
-                    ExoDownloadService::class.java,
-                    mediaMetadata.id,
-                    false,
-                )
-            },
-        )
-        if (librarySong?.song?.inLibrary != null) {
-            GridMenuItem(
-                icon = R.drawable.library_add_check,
-                title = R.string.remove_from_library,
-            ) {
-                database.query {
-                    inLibrary(mediaMetadata.id, null)
+        when (download?.state) {
+            Download.STATE_COMPLETED -> {
+                GridMenuItem(
+                    icon = R.drawable.offline,
+                    title = R.string.delete,
+                ) {
+                    DownloadService.sendRemoveDownload(context, ExoDownloadService::class.java, mediaMetadata.id, false)
                 }
             }
-        } else {
-            GridMenuItem(
-                icon = R.drawable.library_add,
-                title = R.string.add_to_library,
-            ) {
-                database.transaction {
-                    insert(mediaMetadata)
-                    inLibrary(mediaMetadata.id, java.time.LocalDateTime.now())
+
+            Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> {
+                val progress = download?.percentDownloaded?.takeIf { it.isFinite() && it >= 0f }?.div(100f)
+                GridMenuItem(
+                    icon = {
+                        if (progress != null) {
+                            CircularProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                    },
+                    title = R.string.downloading,
+                ) {
+                    DownloadService.sendRemoveDownload(context, ExoDownloadService::class.java, mediaMetadata.id, false)
                 }
+            }
+
+            else -> {
+                GridMenuItem(
+                    icon = R.drawable.download,
+                    title = R.string.download,
+                ) {
+                    // An Odyssey episode needs its real (possibly signed-cookie or
+                    // content-request-resolved) URL, not the generic mediaMetadata.id - only
+                    // odysseyEpisodeToMediaItem builds that correctly. A YouTube song has no
+                    // such episode map, and keeps its own existing behavior: a DB row so the
+                    // rest of the library's download-aware screens can find it, and the id
+                    // itself as the download "uri" (resolved elsewhere, same as playback).
+                    val uri = if (currentEpisode != null) {
+                        odysseyEpisodeToMediaItem(context, currentEpisode, signedCookie).localConfiguration!!.uri
+                    } else {
+                        database.transaction { insert(mediaMetadata) }
+                        mediaMetadata.id.toUri()
+                    }
+                    val downloadRequest =
+                        DownloadRequest
+                            .Builder(mediaMetadata.id, uri)
+                            .setCustomCacheKey(mediaMetadata.id)
+                            .setData(mediaMetadata.title.toByteArray())
+                            .build()
+                    DownloadService.sendAddDownload(
+                        context,
+                        ExoDownloadService::class.java,
+                        downloadRequest,
+                        false,
+                    )
+                }
+            }
+        }
+        if (showOdysseyActions) {
+            GridMenuItem(
+                icon = if (isLiked) R.drawable.favorite else R.drawable.favorite_border,
+                title = if (isLiked) R.string.unlike else R.string.like,
+            ) {
+                viewModel?.setEpisodeLiked(mediaMetadata.id, !isLiked)
+            }
+            GridMenuItem(
+                icon = R.drawable.playlist_add,
+                title = R.string.add_to_playlist,
+            ) {
+                showPlaylistPicker = true
+            }
+            GridMenuItem(
+                icon = R.drawable.share,
+                title = R.string.share,
+            ) {
+                onDismiss()
+                val intent =
+                    Intent().apply {
+                        action = Intent.ACTION_SEND
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, "https://app.adventuresinodyssey.com/content/${mediaMetadata.id}")
+                    }
+                context.startActivity(Intent.createChooser(intent, null))
             }
         }
         if (isQueueTrigger != true) {

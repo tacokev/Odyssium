@@ -4,11 +4,16 @@ import android.app.Application
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.exoplayer.offline.DownloadService
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubGrouping
 import com.skintclub.odyssey.club.ClubPlaylistOption
 import com.skintclub.odyssey.constants.OdysseySortReversedKey
 import com.skintclub.odyssey.constants.RandomizerListMode
+import com.skintclub.odyssey.di.PlayerCache
+import com.skintclub.odyssey.playback.DownloadUtil
+import com.skintclub.odyssey.playback.ExoDownloadService
 import com.skintclub.odyssey.playback.queues.isBonusEpisode
 import com.skintclub.odyssey.playback.queues.isSubsequentPart
 import com.skintclub.odyssey.utils.dataStore
@@ -18,11 +23,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
 import javax.inject.Inject
 
 @HiltViewModel
 class OdysseyViewModel @Inject constructor(
-    application: Application
+    application: Application,
+    private val downloadUtil: DownloadUtil,
+    @PlayerCache private val playerCache: SimpleCache,
 ) : AndroidViewModel(application) {
     private val clubClient = ClubClient(application)
 
@@ -32,10 +41,12 @@ class OdysseyViewModel @Inject constructor(
     private val _playlists = MutableStateFlow<List<ClubPlaylistOption>>(emptyList())
     val playlists = _playlists.asStateFlow()
 
-    /** The raw groupings behind [_albums]/[_playlists], kept around only so
-     * [pickRandomEpisode] can look up a selected playlist's episode membership without a
-     * separate DataStore round-trip on every button press. */
-    private var groupings: List<ClubGrouping> = emptyList()
+    /** The raw groupings behind [_albums]/[_playlists]. Besides letting [pickRandomEpisode]
+     * look up a selected playlist's episode membership without a separate DataStore
+     * round-trip on every button press, this is also what a playlist detail screen derives
+     * its episode list from (via [ClubClient.playlistEpisodesFrom]). */
+    private val _groupings = MutableStateFlow<List<ClubGrouping>>(emptyList())
+    val groupings = _groupings.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
@@ -61,11 +72,35 @@ class OdysseyViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            checkMembershipExpiry()
             val cached = clubClient.getCachedGroupings()
             if (cached.isNotEmpty()) {
                 applyGroupings(cached)
             }
             performRefresh(silent = cached.isNotEmpty())
+        }
+    }
+
+    /** Checked once per app open (here, in [init]) against the membership expiry date cached
+     * from the last /viewer fetch - entirely local, no network call needed to catch a lapsed
+     * membership even if the app never manages to log back in. */
+    private suspend fun checkMembershipExpiry() {
+        val expiry = clubClient.getMembershipExpiry() ?: return
+        val expiryDate = runCatching { LocalDate.parse(expiry) }.getOrNull() ?: return
+        if (!LocalDate.now().isAfter(expiryDate)) return
+        clearDownloadsAndCache()
+    }
+
+    /** Deletes every downloaded episode (via DownloadManager, not the raw cache - see the
+     * "Clear all downloads" fix in Settings > Storage for why) and empties the player's
+     * streaming cache. */
+    private suspend fun clearDownloadsAndCache() {
+        val context = getApplication<Application>()
+        downloadUtil.downloads.value.keys.forEach { id ->
+            DownloadService.sendRemoveDownload(context, ExoDownloadService::class.java, id, false)
+        }
+        withContext(Dispatchers.IO) {
+            playerCache.keys.toList().forEach { key -> runCatching { playerCache.removeResource(key) } }
         }
     }
 
@@ -169,7 +204,7 @@ class OdysseyViewModel @Inject constructor(
         nonRepeating: Boolean,
     ): Pair<String, Int>? {
         val listEpisodeIds = if (listMode != RandomizerListMode.OFF && !playlistId.isNullOrBlank()) {
-            clubClient.playlistEpisodeIds(groupings, playlistId)
+            clubClient.playlistEpisodeIds(_groupings.value, playlistId)
         } else {
             null
         }
@@ -204,8 +239,104 @@ class OdysseyViewModel @Inject constructor(
         return album.name to index
     }
 
+    /** Likes/unlikes an episode with the club, then updates local state to match so every
+     * screen showing that episode (its album, any playlist it's in, Liked) reflects the new
+     * state immediately instead of waiting for the next full refresh. Deliberately doesn't go
+     * through [applyGroupings] - that resets the randomizer's non-repeating bag, which a like
+     * toggle has no business touching. */
+    fun setEpisodeLiked(contentId: String, liked: Boolean) {
+        viewModelScope.launch {
+            try {
+                if (liked) clubClient.addBookmark(contentId) else clubClient.removeBookmark(contentId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                return@launch
+            }
+            val updatedGroupings = _groupings.value.map { grouping ->
+                if (grouping.contentList.none { it.id == contentId }) {
+                    grouping
+                } else {
+                    grouping.copy(
+                        contentList = grouping.contentList.map { content ->
+                            if (content.id == contentId) content.copy(isBookmarked = liked) else content
+                        },
+                    )
+                }
+            }
+            _groupings.value = updatedGroupings
+            applyEpisodes(clubClient.albumEpisodesFrom(updatedGroupings))
+        }
+    }
+
+    /** Adds episodes to a user playlist, then patches local state to match - same reasoning
+     * as [setEpisodeLiked] (immediate, without resetting the randomizer's non-repeating bag
+     * via [applyGroupings]). */
+    fun addEpisodesToPlaylist(playlistId: String, contentIds: List<String>) {
+        viewModelScope.launch {
+            val added = try {
+                clubClient.addContentToPlaylist(playlistId, contentIds, _groupings.value)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+            if (!added) return@launch
+
+            val contentById = _groupings.value.flatMap { it.contentList }.associateBy { it.id }
+            val updatedGroupings = _groupings.value.map { grouping ->
+                if (grouping.id != playlistId || grouping.type != "Playlist") {
+                    grouping
+                } else {
+                    val existingIds = grouping.contentList.map { it.id }.toMutableSet()
+                    val newContent = contentIds.filter { existingIds.add(it) }.mapNotNull { contentById[it] }
+                    if (newContent.isEmpty()) grouping else grouping.copy(contentList = grouping.contentList + newContent)
+                }
+            }
+            _groupings.value = updatedGroupings
+            _playlists.value = clubClient.playlistsFrom(updatedGroupings)
+        }
+    }
+
+    /** Renames a playlist and/or reorders its content, then patches local state to match. */
+    fun updatePlaylist(playlistId: String, name: String, orderedContentIds: List<String>) {
+        viewModelScope.launch {
+            val updated = try {
+                clubClient.updatePlaylist(playlistId, name, orderedContentIds, _groupings.value)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+            if (!updated) return@launch
+
+            val contentById = _groupings.value.flatMap { it.contentList }.associateBy { it.id }
+            val updatedGroupings = _groupings.value.map { grouping ->
+                if (grouping.id != playlistId || grouping.type != "Playlist") {
+                    grouping
+                } else {
+                    grouping.copy(name = name, contentList = orderedContentIds.mapNotNull { contentById[it] })
+                }
+            }
+            _groupings.value = updatedGroupings
+            _playlists.value = clubClient.playlistsFrom(updatedGroupings)
+        }
+    }
+
+    /** Deletes a user-created playlist, then removes it from local state. */
+    fun deletePlaylist(playlistId: String) {
+        viewModelScope.launch {
+            try {
+                clubClient.deletePlaylist(playlistId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                return@launch
+            }
+            val updatedGroupings = _groupings.value.filterNot { it.id == playlistId && it.type == "Playlist" }
+            _groupings.value = updatedGroupings
+            _playlists.value = clubClient.playlistsFrom(updatedGroupings)
+        }
+    }
+
     private fun applyGroupings(newGroupings: List<ClubGrouping>) {
-        groupings = newGroupings
+        _groupings.value = newGroupings
         _playlists.value = clubClient.playlistsFrom(newGroupings)
         // Freshly fetched content may have changed what's eligible, so let the next pick
         // rebuild the bag from scratch rather than finishing out one built from old data.
