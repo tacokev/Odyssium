@@ -48,6 +48,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionToken
 import com.skintclub.odyssey.MainActivity
 import com.skintclub.odyssey.R
+import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.constants.*
 import com.skintclub.odyssey.constants.MediaSessionConstants.CommandToggleLike
 import com.skintclub.odyssey.constants.MediaSessionConstants.CommandToggleRepeatMode
@@ -122,6 +123,7 @@ class MusicService :
 
     private var scope = CoroutineScope(Dispatchers.Main) + Job()
     private val binder = MusicBinder()
+    private val clubClient by lazy { ClubClient(this) }
 
     private lateinit var connectivityManager: ConnectivityManager
 
@@ -558,30 +560,10 @@ class MusicService :
             .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
 
     private fun createDataSourceFactory(): DataSource.Factory {
-        return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
+        return ResolvingDataSource.Factory(createCacheDataSource()) { spec ->
+            val dataSpec = resolveOdysseyDataSpec(clubClient, spec)
             Timber.d("MusicService: DataSpec URI: ${dataSpec.uri}")
-            if (dataSpec.uri.toString().startsWith("https://media.adventuresinodyssey.com/")) {
-                // The CDN authorizes requests via the signed cookie query string already
-                // appended to the URL by OdysseyQueue, not via the Salesforce API bearer
-                // token. It does, however, reject requests with no Range header at all, so
-                // for a from-the-start request (no seek in play) we force one. On a seek,
-                // OkHttpDataSource already appends its own Range header computed from
-                // dataSpec.position/length; forcing one here too would send two Range
-                // headers on the same request and break scrubbing.
-                val headers =
-                    if (dataSpec.position == 0L && dataSpec.length == androidx.media3.common.C.LENGTH_UNSET.toLong()) {
-                        mapOf(
-                            "Sec-Fetch-Dest" to "audio",
-                            "Range" to "bytes=0-",
-                        )
-                    } else {
-                        mapOf("Sec-Fetch-Dest" to "audio")
-                    }
-
-                dataSpec.withRequestHeaders(headers)
-            } else {
-                dataSpec
-            }
+            dataSpec
         }
     }
 

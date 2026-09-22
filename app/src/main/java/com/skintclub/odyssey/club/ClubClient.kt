@@ -9,6 +9,7 @@ import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 import com.skintclub.odyssey.constants.ClubAccessTokenKey
 import com.skintclub.odyssey.constants.ClubContentGroupingsCacheKey
+import com.skintclub.odyssey.constants.ClubMembershipExpiresKey
 import com.skintclub.odyssey.constants.ClubPinKey
 import com.skintclub.odyssey.constants.ClubRefreshTokenKey
 import com.skintclub.odyssey.constants.ClubViewerIdKey
@@ -35,6 +36,14 @@ data class ClubProfile(
     val username: String = "",
     @SerializedName("hasPIN") val hasPin: Boolean = false,
     @SerializedName("profile_picture") val profilePictureUrl: String? = null,
+)
+
+private data class ClubMembershipStatus(
+    @SerializedName("membership_expires") val membershipExpires: String? = null,
+)
+
+private data class ClubViewerMetadata(
+    val membershipStatus: ClubMembershipStatus? = null,
 )
 
 data class ClubTag(
@@ -84,14 +93,20 @@ data class ClubGrouping(
     @SerializedName("album_copyright_year") val albumCopyrightYear: JsonElement? = null,
 )
 
-/** A "Playlist"-type grouping as offered to the randomizer's blacklist/whitelist picker. */
+/** A "Playlist"-type grouping as offered to the randomizer's blacklist/whitelist picker and
+ * the Playlists tab. */
 data class ClubPlaylistOption(
     val id: String,
     val name: String,
     val isUserCreated: Boolean,
+    val imageUrl: String?,
+    val episodeCount: Int,
 )
 
-private data class ClubProfilesResponse(val profiles: List<ClubProfile> = emptyList())
+private data class ClubProfilesResponse(
+    val profiles: List<ClubProfile> = emptyList(),
+    val metadata: ClubViewerMetadata? = null,
+)
 
 private data class ClubGroupingsPageMetadata(val totalPageCount: Int = 1)
 
@@ -279,8 +294,20 @@ class ClubClient(private val context: Context) {
                 .build()
         }
         val body = response.use { it.body?.string() }
-        gson.fromJson(body, ClubProfilesResponse::class.java)?.profiles ?: emptyList()
+        val parsed = gson.fromJson(body, ClubProfilesResponse::class.java)
+        parsed?.metadata?.membershipStatus?.membershipExpires
+            ?.takeIf { it.isNotBlank() }
+            ?.let { setMembershipExpiry(it) }
+        parsed?.profiles ?: emptyList()
     }
+
+    private suspend fun setMembershipExpiry(isoDate: String) = context.dataStore.edit {
+        it[ClubMembershipExpiresKey] = isoDate
+    }
+
+    /** The cached membership expiry date (YYYY-MM-DD) from the last /viewer fetch, or null if
+     * never fetched. Read locally so it can be checked on app open without a network call. */
+    suspend fun getMembershipExpiry(): String? = context.dataStore.data.first()[ClubMembershipExpiresKey]
 
     /** Verifies a profile's PIN against the server. Returns false (rather than throwing) when
      * the server reports the PIN is wrong, so the caller can show an inline error and let the
@@ -302,6 +329,109 @@ class ClubClient(private val context: Context) {
                 else -> throw IOException("verifyPin failed: HTTP ${it.code}")
             }
         }
+    }
+
+    /** Bookmarks (likes) a piece of content. */
+    suspend fun addBookmark(contentId: String) = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        val payload = mapOf(
+            "subject_id" to contentId,
+            "bookmark_type" to "Bookmark",
+            "subject_type" to "Content__c",
+        )
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val requestBody = gson.toJson(payload).toRequestBody(mediaType)
+        authorizedCall("addBookmark") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/bookmark")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .post(requestBody)
+                .build()
+        }.close()
+    }
+
+    /** Removes a bookmark (unlikes). */
+    suspend fun removeBookmark(contentId: String) = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        authorizedCall("removeBookmark") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/bookmark?subject_type=Content__c&subject_id=$contentId&bookmark_type=bookmark")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .delete()
+                .build()
+        }.close()
+    }
+
+    /** Overwrites a playlist's name/cover/content list in one PUT - what [addContentToPlaylist],
+     * [updatePlaylist] and playlist creation all boil down to at the API level. */
+    private suspend fun putPlaylist(playlistId: String, name: String, imageUrl: String?, contentIds: List<String>) {
+        val vid = getViewerId()
+        val p = getPin()
+        val payload = mapOf(
+            "contentGroupings" to listOf(
+                mapOf(
+                    "id" to playlistId,
+                    "name" to name,
+                    "imageURL" to (imageUrl ?: ""),
+                    "contentList" to contentIds.map { mapOf("id" to it) },
+                ),
+            ),
+        )
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val requestBody = gson.toJson(payload).toRequestBody(mediaType)
+        authorizedCall("putPlaylist") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/contentgrouping/$playlistId")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .put(requestBody)
+                .build()
+        }.close()
+    }
+
+    /** Adds content to an existing user playlist. Unlike the reference client, this skips
+     * re-fetching the playlist first - the local grouping cache already has its name/cover/
+     * content list, which is all the PUT body needs. */
+    suspend fun addContentToPlaylist(playlistId: String, contentIds: List<String>, groupings: List<ClubGrouping>): Boolean {
+        val playlist = groupings.firstOrNull { it.type == "Playlist" && it.id == playlistId } ?: return false
+        val mergedIds = playlist.contentList.map { it.id }.toMutableList()
+        val existingIds = mergedIds.toMutableSet()
+        contentIds.forEach { id -> if (existingIds.add(id)) mergedIds.add(id) }
+        putPlaylist(playlistId, playlist.name, playlist.imageUrl, mergedIds)
+        return true
+    }
+
+    /** Renames a playlist and/or reorders its content in one save. */
+    suspend fun updatePlaylist(playlistId: String, name: String, orderedContentIds: List<String>, groupings: List<ClubGrouping>): Boolean {
+        val playlist = groupings.firstOrNull { it.type == "Playlist" && it.id == playlistId } ?: return false
+        putPlaylist(playlistId, name, playlist.imageUrl, orderedContentIds)
+        return true
+    }
+
+    /** Deletes a user-created playlist. */
+    suspend fun deletePlaylist(playlistId: String) {
+        val vid = getViewerId()
+        val p = getPin()
+        authorizedCall("deletePlaylist") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/contentgrouping/$playlistId")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .delete()
+                .build()
+        }.close()
     }
 
     suspend fun selectProfile(profile: ClubProfile, enteredPin: String? = null) {
@@ -390,11 +520,20 @@ class ClubClient(private val context: Context) {
     }
 
     /** The "Playlist"-type groupings, offered to the randomizer's blacklist/whitelist
-     * picker. User-created playlists (which carry a viewer_id) sort first. */
+     * picker and the Playlists tab. User-created playlists (which carry a viewer_id) sort
+     * first. */
     fun playlistsFrom(groupings: List<ClubGrouping>): List<ClubPlaylistOption> =
         groupings
             .filter { it.type == "Playlist" }
-            .map { ClubPlaylistOption(id = it.id, name = it.name, isUserCreated = !it.viewerId.isNullOrBlank()) }
+            .map {
+                ClubPlaylistOption(
+                    id = it.id,
+                    name = it.name,
+                    isUserCreated = !it.viewerId.isNullOrBlank(),
+                    imageUrl = it.imageUrl,
+                    episodeCount = it.contentList.size,
+                )
+            }
             .sortedWith(compareByDescending<ClubPlaylistOption> { it.isUserCreated }.thenBy { it.name })
 
     /** The episode ids belonging to a given playlist, for the randomizer's blacklist/whitelist
@@ -406,6 +545,60 @@ class ClubClient(private val context: Context) {
             ?.mapNotNull { it.id.takeIf { id -> id.isNotBlank() } }
             ?.toSet()
             ?: emptySet()
+
+    /** Flattens a playlist's audio content into the same episode-map shape [albumEpisodesFrom]
+     * produces. Unlike an album, a playlist's episodes can come from different albums - and
+     * the API's own `album_name` on a playlist's content items is unreliable (it's been seen
+     * always echoing the *playlist's* name instead), so each episode's real album is instead
+     * resolved by cross-referencing every cached Album grouping's own content by id. Only
+     * falls back to the playlist's name if an episode genuinely isn't in any cached album. */
+    fun playlistEpisodesFrom(groupings: List<ClubGrouping>, playlistId: String): List<Map<String, Any>> {
+        val grouping = groupings.firstOrNull { it.type == "Playlist" && it.id == playlistId } ?: return emptyList()
+        val albumNameByContentId = buildMap {
+            groupings.filter { it.type == "Album" }.forEach { album ->
+                album.contentList.forEach { content -> put(content.id, album.name) }
+            }
+        }
+        // A playlist can reference the same content more than once (seen on at least one
+        // debug playlist on the club) - the episode list is keyed by content id downstream
+        // (LazyColumn keys, download cache keys, etc.), so duplicates need to go here rather
+        // than wherever it's consumed.
+        return grouping.contentList.filter { it.type == "Audio" }.distinctBy { it.id }.map { content ->
+            val episode = mutableMapOf<String, Any>(
+                "id" to content.id,
+                "name" to content.name,
+                "album_name" to (albumNameByContentId[content.id] ?: grouping.name),
+                "download_url" to (content.downloadUrl ?: ""),
+                "image_small" to (content.thumbnailSmall ?: grouping.imageUrl ?: ""),
+                "image_medium" to (content.thumbnailMedium ?: grouping.imageUrl ?: ""),
+                "image_large" to (grouping.imageUrl ?: content.thumbnailMedium ?: ""),
+                "is_bookmarked" to content.isBookmarked,
+            )
+            content.description?.let { episode["description"] = it }
+            content.shortName?.let { episode["short_name"] = it }
+            episode
+        }
+    }
+
+    /** Fetches a single content item's full detail and returns its download_url, fresh and
+     * ready to stream from as-is (no signed-cookie query string needed). Used by the "Content
+     * request" audio-loading mode, which trades this extra round-trip per episode for not
+     * depending on the shared signed cookie that [fetchSignedCookie] hands out. */
+    suspend fun fetchContentDownloadUrl(contentId: String): String? = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        val response = authorizedCall("fetchContentDownloadUrl") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/content/$contentId?tag=true&series=true&recommendations=true&player=true&parent=true")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .build()
+        }
+        val body = response.use { it.body?.string() }
+        gson.fromJson(body, ClubContent::class.java)?.downloadUrl
+    }
 
     suspend fun fetchSignedCookie(): String? = withContext(Dispatchers.IO) {
         val vid = getViewerId()

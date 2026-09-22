@@ -57,6 +57,11 @@ fun SettingsScreen(
             onClick = { navController.navigate("settings/randomizer") },
         )
         PreferenceEntry(
+            title = { Text("Content") },
+            icon = { Icon(painterResource(R.drawable.download), null) },
+            onClick = { navController.navigate("settings/content") },
+        )
+        PreferenceEntry(
             title = { Text(stringResource(R.string.storage)) },
             icon = { Icon(painterResource(R.drawable.storage), null) },
             onClick = { navController.navigate("settings/storage") },

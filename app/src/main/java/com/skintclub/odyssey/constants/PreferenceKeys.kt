@@ -299,6 +299,19 @@ val RandomizerPlaylistIdKey = stringPreferencesKey("randomizerPlaylistId")
 val RandomizerPlayOnPressKey = booleanPreferencesKey("randomizerPlayOnPress")
 val RandomizerNonRepeatingKey = booleanPreferencesKey("randomizerNonRepeating")
 
+val ClubAudioLoadModeKey = stringPreferencesKey("clubAudioLoadMode")
+
+enum class ClubAudioLoadMode {
+    SIGNED_COOKIE,
+    CONTENT_REQUEST,
+}
+
+val ShowEpisodeNumberKey = booleanPreferencesKey("showEpisodeNumber")
+
+/** ISO date (YYYY-MM-DD) from the club's own "membership_expires" field, cached from the
+ * last /viewer fetch so it can be checked on app open without a network round trip. */
+val ClubMembershipExpiresKey = stringPreferencesKey("clubMembershipExpires")
+
 enum class RandomizerListMode {
     OFF,
     BLACKLIST,
