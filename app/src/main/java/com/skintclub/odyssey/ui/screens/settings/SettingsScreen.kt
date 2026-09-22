@@ -1,15 +1,6 @@
 package com.skintclub.odyssey.ui.screens.settings
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import com.skintclub.odyssey.club.ClubClient
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -38,10 +29,6 @@ fun SettingsScreen(
     navController: NavController,
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
-    val context = LocalContext.current
-    val clubClient = remember { ClubClient(context) }
-    val isLoggedIntoClub by clubClient.isLoggedInFlow().collectAsState(initial = false)
-
     Column(
         Modifier
             .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
@@ -50,22 +37,9 @@ fun SettingsScreen(
         Spacer(Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)))
 
         PreferenceEntry(
-            title = { Text(if (isLoggedIntoClub) "Logout" else "Login") },
-            icon = {
-                Image(
-                    painter = painterResource(R.drawable.club_logo),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(24.dp),
-                )
-            },
-            onClick = {
-                if (isLoggedIntoClub) {
-                    navController.navigate("odyssey_logout")
-                } else {
-                    navController.navigate("odyssey_login")
-                }
-            },
+            title = { Text("Account") },
+            icon = { Icon(painterResource(R.drawable.person), null) },
+            onClick = { navController.navigate("settings/account") },
         )
         PreferenceEntry(
             title = { Text(stringResource(R.string.appearance)) },
@@ -76,6 +50,11 @@ fun SettingsScreen(
             title = { Text(stringResource(R.string.player_and_audio)) },
             icon = { Icon(painterResource(R.drawable.play), null) },
             onClick = { navController.navigate("settings/player") },
+        )
+        PreferenceEntry(
+            title = { Text("Randomizer") },
+            icon = { Icon(painterResource(R.drawable.casino), null) },
+            onClick = { navController.navigate("settings/randomizer") },
         )
         PreferenceEntry(
             title = { Text(stringResource(R.string.storage)) },

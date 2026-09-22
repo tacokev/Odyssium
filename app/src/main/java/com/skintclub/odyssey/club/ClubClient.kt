@@ -69,6 +69,9 @@ data class ClubGrouping(
     val id: String = "",
     val type: String = "",
     val name: String = "",
+    // Present only on playlists a viewer created themselves (as opposed to e.g. official
+    // "Playlist"-type groupings), used to sort those to the top of the playlist picker.
+    @SerializedName("viewer_id") val viewerId: String? = null,
     val description: String? = null,
     @SerializedName("full_description") val fullDescription: String? = null,
     @SerializedName("imageURL") val imageUrl: String? = null,
@@ -79,6 +82,13 @@ data class ClubGrouping(
     // The API returns this as either a number or a string depending on endpoint, so it's kept
     // as a raw JsonElement and normalized by [toYearStringOrNull] where it's actually used.
     @SerializedName("album_copyright_year") val albumCopyrightYear: JsonElement? = null,
+)
+
+/** A "Playlist"-type grouping as offered to the randomizer's blacklist/whitelist picker. */
+data class ClubPlaylistOption(
+    val id: String,
+    val name: String,
+    val isUserCreated: Boolean,
 )
 
 private data class ClubProfilesResponse(val profiles: List<ClubProfile> = emptyList())
@@ -343,9 +353,17 @@ class ClubClient(private val context: Context) {
         all
     }
 
+    /** Fetches and caches every content grouping. Callers derive whatever view they need
+     * (albums via [albumEpisodesFrom], playlists via [playlistsFrom]) from the result. */
+    suspend fun fetchAllGroupings(): List<ClubGrouping> = withContext(Dispatchers.IO) {
+        val groupings = fetchAllContentGroupings()
+        setCachedContentGroupings(groupings)
+        groupings
+    }
+
     /** Flattens the "Album" groupings' audio content into the simple episode-map shape the
      * rest of the app (queue building, album/episode screens) already expects. */
-    private fun albumEpisodesFrom(groupings: List<ClubGrouping>): List<Map<String, Any>> {
+    fun albumEpisodesFrom(groupings: List<ClubGrouping>): List<Map<String, Any>> {
         val episodes = mutableListOf<Map<String, Any>>()
         for (grouping in groupings) {
             if (grouping.type != "Album") continue
@@ -363,6 +381,7 @@ class ClubClient(private val context: Context) {
                     "is_bookmarked" to content.isBookmarked,
                 )
                 content.description?.let { episode["description"] = it }
+                content.shortName?.let { episode["short_name"] = it }
                 albumYear?.let { episode["album_copyright_year"] = it }
                 episodes.add(episode)
             }
@@ -370,13 +389,23 @@ class ClubClient(private val context: Context) {
         return episodes
     }
 
-    /** Fetches and caches every content grouping, then returns just the album episodes for
-     * the album browser. [getCachedEpisodes] serves the same derived view from the cache. */
-    suspend fun fetchAlbumEpisodes(): List<Map<String, Any>> = withContext(Dispatchers.IO) {
-        val groupings = fetchAllContentGroupings()
-        setCachedContentGroupings(groupings)
-        albumEpisodesFrom(groupings)
-    }
+    /** The "Playlist"-type groupings, offered to the randomizer's blacklist/whitelist
+     * picker. User-created playlists (which carry a viewer_id) sort first. */
+    fun playlistsFrom(groupings: List<ClubGrouping>): List<ClubPlaylistOption> =
+        groupings
+            .filter { it.type == "Playlist" }
+            .map { ClubPlaylistOption(id = it.id, name = it.name, isUserCreated = !it.viewerId.isNullOrBlank()) }
+            .sortedWith(compareByDescending<ClubPlaylistOption> { it.isUserCreated }.thenBy { it.name })
+
+    /** The episode ids belonging to a given playlist, for the randomizer's blacklist/whitelist
+     * filter to check episode membership against. */
+    fun playlistEpisodeIds(groupings: List<ClubGrouping>, playlistId: String): Set<String> =
+        groupings
+            .firstOrNull { it.type == "Playlist" && it.id == playlistId }
+            ?.contentList
+            ?.mapNotNull { it.id.takeIf { id -> id.isNotBlank() } }
+            ?.toSet()
+            ?: emptySet()
 
     suspend fun fetchSignedCookie(): String? = withContext(Dispatchers.IO) {
         val vid = getViewerId()
@@ -417,12 +446,11 @@ class ClubClient(private val context: Context) {
         context.dataStore.edit { it[ClubContentGroupingsCacheKey] = gson.toJson(groupings) }
     }
 
-    /** So the album list can render instantly on launch instead of waiting on
-     * [fetchAlbumEpisodes]; the view model shows this immediately, then refreshes from the
+    /** So the album/playlist state can render instantly on launch instead of waiting on
+     * [fetchAllGroupings]; the view model shows this immediately, then refreshes from the
      * network in the background, which keeps the cache current as a side effect. */
-    suspend fun getCachedEpisodes(): List<Map<String, Any>>? = withContext(Dispatchers.IO) {
-        val groupings = getCachedContentGroupings() ?: return@withContext null
-        albumEpisodesFrom(groupings)
+    suspend fun getCachedGroupings(): List<ClubGrouping> = withContext(Dispatchers.IO) {
+        getCachedContentGroupings() ?: emptyList()
     }
 
     suspend fun logout() {
