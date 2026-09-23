@@ -135,6 +135,8 @@ import com.skintclub.odyssey.extensions.togglePlayPause
 import com.skintclub.odyssey.models.MediaMetadata
 import com.skintclub.odyssey.playback.ExoDownloadService
 import com.skintclub.odyssey.playback.queues.ODYSSEY_GROUPING_ARTIST_ID_PREFIX
+import com.skintclub.odyssey.club.SECRET_EPISODES_ROUTE
+import com.skintclub.odyssey.club.SECRET_EPISODES_TITLE
 import com.skintclub.odyssey.ui.component.BottomSheet
 import com.skintclub.odyssey.ui.component.BottomSheetState
 import com.skintclub.odyssey.ui.component.COLLAPSED_ANCHOR
@@ -313,7 +315,12 @@ fun BottomSheetPlayer(
                 // Pop up to Home first so repeated taps (or a tap when an album page is
                 // already stacked underneath) don't keep pushing duplicate copies of the
                 // same album screen onto the back stack.
-                navController.navigate("odyssey_album/${Uri.encode(groupingName)}") {
+                val route = if (groupingName == SECRET_EPISODES_TITLE) {
+                    SECRET_EPISODES_ROUTE
+                } else {
+                    "odyssey_album/${Uri.encode(groupingName)}"
+                }
+                navController.navigate(route) {
                     popUpTo(Screens.Home.route)
                 }
             }

@@ -188,6 +188,12 @@ class MusicService :
                 .setSeekForwardIncrementMs(10000)
                 .build()
                 .apply {
+                    // Audio-only app: the club's video content ("Play videos as audio") has
+                    // its video track skipped entirely rather than decoded to nowhere.
+                    trackSelectionParameters = trackSelectionParameters
+                        .buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
+                        .build()
                     addListener(this@MusicService)
                     sleepTimer = SleepTimer(scope, this)
                     addListener(sleepTimer)

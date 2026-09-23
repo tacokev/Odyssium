@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.widget.Toast
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -96,6 +97,7 @@ import com.skintclub.odyssey.ui.component.shimmer.ShimmerTheme
 import com.skintclub.odyssey.ui.menu.OdysseyEpisodeMenu
 import com.skintclub.odyssey.ui.player.BottomSheetPlayer
 import com.skintclub.odyssey.ui.screens.*
+import com.skintclub.odyssey.ui.screens.search.OdysseySearchResultsList
 import com.skintclub.odyssey.ui.screens.settings.DarkMode
 import com.skintclub.odyssey.ui.screens.settings.ThemeColorSource
 import com.skintclub.odyssey.ui.screens.settings.rememberThemeColorSource
@@ -421,26 +423,43 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     }
-                    val searchResults =
-                        remember(odysseyAlbums, query.text) {
-                            val q = query.text.trim()
-                            if (q.isEmpty()) {
-                                emptyList()
+                    val searchIndex by odysseyViewModel.searchIndex.collectAsState()
+                    val searchResults = remember(searchIndex, query.text) { searchIndex.search(query.text) }
+
+                    // The secret feature: pasting (or submitting) a CDN episode path/URL plays it
+                    // right away and files it under Secret Episodes. False if [input] isn't one.
+                    val playSecretEpisode: (String) -> Boolean = { input ->
+                        val episode = odysseyViewModel.addSecretEpisode(input)
+                        if (episode != null) {
+                            playerConnection?.playQueue(OdysseyQueue(this@MainActivity, listOf(episode), 0))
+                            Toast.makeText(this@MainActivity, R.string.added_to_secret_episodes, Toast.LENGTH_SHORT).show()
+                            onQueryChange(TextFieldValue())
+                            onActiveChange(false)
+                        }
+                        episode != null
+                    }
+                    val onSearchQueryChange: (TextFieldValue) -> Unit = { value ->
+                        if (!playSecretEpisode(value.text)) onQueryChange(value)
+                    }
+                    // Enter plays the top result: the first episode, or failing that the whole
+                    // first grouping.
+                    val onSearchSubmit: (String) -> Unit = { text ->
+                        if (!playSecretEpisode(text)) {
+                            val firstEpisode = searchResults.episodes.firstOrNull()
+                            val queue = if (firstEpisode != null) {
+                                OdysseyQueue(this@MainActivity, firstEpisode.queue, firstEpisode.queueIndex)
                             } else {
-                                odysseyAlbums.flatMap { album ->
-                                    album.episodes.mapIndexedNotNull { index, episode ->
-                                        val title = episode["name"] as? String ?: return@mapIndexedNotNull null
-                                        if (title.contains(q, ignoreCase = true) ||
-                                            album.name.contains(q, ignoreCase = true)
-                                        ) {
-                                            Triple(album, index, episode)
-                                        } else {
-                                            null
-                                        }
-                                    }
-                                }
+                                searchResults.groupings.firstOrNull()
+                                    ?.let(odysseyViewModel::episodesOf)
+                                    ?.takeIf { it.isNotEmpty() }
+                                    ?.let { OdysseyQueue(this@MainActivity, it, 0) }
+                            }
+                            if (queue != null) {
+                                playerConnection?.playQueue(queue)
+                                onActiveChange(false)
                             }
                         }
+                    }
 
                     CompositionLocalProvider(
                         LocalDatabase provides database,
@@ -585,8 +604,8 @@ class MainActivity : ComponentActivity() {
                         ) {
                             SearchBar(
                                 query = query,
-                                onQueryChange = onQueryChange,
-                                onSearch = { },
+                                onQueryChange = onSearchQueryChange,
+                                onSearch = onSearchSubmit,
                                 active = active,
                                 onActiveChange = onActiveChange,
                                 scrollBehavior = searchBarScrollBehavior,
@@ -607,59 +626,12 @@ class MainActivity : ComponentActivity() {
                                 focusRequester = searchBarFocusRequester,
                                 modifier = Modifier.align(Alignment.TopCenter),
                             ) {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                ) {
-                                    items(
-                                        items = searchResults,
-                                        key = { (album, index, _) -> "${album.name}_$index" },
-                                    ) { (album, index, episode) ->
-                                        val metadata = odysseyEpisodeToMediaMetadata(this@MainActivity, episode)
-                                        val mediaItem = odysseyEpisodeToMediaItem(this@MainActivity, episode)
-                                        val episodeMenuState = LocalMenuState.current
-
-                                        MediaMetadataListItem(
-                                            mediaMetadata = metadata,
-                                            trailingContent = {
-                                                IconButton(
-                                                    onClick = {
-                                                        episodeMenuState.show {
-                                                            OdysseyEpisodeMenu(
-                                                                navController = navController,
-                                                                viewModel = odysseyViewModel,
-                                                                mediaMetadata = metadata,
-                                                                mediaItem = mediaItem,
-                                                                albumName = album.name,
-                                                                episodeIndex = index,
-                                                                isLiked = episode["is_bookmarked"] == true,
-                                                                onDismiss = episodeMenuState::dismiss,
-                                                            )
-                                                        }
-                                                    },
-                                                    onLongClick = {},
-                                                ) {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.more_vert),
-                                                        contentDescription = null,
-                                                    )
-                                                }
-                                            },
-                                            modifier =
-                                                Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable {
-                                                        playerConnection?.playQueue(
-                                                            OdysseyQueue(
-                                                                context = this@MainActivity,
-                                                                episodes = album.episodes,
-                                                                startIndex = index,
-                                                            ),
-                                                        )
-                                                        onActiveChange(false)
-                                                    },
-                                        )
-                                    }
-                                }
+                                OdysseySearchResultsList(
+                                    results = searchResults,
+                                    navController = navController,
+                                    viewModel = odysseyViewModel,
+                                    onDismiss = { onActiveChange(false) },
+                                )
                             }
                         }
 

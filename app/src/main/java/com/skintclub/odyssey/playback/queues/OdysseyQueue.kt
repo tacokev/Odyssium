@@ -141,8 +141,11 @@ fun odysseyEpisodeToMediaItem(
     val contentId = episode["id"] as? String
     val loadMode = context.dataStore[ClubAudioLoadModeKey].toEnum(ClubAudioLoadMode.SIGNED_COOKIE)
     val useContentRequest = loadMode == ClubAudioLoadMode.CONTENT_REQUEST || !isSignedCookiePath(downloadUrl)
+    // A secret episode (see SecretEpisodes.kt) has no club content id to request, so it's
+    // always streamed with the signed cookie, whatever the load mode.
+    val isSecret = episode["secret"] == true
     val url =
-        if (useContentRequest && !contentId.isNullOrBlank()) {
+        if (useContentRequest && !isSecret && !contentId.isNullOrBlank()) {
             "$ODYSSEY_CONTENT_URI_SCHEME://$contentId"
         } else {
             "https://$ODYSSEY_MEDIA_HOST/${downloadUrl.trimStart('/')}"

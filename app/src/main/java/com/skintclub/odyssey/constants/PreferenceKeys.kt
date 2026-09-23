@@ -298,6 +298,10 @@ val SeriesSortReversedKey = booleanPreferencesKey("seriesSortReversed")
 val CollectionsSortReversedKey = booleanPreferencesKey("collectionsSortReversed")
 val PodcastsSortReversedKey = booleanPreferencesKey("podcastsSortReversed")
 val ClubContentGroupingsCacheKey = stringPreferencesKey("clubContentGroupingsCache")
+
+/** JSON-encoded [com.skintclub.odyssey.club.SecretEpisodesState]: the locally-added "Secret
+ * Episodes", their local like state, and their local playlist memberships. */
+val SecretEpisodesKey = stringPreferencesKey("secretEpisodes")
 val ExcludeBonusEpisodesKey = booleanPreferencesKey("excludeBonusEpisodes")
 val ExcludeSubsequentPartsKey = booleanPreferencesKey("excludeSubsequentParts")
 val RandomizerListModeKey = stringPreferencesKey("randomizerListMode")
@@ -313,6 +317,10 @@ enum class ClubAudioLoadMode {
 }
 
 val ShowEpisodeNumberKey = booleanPreferencesKey("showEpisodeNumber")
+
+/** Whether the club's "Video" content is listed and played (audio track only) alongside its
+ * audio episodes. On by default. */
+val PlayVideosAsAudioKey = booleanPreferencesKey("playVideosAsAudio")
 
 /** ISO date (YYYY-MM-DD) from the club's own "membership_expires" field, cached from the
  * last /viewer fetch so it can be checked on app open without a network round trip. */

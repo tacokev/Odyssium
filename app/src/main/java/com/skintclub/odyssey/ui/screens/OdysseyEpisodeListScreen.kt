@@ -62,6 +62,7 @@ import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubGrouping
+import com.skintclub.odyssey.club.SECRET_EPISODES_TITLE
 import com.skintclub.odyssey.constants.ShowEpisodeNumberKey
 import com.skintclub.odyssey.constants.ThumbnailCornerRadius
 import com.skintclub.odyssey.extensions.togglePlayPause
@@ -408,8 +409,9 @@ fun OdysseyLikedScreen(
     viewModel: OdysseyViewModel,
 ) {
     val albums by viewModel.albums.collectAsState()
-    val episodes = remember(albums) {
-        albums.flatMap { it.episodes }.filter { it["is_bookmarked"] == true }
+    val secretEpisodes by viewModel.secretEpisodes.collectAsState()
+    val episodes = remember(albums, secretEpisodes) {
+        (albums.flatMap { it.episodes } + secretEpisodes).filter { it["is_bookmarked"] == true }
     }
     OdysseyEpisodeListScreen(navController, viewModel, "Liked", episodes)
 }
@@ -421,9 +423,10 @@ fun OdysseyDownloadedScreen(
     viewModel: OdysseyViewModel,
 ) {
     val albums by viewModel.albums.collectAsState()
+    val secretEpisodes by viewModel.secretEpisodes.collectAsState()
     val downloads by LocalDownloadUtil.current.downloads.collectAsState()
-    val episodes = remember(albums, downloads) {
-        albums.flatMap { it.episodes }.filter { episode ->
+    val episodes = remember(albums, secretEpisodes, downloads) {
+        (albums.flatMap { it.episodes } + secretEpisodes).filter { episode ->
             val id = episode["id"] as? String
             id != null && downloads[id]?.state == Download.STATE_COMPLETED
         }
@@ -432,7 +435,8 @@ fun OdysseyDownloadedScreen(
 }
 
 /** A user's own playlist, sourced from the cached content groupings rather than
- * [OdysseyViewModel.albums] since a playlist isn't an album. */
+ * [OdysseyViewModel.albums] since a playlist isn't an album. Any secret episodes added to it on
+ * this device (the club never hears about those) follow the club's own content. */
 @Composable
 fun OdysseyPlaylistScreen(
     navController: NavController,
@@ -443,8 +447,22 @@ fun OdysseyPlaylistScreen(
     val clubClient = remember { ClubClient(context) }
     val groupings by viewModel.groupings.collectAsState()
     val grouping = remember(groupings, playlistId) { groupings.firstOrNull { it.id == playlistId } }
-    val episodes = remember(groupings, playlistId) { clubClient.playlistEpisodesFrom(groupings, playlistId) }
+    val secretState by viewModel.secretEpisodesState.collectAsState()
+    val playVideosAsAudio by viewModel.playVideosAsAudio.collectAsState()
+    val episodes = remember(groupings, secretState, playlistId, playVideosAsAudio) {
+        clubClient.playlistEpisodesFrom(groupings, playlistId) + viewModel.secretEpisodesInPlaylist(secretState, playlistId)
+    }
     OdysseyEpisodeListScreen(navController, viewModel, grouping?.name ?: "Playlist", episodes, grouping)
+}
+
+/** The locally-added secret episodes (see [com.skintclub.odyssey.club.SecretEpisodesStore]), in number order. */
+@Composable
+fun OdysseySecretEpisodesScreen(
+    navController: NavController,
+    viewModel: OdysseyViewModel,
+) {
+    val secretEpisodes by viewModel.secretEpisodes.collectAsState()
+    OdysseyEpisodeListScreen(navController, viewModel, SECRET_EPISODES_TITLE, secretEpisodes)
 }
 
 /** A grouping's description as a capsule: clamped to [COLLAPSED_DESCRIPTION_LINES] with a

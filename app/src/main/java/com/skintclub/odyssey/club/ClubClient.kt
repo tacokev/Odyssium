@@ -13,8 +13,10 @@ import com.skintclub.odyssey.constants.ClubMembershipExpiresKey
 import com.skintclub.odyssey.constants.ClubPinKey
 import com.skintclub.odyssey.constants.ClubRefreshTokenKey
 import com.skintclub.odyssey.constants.ClubViewerIdKey
+import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.playback.ODYSSEY_MEDIA_HOST
 import com.skintclub.odyssey.utils.dataStore
+import com.skintclub.odyssey.utils.get
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -121,6 +123,11 @@ private data class ClubGroupingsPageResponse(
 )
 
 /** A signed CDN credential (cookie query string or pre-signed URL) and when it stops working. */
+/** Whether [content] is offered for playback: audio always, and video (played as audio only)
+ * while "Play videos as audio" is on. Everything else - articles, mostly - never is. */
+fun isPlayableContent(content: ClubContent, playVideosAsAudio: Boolean): Boolean =
+    content.type == "Audio" || (playVideosAsAudio && content.type == "Video")
+
 private class CachedSigned(val value: String, val expiresAtMillis: Long)
 
 private fun JsonElement?.toYearStringOrNull(): String? {
@@ -170,6 +177,13 @@ class ClubClient(private val context: Context) {
     private val experienceName = "Adventures In Odyssey"
 
     var codeVerifier: String? = null
+
+    /** The "Play videos as audio" setting, read once per list built (not per item - each
+     * read is a blocking DataStore lookup). */
+    fun playVideosAsAudio(): Boolean = context.dataStore.get(PlayVideosAsAudioKey, true)
+
+    private fun playableFilter(playVideosAsAudio: Boolean = playVideosAsAudio()): (ClubContent) -> Boolean =
+        { isPlayableContent(it, playVideosAsAudio) }
 
     companion object {
         /** The club's own logout page. It doesn't render anything useful itself — it just
@@ -550,12 +564,13 @@ class ClubClient(private val context: Context) {
     /** Flattens the "Album" groupings' audio content into the simple episode-map shape the
      * rest of the app (queue building, album/episode screens) already expects. */
     fun albumEpisodesFrom(groupings: List<ClubGrouping>): List<Map<String, Any>> {
+        val isPlayable = playableFilter()
         val episodes = mutableListOf<Map<String, Any>>()
         for (grouping in groupings) {
             if (grouping.type != "Album") continue
             val albumYear = grouping.albumCopyrightYear.toYearStringOrNull()
             for (content in grouping.contentList) {
-                if (content.type != "Audio") continue
+                if (!isPlayable(content)) continue
                 val episode = mutableMapOf<String, Any>(
                     "id" to content.id,
                     "name" to content.name,
@@ -607,8 +622,14 @@ class ClubClient(private val context: Context) {
      * the API's own `album_name` on a playlist's content items is unreliable (it's been seen
      * always echoing the *playlist's* name instead), so each episode's real album is instead
      * resolved by cross-referencing every cached Album grouping's own content by id. Only
-     * falls back to the playlist's name if an episode genuinely isn't in any cached album. */
-    fun playlistEpisodesFrom(groupings: List<ClubGrouping>, playlistId: String): List<Map<String, Any>> {
+     * falls back to the playlist's name if an episode genuinely isn't in any cached album.
+     * [playVideosAsAudio] defaults to the setting; the playlist editor passes true so saving
+     * an edit can't silently drop videos the setting happens to be hiding. */
+    fun playlistEpisodesFrom(
+        groupings: List<ClubGrouping>,
+        playlistId: String,
+        playVideosAsAudio: Boolean = playVideosAsAudio(),
+    ): List<Map<String, Any>> {
         val grouping = groupings.firstOrNull { it.type == "Playlist" && it.id == playlistId } ?: return emptyList()
         val albumNameByContentId = buildMap {
             groupings.filter { it.type == "Album" }.forEach { album ->
@@ -619,7 +640,7 @@ class ClubClient(private val context: Context) {
         // debug playlist on the club) - the episode list is keyed by content id downstream
         // (LazyColumn keys, download cache keys, etc.), so duplicates need to go here rather
         // than wherever it's consumed.
-        return grouping.contentList.filter { it.type == "Audio" }.distinctBy { it.id }.map { content ->
+        return grouping.contentList.filter(playableFilter(playVideosAsAudio)).distinctBy { it.id }.map { content ->
             val episode = mutableMapOf<String, Any>(
                 "id" to content.id,
                 "name" to content.name,
@@ -652,11 +673,14 @@ class ClubClient(private val context: Context) {
     /** The "Collection" groupings (soundtracks, themed sets, ...) that have anything playable,
      * in the API's own order - their names mix numbering schemes ("Season 3 Soundtrack",
      * "Vol. 1"), so [groupingsOfType]'s number sort would scramble them. A couple are all
-     * articles or videos, which would only open an empty episode list. */
-    fun collectionsFrom(groupings: List<ClubGrouping>): List<ClubGrouping> =
-        groupings.filter { grouping ->
-            grouping.type == COLLECTION_TYPE && grouping.contentList.any { it.type == "Audio" }
+     * articles (or videos, while "Play videos as audio" is off), which would only open an
+     * empty episode list. */
+    fun collectionsFrom(groupings: List<ClubGrouping>): List<ClubGrouping> {
+        val isPlayable = playableFilter()
+        return groupings.filter { grouping ->
+            grouping.type == COLLECTION_TYPE && grouping.contentList.any(isPlayable)
         }
+    }
 
     /** Flattens any grouping's audio content into the episode-map shape. Episodes that also
      * live in an Album reuse that album's own episode map (real album name, album cover as
@@ -664,14 +688,15 @@ class ClubClient(private val context: Context) {
      * anything album-less - podcasts, mostly - is built from the grouping itself. */
     fun groupingEpisodesFrom(groupings: List<ClubGrouping>, grouping: ClubGrouping): List<Map<String, Any>> {
         val albumEpisodeById = albumEpisodesFrom(groupings).associateBy { it["id"] as String }
-        return groupingEpisodesFrom(grouping, albumEpisodeById)
+        return groupingEpisodesFrom(grouping, albumEpisodeById, playableFilter())
     }
 
     private fun groupingEpisodesFrom(
         grouping: ClubGrouping,
         albumEpisodeById: Map<String, Map<String, Any>>,
+        isPlayable: (ClubContent) -> Boolean,
     ): List<Map<String, Any>> =
-        grouping.contentList.filter { it.type == "Audio" }.distinctBy { it.id }.map { content ->
+        grouping.contentList.filter(isPlayable).distinctBy { it.id }.map { content ->
             albumEpisodeById[content.id] ?: mutableMapOf<String, Any>(
                 "id" to content.id,
                 "name" to content.name,
@@ -698,8 +723,9 @@ class ClubClient(private val context: Context) {
         sections: List<ClubGrouping>,
     ): List<Pair<ClubGrouping, List<Map<String, Any>>>> {
         val albumEpisodeById = albumEpisodesFrom(groupings).associateBy { it["id"] as String }
+        val isPlayable = playableFilter()
         return sections
-            .map { it to groupingEpisodesFrom(it, albumEpisodeById) }
+            .map { it to groupingEpisodesFrom(it, albumEpisodeById, isPlayable) }
             .filter { (_, episodes) -> episodes.isNotEmpty() }
     }
 

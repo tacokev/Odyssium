@@ -10,7 +10,14 @@ import coil.imageLoader
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubGrouping
 import com.skintclub.odyssey.club.ClubPlaylistOption
+import com.skintclub.odyssey.club.SecretEpisode
+import com.skintclub.odyssey.club.SecretEpisodesState
+import com.skintclub.odyssey.club.SecretEpisodesStore
+import com.skintclub.odyssey.club.isSecretEpisodeId
+import com.skintclub.odyssey.club.parseSecretEpisodePath
+import com.skintclub.odyssey.club.secretEpisodeMap
 import com.skintclub.odyssey.constants.OdysseySortReversedKey
+import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.constants.RandomizerListMode
 import com.skintclub.odyssey.di.PlayerCache
 import com.skintclub.odyssey.playback.DownloadUtil
@@ -24,7 +31,14 @@ import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -48,6 +62,33 @@ class OdysseyViewModel @Inject constructor(
      * its episode list from (via [ClubClient.playlistEpisodesFrom]). */
     private val _groupings = MutableStateFlow<List<ClubGrouping>>(emptyList())
     val groupings = _groupings.asStateFlow()
+
+    private val secretEpisodesStore = SecretEpisodesStore(application)
+
+    /** Settings > Content > "Play videos as audio". Every episode list is built from it (see
+     * [ClubClient.playVideosAsAudio]), so flipping it rebuilds them - see [init]. */
+    val playVideosAsAudio = application.dataStore.data
+        .map { it[PlayVideosAsAudioKey] ?: true }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, application.dataStore.get(PlayVideosAsAudioKey, true))
+
+    /** The locally-added "Secret Episodes" (see [SecretEpisodesStore]), plus which club
+     * playlists each has been added to on this device. */
+    val secretEpisodesState = secretEpisodesStore.state
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SecretEpisodesState())
+
+    /** [secretEpisodesState]'s episodes as episode maps, in number order. */
+    val secretEpisodes = secretEpisodesState
+        .map { state -> state.episodes.map(::secretEpisodeMap) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** What the search bar filters, rebuilt off the main thread whenever the cached groupings
+     * (or the albums built from them, or the secret episodes) change. Albums are put back in
+     * their default order, so the Albums screen's sort toggle doesn't also flip search results. */
+    val searchIndex = combine(_groupings, _albums, secretEpisodes, playVideosAsAudio) { groupings, albums, secret, _ ->
+        buildOdysseySearchIndex(clubClient, groupings, albums.sortedWith(albumOrderComparator), secret)
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, OdysseySearchIndex.EMPTY)
 
     /** The Home screen's category tiles. Seeded from [HomeTilesSnapshot] so they (and their
      * covers, prefetched right here) are ready on a cold start before the full grouping cache
@@ -84,6 +125,13 @@ class OdysseyViewModel @Inject constructor(
                 applyGroupings(cached)
             }
             performRefresh(silent = cached.isNotEmpty())
+        }
+        viewModelScope.launch {
+            // Videos appear in (or vanish from) albums and every other list when the setting
+            // flips; the first value is the current one, which startup already built with.
+            playVideosAsAudio.drop(1).collect {
+                if (_groupings.value.isNotEmpty()) applyGroupings(_groupings.value)
+            }
         }
     }
 
@@ -253,6 +301,11 @@ class OdysseyViewModel @Inject constructor(
      * through [applyGroupings] - that resets the randomizer's non-repeating bag, which a like
      * toggle has no business touching. */
     fun setEpisodeLiked(contentId: String, liked: Boolean) {
+        if (isSecretEpisodeId(contentId)) {
+            // The club doesn't know secret episodes, so their likes are local only.
+            viewModelScope.launch { secretEpisodesStore.setLiked(contentId, liked) }
+            return
+        }
         viewModelScope.launch {
             try {
                 if (liked) clubClient.addBookmark(contentId) else clubClient.removeBookmark(contentId)
@@ -278,8 +331,14 @@ class OdysseyViewModel @Inject constructor(
 
     /** Adds episodes to a user playlist, then patches local state to match - same reasoning
      * as [setEpisodeLiked] (immediate, without resetting the randomizer's non-repeating bag
-     * via [applyGroupings]). */
-    fun addEpisodesToPlaylist(playlistId: String, contentIds: List<String>) {
+     * via [applyGroupings]). Secret episodes are only added locally (see
+     * [SecretEpisodesStore]); the rest go to the club as usual. */
+    fun addEpisodesToPlaylist(playlistId: String, ids: List<String>) {
+        val (secretIds, contentIds) = ids.partition(::isSecretEpisodeId)
+        if (secretIds.isNotEmpty()) {
+            viewModelScope.launch { secretEpisodesStore.addToPlaylist(playlistId, secretIds) }
+        }
+        if (contentIds.isEmpty()) return
         viewModelScope.launch {
             val added = try {
                 clubClient.addContentToPlaylist(playlistId, contentIds, _groupings.value)
@@ -340,7 +399,39 @@ class OdysseyViewModel @Inject constructor(
             val updatedGroupings = _groupings.value.filterNot { it.id == playlistId && it.type == "Playlist" }
             _groupings.value = updatedGroupings
             _playlists.value = clubClient.playlistsFrom(updatedGroupings)
+            secretEpisodesStore.forgetPlaylist(playlistId)
         }
+    }
+
+    /** Adds the secret episode at [input] (a CDN path or URL - see [parseSecretEpisodePath])
+     * to "Secret Episodes", and returns its episode map right away so the caller can play it
+     * without waiting for the store to write. Null if [input] isn't a secret episode path. */
+    fun addSecretEpisode(input: String): Map<String, Any>? {
+        val path = parseSecretEpisodePath(input) ?: return null
+        viewModelScope.launch { secretEpisodesStore.add(path) }
+        val liked = secretEpisodesState.value.episodes.firstOrNull { it.path == path }?.liked == true
+        return secretEpisodeMap(SecretEpisode(path, liked))
+    }
+
+    /** Removes a secret episode from "Secret Episodes" (and every local playlist it was added
+     * to), deleting its download too - nothing else would list it anymore. */
+    fun removeSecretEpisode(id: String) {
+        DownloadService.sendRemoveDownload(getApplication(), ExoDownloadService::class.java, id, false)
+        viewModelScope.launch { secretEpisodesStore.remove(id) }
+    }
+
+    /** Secret episodes added to club playlist [playlistId] on this device. */
+    fun secretEpisodesInPlaylist(state: SecretEpisodesState, playlistId: String): List<Map<String, Any>> {
+        val byId = state.episodes.associateBy { it.id }
+        return state.playlistMembers[playlistId].orEmpty().mapNotNull { id -> byId[id]?.let(::secretEpisodeMap) }
+    }
+
+    /** Everything [grouping] plays, in order - what playing a whole grouping search result queues. */
+    fun episodesOf(grouping: ClubGrouping): List<Map<String, Any>> = when (grouping.type) {
+        "Album" -> baseAlbums.firstOrNull { it.name == grouping.name }?.episodes.orEmpty()
+        "Playlist" -> clubClient.playlistEpisodesFrom(_groupings.value, grouping.id) +
+            secretEpisodesInPlaylist(secretEpisodesState.value, grouping.id)
+        else -> clubClient.groupingEpisodesFrom(_groupings.value, grouping)
     }
 
     private fun applyGroupings(newGroupings: List<ClubGrouping>) {

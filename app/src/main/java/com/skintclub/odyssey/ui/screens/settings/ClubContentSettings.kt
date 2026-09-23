@@ -20,6 +20,7 @@ import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.constants.ClubAudioLoadMode
 import com.skintclub.odyssey.constants.ClubAudioLoadModeKey
+import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.constants.ShowEpisodeNumberKey
 import com.skintclub.odyssey.ui.component.EnumListPreference
 import com.skintclub.odyssey.ui.component.IconButton
@@ -36,6 +37,7 @@ fun ClubContentSettings(
 ) {
     val (audioLoadMode, onAudioLoadModeChange) = rememberEnumPreference(ClubAudioLoadModeKey, defaultValue = ClubAudioLoadMode.SIGNED_COOKIE)
     val (showEpisodeNumber, onShowEpisodeNumberChange) = rememberPreference(ShowEpisodeNumberKey, defaultValue = false)
+    val (playVideosAsAudio, onPlayVideosAsAudioChange) = rememberPreference(PlayVideosAsAudioKey, defaultValue = true)
 
     Column(
         Modifier
@@ -61,6 +63,12 @@ fun ClubContentSettings(
             description = "Use the episode's numbered short title (e.g. \"#571: For Better or for Worse\") instead of its plain name, everywhere an episode title is shown - including the randomizer.",
             checked = showEpisodeNumber,
             onCheckedChange = onShowEpisodeNumberChange,
+        )
+        SwitchPreference(
+            title = { Text("Play videos as audio") },
+            description = "List the club's video content alongside its audio episodes, and play just its sound.",
+            checked = playVideosAsAudio,
+            onCheckedChange = onPlayVideosAsAudioChange,
         )
     }
 
