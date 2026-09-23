@@ -85,7 +85,6 @@ fun PlayerMenu(
     val currentEpisode = remember(odysseyAlbums, mediaMetadata.id) {
         odysseyAlbums.firstNotNullOfOrNull { album -> album.episodes.firstOrNull { (it["id"] as? String) == mediaMetadata.id } }
     }
-    val signedCookie = viewModel?.signedCookie?.collectAsState()?.value
     val showOdysseyActions = viewModel != null && isQueueTrigger != true && currentEpisode != null
     val isLiked = currentEpisode?.get("is_bookmarked") == true
 
@@ -191,7 +190,7 @@ fun PlayerMenu(
                     // rest of the library's download-aware screens can find it, and the id
                     // itself as the download "uri" (resolved elsewhere, same as playback).
                     val uri = if (currentEpisode != null) {
-                        odysseyEpisodeToMediaItem(context, currentEpisode, signedCookie).localConfiguration!!.uri
+                        odysseyEpisodeToMediaItem(context, currentEpisode).localConfiguration!!.uri
                     } else {
                         database.transaction { insert(mediaMetadata) }
                         mediaMetadata.id.toUri()

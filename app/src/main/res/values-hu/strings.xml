@@ -169,7 +169,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">A dalszöveg nem található</string>
     <string name="sleep_timer">Alvásidőzítő</string>
-    <string name="end_of_song">A dal vége</string>
     <plurals name="minute">
         <item quantity="one">1 perc</item>
         <item quantity="other">%d perc</item>

@@ -516,7 +516,7 @@ fun BottomSheetPlayer(
                             playerConnection.service.sleepTimer.start(-1)
                         },
                     ) {
-                        Text(stringResource(R.string.end_of_song))
+                        Text(stringResource(R.string.end_of_episode))
                     }
                 }
             },

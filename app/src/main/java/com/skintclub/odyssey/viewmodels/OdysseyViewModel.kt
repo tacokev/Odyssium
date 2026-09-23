@@ -60,9 +60,6 @@ class OdysseyViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
 
-    private val _signedCookie = MutableStateFlow<String?>(null)
-    val signedCookie = _signedCookie.asStateFlow()
-
     /** Set when a refresh fails while logged in, meaning the stored tokens no longer work.
      * [odysseyClient] is logged out immediately so the app doesn't keep hitting the API with
      * a dead token; the UI observes this to send the user back through [OdysseyLoginScreen]. */
@@ -146,7 +143,9 @@ class OdysseyViewModel @Inject constructor(
                     }
                 }
                 val fetchedGroupings = clubClient.fetchAllGroupings()
-                _signedCookie.value = clubClient.fetchSignedCookie()
+                // Warms the shared cookie cache (see ClubClient.getSignedCookie) so the first
+                // episode played doesn't have to wait on this round trip.
+                clubClient.getSignedCookie(forceRefresh = true)
 
                 applyGroupings(fetchedGroupings)
             }
@@ -397,14 +396,24 @@ class OdysseyViewModel @Inject constructor(
     )
 
     companion object {
-        private val albumNumberRegex = Regex("""^#\s*(\d+)""")
-
-        /** Albums without a leading "#<number>" sort first; numbered albums follow, ordered by that number. */
+        /** Albums without a leading "#<number>" sort first; numbered albums follow, ordered by
+         * that number, with each half-album right after its whole-numbered one. */
         private val albumOrderComparator =
             compareBy<OdysseyAlbum>(
-                { albumNumberRegex.find(it.name) != null },
-                { albumNumberRegex.find(it.name)?.groupValues?.get(1)?.toIntOrNull() ?: Int.MAX_VALUE },
+                { albumNumberOf(it.name) != null },
+                { albumNumberOf(it.name) ?: Double.MAX_VALUE },
                 { it.name },
             )
     }
+}
+
+private val albumNumberRegex = Regex("""^#\s*(\d+)\s*(½|1/2|\.5)?""")
+
+/** An album's "#<number>" as a sort key, with a half-album ("#75 ½") as number + 0.5 so it
+ * lands between #75 and #76 - a plain name tiebreak would put "#75 ½" before "#75: ...", since
+ * a space sorts before a colon. Null for an unnumbered album. */
+fun albumNumberOf(name: String): Double? {
+    val match = albumNumberRegex.find(name) ?: return null
+    val whole = match.groupValues[1].toDoubleOrNull() ?: return null
+    return if (match.groupValues[2].isNotEmpty()) whole + 0.5 else whole
 }

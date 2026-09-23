@@ -208,7 +208,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">Texty nenalezeny</string>
     <string name="sleep_timer">Časovač spánku</string>
-    <string name="end_of_song">Konec skladby</string>
     <plurals name="minute">
         <item quantity="one">1 minuta</item>
         <item quantity="few">%d minuty</item>

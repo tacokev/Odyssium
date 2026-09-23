@@ -42,7 +42,6 @@ fun OdysseyGroupingMenu(
     viewModel: OdysseyViewModel,
     grouping: ClubGrouping,
     episodes: List<Map<String, Any>>,
-    signedCookie: String?,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -105,7 +104,7 @@ fun OdysseyGroupingMenu(
                     if (state == Download.STATE_QUEUED || state == Download.STATE_DOWNLOADING) {
                         return@forEach
                     }
-                    val mediaItem = odysseyEpisodeToMediaItem(context, episode, signedCookie)
+                    val mediaItem = odysseyEpisodeToMediaItem(context, episode)
                     val downloadRequest =
                         DownloadRequest
                             .Builder(id, mediaItem.localConfiguration!!.uri)

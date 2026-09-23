@@ -169,7 +169,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">ਬੋਲ ਨਹੀਂ ਮਿਲੇ</string>
     <string name="sleep_timer">ਸਲੀਪ ਟਾਈਮਰ</string>
-    <string name="end_of_song">ਗੀਤ ਸਮਾਪਤ</string>
     <plurals name="minute">
         <item quantity="one" tools:ignore="ImpliedQuantity">1 ਮਿੰਟ</item>
         <item quantity="other">%d ਮਿੰਟ</item>

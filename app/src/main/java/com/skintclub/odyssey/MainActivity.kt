@@ -396,7 +396,6 @@ class MainActivity : ComponentActivity() {
 
                     val odysseyViewModel: OdysseyViewModel = hiltViewModel()
                     val odysseyAlbums by odysseyViewModel.albums.collectAsState()
-                    val odysseySignedCookie by odysseyViewModel.signedCookie.collectAsState()
                     val odysseyNeedsRelogin by odysseyViewModel.needsRelogin.collectAsState()
                     if (odysseyNeedsRelogin) {
                         AlertDialog(
@@ -539,7 +538,6 @@ class MainActivity : ComponentActivity() {
                                                     context = this@MainActivity,
                                                     episodes = album.episodes,
                                                     startIndex = episodeIndex,
-                                                    signedCookie = odysseySignedCookie,
                                                 ),
                                             )
                                         }
@@ -617,7 +615,7 @@ class MainActivity : ComponentActivity() {
                                         key = { (album, index, _) -> "${album.name}_$index" },
                                     ) { (album, index, episode) ->
                                         val metadata = odysseyEpisodeToMediaMetadata(this@MainActivity, episode)
-                                        val mediaItem = odysseyEpisodeToMediaItem(this@MainActivity, episode, odysseySignedCookie)
+                                        val mediaItem = odysseyEpisodeToMediaItem(this@MainActivity, episode)
                                         val episodeMenuState = LocalMenuState.current
 
                                         MediaMetadataListItem(
@@ -655,7 +653,6 @@ class MainActivity : ComponentActivity() {
                                                                 context = this@MainActivity,
                                                                 episodes = album.episodes,
                                                                 startIndex = index,
-                                                                signedCookie = odysseySignedCookie,
                                                             ),
                                                         )
                                                         onActiveChange(false)

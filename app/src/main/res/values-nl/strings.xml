@@ -169,7 +169,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">Songtekst niet gevonden</string>
     <string name="sleep_timer">Slaap timer</string>
-    <string name="end_of_song">Einde van nummer</string>
     <plurals name="minute">
         <item quantity="one">1 minuut</item>
         <item quantity="other">%d minuten</item>

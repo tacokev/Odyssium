@@ -189,7 +189,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">Текст песни не найден</string>
     <string name="sleep_timer">Таймер сна</string>
-    <string name="end_of_song">Конец песни</string>
     <plurals name="minute">
         <item quantity="one">%d минута</item>
         <item quantity="few">%d минуты</item>

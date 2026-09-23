@@ -211,7 +211,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">Nie znaleziono tekstu</string>
     <string name="sleep_timer">Minutnik</string>
-    <string name="end_of_song">Koniec utworu</string>
     <plurals name="minute">
         <item quantity="one">%d minuta</item>
         <item quantity="few">%d minuty</item>

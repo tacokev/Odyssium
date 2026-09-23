@@ -193,7 +193,6 @@
     <!-- Oynatıcı -->
     <string name="lyrics_not_found">Şarkı sözleri bulunamadı</string>
     <string name="sleep_timer">Uyku zamanlayıcısı</string>
-    <string name="end_of_song">Şarkı sonu</string>
     <plurals name="minute">
         <item quantity="one">1 dakika</item>
         <item quantity="other">%d dakika</item>

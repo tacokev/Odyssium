@@ -21,8 +21,6 @@ data class HomeCategory(
 /** How many covers each Home tile's collage shows. */
 const val HOME_COLLAGE_COVER_COUNT = 6
 
-private val albumNumberRegex = Regex("""^#\s*(\d+)""")
-
 fun homeCategoriesFrom(
     clubClient: ClubClient,
     groupings: List<ClubGrouping>,
@@ -44,7 +42,7 @@ fun homeCategoriesFrom(
             imageUrls = groupings
                 .filter { it.type == "Album" }
                 .mapNotNull { album ->
-                    albumNumberRegex.find(album.name)?.groupValues?.get(1)?.toIntOrNull()?.let { it to album }
+                    albumNumberOf(album.name)?.let { it to album }
                 }
                 .sortedByDescending { (number, _) -> number }
                 .map { (_, album) -> album }

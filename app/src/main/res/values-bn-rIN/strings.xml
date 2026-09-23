@@ -169,7 +169,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">গানের কথা পাওয়া যায়নি</string>
     <string name="sleep_timer">ঘুমের টাইমার</string>
-    <string name="end_of_song">গানের শেষ</string>
     <plurals name="minute">
         <item quantity="one">%d মিনিট</item>
         <item quantity="other">%d মিনিট</item>

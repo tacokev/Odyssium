@@ -177,7 +177,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">Lyrics not found</string>
     <string name="sleep_timer">Sleep timer</string>
-    <string name="end_of_song">End of song</string>
     <plurals name="minute">
         <item quantity="one">%d minute</item>
         <item quantity="other">%d minutes</item>

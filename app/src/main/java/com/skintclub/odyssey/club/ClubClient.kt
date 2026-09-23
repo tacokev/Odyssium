@@ -13,13 +13,17 @@ import com.skintclub.odyssey.constants.ClubMembershipExpiresKey
 import com.skintclub.odyssey.constants.ClubPinKey
 import com.skintclub.odyssey.constants.ClubRefreshTokenKey
 import com.skintclub.odyssey.constants.ClubViewerIdKey
+import com.skintclub.odyssey.playback.ODYSSEY_MEDIA_HOST
 import com.skintclub.odyssey.utils.dataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -29,6 +33,7 @@ import okhttp3.Response
 import java.io.IOException
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 data class ClubProfile(
@@ -115,6 +120,9 @@ private data class ClubGroupingsPageResponse(
     val contentGroupings: List<ClubGrouping> = emptyList(),
 )
 
+/** A signed CDN credential (cookie query string or pre-signed URL) and when it stops working. */
+private class CachedSigned(val value: String, val expiresAtMillis: Long)
+
 private fun JsonElement?.toYearStringOrNull(): String? {
     if (this == null || isJsonNull || !isJsonPrimitive) return null
     val primitive = asJsonPrimitive
@@ -177,6 +185,46 @@ class ClubClient(private val context: Context) {
         const val COLLECTION_TYPE = "Collection"
 
         private val firstNumberRegex = Regex("""\d+""")
+
+        /** The CDN's signed cookie and content-request URLs (keyed by content id), shared
+         * process-wide: MusicService, DownloadUtil and the view model each build their own
+         * ClubClient, but all stream from the same CDN. */
+        @Volatile
+        private var cachedSignedCookie: CachedSigned? = null
+        private val signedCookieMutex = Mutex()
+        private val cachedContentDownloadUrls = ConcurrentHashMap<String, CachedSigned>()
+
+        /** Refresh this long before a signature's own expiry, so a request that starts just
+         * before it doesn't get cut off partway through loading. */
+        private const val SIGNED_REFRESH_MARGIN_MS = 2 * 60 * 1000L
+
+        /** Assumed lifetime when a signature can't be parsed for an expiry. */
+        private const val SIGNED_FALLBACK_TTL_MS = 30 * 60 * 1000L
+
+        private val policyExpiryRegex = Regex(""""DateLessThan"\s*:\s*\{\s*"AWS:EpochTime"\s*:\s*(\d+)""")
+
+        /** Forgets every cached signed cookie/URL so the next request fetches new ones - for
+         * when the CDN rejects one before its signature said it would expire. */
+        fun invalidateSignedUrls() {
+            cachedSignedCookie = null
+            cachedContentDownloadUrls.clear()
+        }
+
+        private fun CachedSigned.isFresh() = System.currentTimeMillis() < expiresAtMillis - SIGNED_REFRESH_MARGIN_MS
+
+        /** When a CloudFront-signed [url] stops being valid: its canned-policy `Expires`, or
+         * else the `DateLessThan` inside its custom `Policy` (CloudFront's URL-safe base64:
+         * `-`/`_`/`~` stand in for `+`/`=`/`/`). */
+        private fun signedExpiryMillis(url: HttpUrl?): Long {
+            url?.queryParameter("Expires")?.toLongOrNull()?.let { return it * 1000 }
+            val policyJson = url?.queryParameter("Policy")?.let { policy ->
+                runCatching {
+                    String(Base64.decode(policy.replace('-', '+').replace('_', '=').replace('~', '/'), Base64.DEFAULT))
+                }.getOrNull()
+            }
+            val epochSeconds = policyJson?.let { policyExpiryRegex.find(it) }?.groupValues?.get(1)?.toLongOrNull()
+            return epochSeconds?.times(1000) ?: (System.currentTimeMillis() + SIGNED_FALLBACK_TTL_MS)
+        }
 
         /** True once the logout redirect chain has landed somewhere other than the logout
          * page itself, meaning the server-side session is gone and it's safe to clear local
@@ -655,11 +703,19 @@ class ClubClient(private val context: Context) {
             .filter { (_, episodes) -> episodes.isNotEmpty() }
     }
 
-    /** Fetches a single content item's full detail and returns its download_url, fresh and
-     * ready to stream from as-is (no signed-cookie query string needed). Used by the "Content
-     * request" audio-loading mode, which trades this extra round-trip per episode for not
-     * depending on the shared signed cookie that [fetchSignedCookie] hands out. */
-    suspend fun fetchContentDownloadUrl(contentId: String): String? = withContext(Dispatchers.IO) {
+    /** A content item's download_url, ready to stream from as-is (no signed-cookie query
+     * string needed). Used by the "Content request" audio-loading mode, which trades an extra
+     * round-trip per episode for not depending on the shared signed cookie that
+     * [fetchSignedCookie] hands out. Cached per content id until its signature nears expiry,
+     * since the player resolves a URL for every range request (each seek, each chunk). */
+    suspend fun getContentDownloadUrl(contentId: String): String? {
+        cachedContentDownloadUrls[contentId]?.takeIf { it.isFresh() }?.let { return it.value }
+        val url = fetchContentDownloadUrl(contentId) ?: return null
+        cachedContentDownloadUrls[contentId] = CachedSigned(url, signedExpiryMillis(url.toHttpUrlOrNull()))
+        return url
+    }
+
+    private suspend fun fetchContentDownloadUrl(contentId: String): String? = withContext(Dispatchers.IO) {
         val vid = getViewerId()
         val p = getPin()
         val response = authorizedCall("fetchContentDownloadUrl") { token ->
@@ -675,7 +731,23 @@ class ClubClient(private val context: Context) {
         gson.fromJson(body, ClubContent::class.java)?.downloadUrl
     }
 
-    suspend fun fetchSignedCookie(): String? = withContext(Dispatchers.IO) {
+    /** The CDN's signed cookie as a `?Policy=...&Signature=...&Key-Pair-Id=...` query string,
+     * from the process-wide cache unless it's missing, within [SIGNED_REFRESH_MARGIN_MS] of
+     * expiring, or [forceRefresh] is set. Only grants access to
+     * [com.skintclub.odyssey.playback.isSignedCookiePath] paths. */
+    suspend fun getSignedCookie(forceRefresh: Boolean = false): String? {
+        fun freshCached() = cachedSignedCookie?.takeIf { it.isFresh() }?.value
+        if (!forceRefresh) freshCached()?.let { return it }
+        return signedCookieMutex.withLock {
+            // Another caller may have refreshed it while this one waited on the lock.
+            if (!forceRefresh) freshCached()?.let { return@withLock it }
+            val query = fetchSignedCookie()
+            cachedSignedCookie = query?.let { CachedSigned(it, signedExpiryMillis("https://$ODYSSEY_MEDIA_HOST/$it".toHttpUrlOrNull())) }
+            query
+        }
+    }
+
+    private suspend fun fetchSignedCookie(): String? = withContext(Dispatchers.IO) {
         val vid = getViewerId()
         val p = getPin()
         val response = authorizedCall("fetchSignedCookie") { token ->
@@ -722,6 +794,7 @@ class ClubClient(private val context: Context) {
     }
 
     suspend fun logout() {
+        invalidateSignedUrls()
         context.dataStore.edit {
             it.remove(ClubAccessTokenKey)
             it.remove(ClubRefreshTokenKey)

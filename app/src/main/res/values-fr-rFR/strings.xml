@@ -193,7 +193,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">Paroles introuvables</string>
     <string name="sleep_timer">Minuterie de sommeil</string>
-    <string name="end_of_song">Fin de chanson</string>
     <plurals name="minute">
         <item quantity="one">%d minute</item>
         <item quantity="many">%d minutes</item>

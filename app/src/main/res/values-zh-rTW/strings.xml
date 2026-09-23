@@ -188,7 +188,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">沒有歌詞</string>
     <string name="sleep_timer">睡眠定時器</string>
-    <string name="end_of_song">這首歌曲播放完畢</string>
     <plurals name="minute" tools:ignore="UnusedQuantity">
         <item quantity="one">1 分鐘</item>
         <item quantity="other">%d 分鐘</item>

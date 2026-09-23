@@ -216,7 +216,6 @@ private fun OdysseySectionedEpisodesScreen(
     val menuState = LocalMenuState.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val albums by viewModel.albums.collectAsState()
-    val signedCookie by viewModel.signedCookie.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val scrollBehavior = appBarScrollBehavior()
     val listState = rememberLazyListState()
@@ -290,7 +289,6 @@ private fun OdysseySectionedEpisodesScreen(
                                             context = context,
                                             episodes = episodes,
                                             startIndex = if (sortReversed) episodes.lastIndex - index else index,
-                                            signedCookie = signedCookie,
                                         ),
                                     )
                                 },
@@ -302,7 +300,7 @@ private fun OdysseySectionedEpisodesScreen(
                                             navController = navController,
                                             viewModel = viewModel,
                                             mediaMetadata = odysseyEpisodeToMediaMetadata(context, episode),
-                                            mediaItem = odysseyEpisodeToMediaItem(context, episode, signedCookie),
+                                            mediaItem = odysseyEpisodeToMediaItem(context, episode),
                                             albumName = location?.first,
                                             episodeIndex = location?.second ?: (if (sortReversed) episodes.lastIndex - index else index),
                                             isLiked = episode["is_bookmarked"] == true,

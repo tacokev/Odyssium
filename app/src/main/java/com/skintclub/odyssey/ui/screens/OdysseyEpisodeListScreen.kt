@@ -111,7 +111,6 @@ fun OdysseyEpisodeListScreen(
     val scrollBehavior = appBarScrollBehavior()
     val albums by viewModel.albums.collectAsState()
     val showEpisodeNumber by rememberPreference(ShowEpisodeNumberKey, defaultValue = false)
-    val signedCookie by viewModel.signedCookie.collectAsState()
     val downloads by LocalDownloadUtil.current.downloads.collectAsState()
 
     // Maps an episode id to where it really lives, so the "..." menu's "Details"/queue
@@ -202,7 +201,6 @@ fun OdysseyEpisodeListScreen(
                                 context = context,
                                 episodes = episodes,
                                 startIndex = 0,
-                                signedCookie = signedCookie,
                             ),
                         )
                     },
@@ -222,7 +220,7 @@ fun OdysseyEpisodeListScreen(
                 OutlinedButton(
                     onClick = {
                         playerConnection.addToQueue(
-                            items = episodes.map { odysseyEpisodeToMediaItem(context, it, signedCookie) },
+                            items = episodes.map { odysseyEpisodeToMediaItem(context, it) },
                         )
                     },
                     enabled = episodes.isNotEmpty(),
@@ -299,7 +297,7 @@ fun OdysseyEpisodeListScreen(
                                     navController = navController,
                                     viewModel = viewModel,
                                     mediaMetadata = metadata,
-                                    mediaItem = odysseyEpisodeToMediaItem(context, episode, signedCookie),
+                                    mediaItem = odysseyEpisodeToMediaItem(context, episode),
                                     albumName = location?.first,
                                     episodeIndex = location?.second ?: index,
                                     isLiked = episode["is_bookmarked"] == true,
@@ -327,7 +325,6 @@ fun OdysseyEpisodeListScreen(
                                             context = context,
                                             episodes = episodes,
                                             startIndex = index,
-                                            signedCookie = signedCookie,
                                         ),
                                     )
                                 }
@@ -388,7 +385,6 @@ fun OdysseyEpisodeListScreen(
                                 viewModel = viewModel,
                                 grouping = grouping,
                                 episodes = episodes,
-                                signedCookie = signedCookie,
                                 onDismiss = menuState::dismiss,
                             )
                         }
