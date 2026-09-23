@@ -43,11 +43,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -97,6 +97,8 @@ import com.skintclub.odyssey.ui.menu.OdysseyEpisodeMenu
 import com.skintclub.odyssey.ui.player.BottomSheetPlayer
 import com.skintclub.odyssey.ui.screens.*
 import com.skintclub.odyssey.ui.screens.settings.DarkMode
+import com.skintclub.odyssey.ui.screens.settings.ThemeColorSource
+import com.skintclub.odyssey.ui.screens.settings.rememberThemeColorSource
 import com.skintclub.odyssey.ui.theme.ColorSaver
 import com.skintclub.odyssey.ui.theme.DefaultThemeColor
 import com.skintclub.odyssey.ui.theme.InnerTuneTheme
@@ -111,14 +113,13 @@ import com.skintclub.odyssey.utils.rememberPreference
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 import com.valentinilk.shimmer.LocalShimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
-import kotlin.math.roundToInt
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -189,7 +190,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
+            val themeColorSource by rememberThemeColorSource()
             val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
             val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
             val isSystemInDarkTheme = isSystemInDarkTheme()
@@ -204,9 +205,9 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(DefaultThemeColor)
             }
 
-            LaunchedEffect(playerConnection, enableDynamicTheme, isSystemInDarkTheme) {
+            LaunchedEffect(playerConnection, themeColorSource, isSystemInDarkTheme) {
                 val playerConnection = playerConnection
-                if (!enableDynamicTheme || playerConnection == null) {
+                if (themeColorSource != ThemeColorSource.ARTWORK || playerConnection == null) {
                     themeColor = DefaultThemeColor
                     return@LaunchedEffect
                 }
@@ -234,6 +235,7 @@ class MainActivity : ComponentActivity() {
                 darkTheme = useDarkTheme,
                 pureBlack = pureBlack,
                 themeColor = themeColor,
+                useWallpaperColors = themeColorSource != ThemeColorSource.DEFAULT,
             ) {
                 BoxWithConstraints(
                     modifier =
@@ -284,10 +286,6 @@ class MainActivity : ComponentActivity() {
                     }
                     val searchBarFocusRequester = remember { FocusRequester() }
 
-                    val shouldShowTopActions =
-                        remember(active, navBackStackEntry) {
-                            !active && navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }
-                        }
                     val shouldShowNavigationBar =
                         remember(navBackStackEntry, active) {
                             navBackStackEntry?.destination?.route == null ||
@@ -336,10 +334,9 @@ class MainActivity : ComponentActivity() {
                             },
                         )
 
-                    // Drives the sort/settings icons sliding out on scroll below. Set here
-                    // (rather than left for SearchBar to set) so the limit is already in
-                    // place the first time the user scrolls, since SearchBar itself isn't
-                    // composed until search is activated at least once.
+                    // Set here (rather than left for SearchBar to set) so the limit is
+                    // already in place the first time the user scrolls, since SearchBar
+                    // itself isn't composed until search is activated at least once.
                     val topActionsHeightOffsetLimit =
                         with(density) { -(AppBarHeight.toPx() + windowsInsets.getTop(density)) }
                     SideEffect {
@@ -425,7 +422,6 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     }
-                    val odysseySortDescending by odysseyViewModel.sortDescending.collectAsState()
                     val searchResults =
                         remember(odysseyAlbums, query.text) {
                             val q = query.text.trim()
@@ -454,6 +450,7 @@ class MainActivity : ComponentActivity() {
                         LocalPlayerAwareWindowInsets provides playerAwareWindowInsets,
                         LocalDownloadUtil provides downloadUtil,
                         LocalShimmerTheme provides ShimmerTheme,
+                        LocalTopBarColor provides navigationBarColor,
                     ) {
                         NavHost(
                             navController = navController,
@@ -517,6 +514,7 @@ class MainActivity : ComponentActivity() {
 
                         AnimatedVisibility(
                             visible = navBackStackEntry?.destination?.route == Screens.Home.route ||
+                                navBackStackEntry?.destination?.route == ODYSSEY_ALBUMS_ROUTE ||
                                 navBackStackEntry?.destination?.route == ODYSSEY_EPISODE_ROUTE,
                             enter = fadeIn(),
                             exit = fadeOut(),
@@ -580,68 +578,6 @@ class MainActivity : ComponentActivity() {
                                         .fillMaxWidth()
                                         .height(topInset),
                             ) {}
-                        }
-
-                        AnimatedVisibility(
-                            visible = shouldShowTopActions,
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                            modifier =
-                                Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset {
-                                        IntOffset(x = 0, y = searchBarScrollBehavior.state.heightOffset.roundToInt())
-                                    },
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier =
-                                    Modifier
-                                        .windowInsetsPadding(windowsInsets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                                        .height(AppBarHeight)
-                                        .padding(horizontal = 4.dp),
-                            ) {
-                                if (navBackStackEntry?.destination?.route == Screens.Home.route) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier =
-                                            Modifier
-                                                .size(48.dp)
-                                                .clip(CircleShape)
-                                                .clickable {
-                                                    odysseyViewModel.toggleSortOrder()
-                                                },
-                                    ) {
-                                        Icon(
-                                            painter =
-                                                painterResource(
-                                                    if (odysseySortDescending) {
-                                                        R.drawable.arrow_upward
-                                                    } else {
-                                                        R.drawable.arrow_downward
-                                                    },
-                                                ),
-                                            contentDescription = null,
-                                        )
-                                    }
-                                }
-
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier =
-                                        Modifier
-                                            .size(48.dp)
-                                            .clip(CircleShape)
-                                            .clickable {
-                                                navController.navigate("settings")
-                                            },
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.settings),
-                                        contentDescription = null,
-                                    )
-                                }
-                            }
                         }
 
                         AnimatedVisibility(
@@ -829,7 +765,7 @@ class MainActivity : ComponentActivity() {
                                         },
                                         label = {
                                             Text(
-                                                text = stringResource(R.string.albums),
+                                                text = stringResource(R.string.home),
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                             )
@@ -865,7 +801,7 @@ class MainActivity : ComponentActivity() {
                                         },
                                         label = {
                                             Text(
-                                                text = stringResource(R.string.playlists),
+                                                text = stringResource(R.string.filter_library),
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                             )
@@ -944,3 +880,7 @@ val LocalDatabase = staticCompositionLocalOf<MusicDatabase> { error("No database
 val LocalPlayerConnection = staticCompositionLocalOf<PlayerConnection?> { error("No PlayerConnection provided") }
 val LocalPlayerAwareWindowInsets = compositionLocalOf<WindowInsets> { error("No WindowInsets provided") }
 val LocalDownloadUtil = staticCompositionLocalOf<DownloadUtil> { error("No DownloadUtil provided") }
+
+/** The status-bar strip's color (black in pure-black mode, otherwise the navigation bar's
+ * container color), so screen top bars that slide up behind it can match it exactly. */
+val LocalTopBarColor = compositionLocalOf { Color.Unspecified }

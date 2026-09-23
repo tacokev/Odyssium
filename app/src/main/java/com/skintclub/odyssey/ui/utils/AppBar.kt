@@ -7,13 +7,18 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TopAppBarColors
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import com.skintclub.odyssey.LocalTopBarColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,4 +75,16 @@ suspend fun TopAppBarState.resetHeightOffset() {
             heightOffset = value
         }
     }
+}
+
+/** For screen top bars that scroll away with [appBarScrollBehavior] (which, unlike M3's
+ * enterAlways behavior, never consumes the scroll - the list moves immediately and the bar
+ * slides along with it, instead of the list stalling until the bar has fully collapsed):
+ * the same color as the status bar strip it slides up behind ([LocalTopBarColor]), whether or
+ * not content has scrolled under it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun collapsingTopAppBarColors(): TopAppBarColors {
+    val color = LocalTopBarColor.current.takeOrElse { MaterialTheme.colorScheme.surface }
+    return TopAppBarDefaults.topAppBarColors(containerColor = color, scrolledContainerColor = color)
 }

@@ -77,7 +77,13 @@ fun isSubsequentPart(episode: Map<String, Any>): Boolean {
  * clickable (opening the grouping) without mistaking it for an actual artist to navigate to. */
 const val ODYSSEY_GROUPING_ARTIST_ID_PREFIX = "odyssey_grouping:"
 
-fun odysseyEpisodeToMediaMetadata(context: Context, episode: Map<String, Any>): MediaMetadata {
+/** [showEpisodeNumber] lets a caller building many of these (e.g. a list's rows) pass the
+ * setting in once, instead of each call doing its own blocking DataStore read. */
+fun odysseyEpisodeToMediaMetadata(
+    context: Context,
+    episode: Map<String, Any>,
+    showEpisodeNumber: Boolean? = null,
+): MediaMetadata {
     val artUrl =
         (episode["image_large"] as? String)?.takeIf { it.isNotBlank() }
             ?: (episode["image_medium"] as? String)?.takeIf { it.isNotBlank() }
@@ -86,8 +92,7 @@ fun odysseyEpisodeToMediaMetadata(context: Context, episode: Map<String, Any>): 
     // (playlists, themes) may become browsable later - if an episode ever appears without an
     // album, this should prefer that other grouping's name rather than falling back blindly.
     val albumName = episode["album_name"] as? String ?: "Unknown"
-    val showEpisodeNumber = context.dataStore.get(ShowEpisodeNumberKey, false)
-    val title = if (showEpisodeNumber) {
+    val title = if (showEpisodeNumber ?: context.dataStore.get(ShowEpisodeNumberKey, false)) {
         (episode["short_name"] as? String)?.takeIf { it.isNotBlank() } ?: (episode["name"] as? String ?: "Unknown")
     } else {
         episode["name"] as? String ?: "Unknown"
@@ -103,6 +108,17 @@ fun odysseyEpisodeToMediaMetadata(context: Context, episode: Map<String, Any>): 
         description = extractDescription(episode),
     )
 }
+
+/** The cover to show for [episode] in a scrolling list/grid. Prefers the album's own cover
+ * (~400px): every episode in an album shares that one URL, so it's downloaded and decoded once
+ * and then served from memory. The per-episode thumbnails are each a separate file (the
+ * "medium" one an ~835px, 1.3MB PNG), so a row of them means a fresh download + decode per
+ * card - which is what made scrolling stutter. */
+fun odysseyEpisodeThumbnailUrl(episode: Map<String, Any>): String? =
+    // Set only on album-less episodes (podcasts), which have no shared cover.
+    (episode["list_thumbnail"] as? String)?.takeIf { it.isNotBlank() }
+        ?: (episode["image_large"] as? String)?.takeIf { it.isNotBlank() }
+        ?: (episode["image_small"] as? String)?.takeIf { it.isNotBlank() }
 
 /** Scheme for a placeholder URI that stands in for an episode's real streaming URL when the
  * "Content request" audio-loading mode is active. [MusicService]'s [ResolvingDataSource]

@@ -36,7 +36,8 @@ fun OdysseyEpisodeMenu(
     viewModel: OdysseyViewModel,
     mediaMetadata: MediaMetadata,
     mediaItem: MediaItem,
-    albumName: String,
+    /** The episode's album, for "Details"; null (hiding "Details") for album-less episodes like podcasts. */
+    albumName: String?,
     episodeIndex: Int,
     isLiked: Boolean,
     onDismiss: () -> Unit,
@@ -135,12 +136,14 @@ fun OdysseyEpisodeMenu(
             onDismiss()
             viewModel.setEpisodeLiked(mediaMetadata.id, !isLiked)
         }
-        GridMenuItem(
-            icon = R.drawable.info,
-            title = R.string.details,
-        ) {
-            onDismiss()
-            navController.navigate("odyssey_episode/${Uri.encode(albumName)}/$episodeIndex")
+        if (albumName != null) {
+            GridMenuItem(
+                icon = R.drawable.info,
+                title = R.string.details,
+            ) {
+                onDismiss()
+                navController.navigate("odyssey_episode/${Uri.encode(albumName)}/$episodeIndex")
+            }
         }
     }
 }

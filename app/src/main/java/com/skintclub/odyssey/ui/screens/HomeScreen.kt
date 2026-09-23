@@ -1,46 +1,53 @@
 package com.skintclub.odyssey.ui.screens
 
-import android.net.Uri
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,33 +57,26 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
-import com.skintclub.odyssey.constants.AlbumGridColumns
-import com.skintclub.odyssey.constants.AlbumGridColumnsKey
-import com.skintclub.odyssey.constants.AlbumGridConnectedSquaresKey
+import com.skintclub.odyssey.R
 import com.skintclub.odyssey.constants.AppBarHeight
 import com.skintclub.odyssey.constants.ThumbnailCornerRadius
-import com.skintclub.odyssey.utils.rememberEnumPreference
-import com.skintclub.odyssey.utils.rememberPreference
+import com.skintclub.odyssey.ui.theme.capsuleColor
+import com.skintclub.odyssey.ui.utils.appBarScrollBehavior
+import com.skintclub.odyssey.ui.utils.collapsingTopAppBarColors
+import com.skintclub.odyssey.viewmodels.HomeCategory
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
+import com.skintclub.odyssey.viewmodels.homeCollageCoverRequest
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     navController: NavController,
     viewModel: OdysseyViewModel = hiltViewModel(),
 ) {
-    val haptic = LocalHapticFeedback.current
-    val albums by viewModel.albums.collectAsState()
+    val categories by viewModel.homeCategories.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val sortDescending by viewModel.sortDescending.collectAsState()
-    val gridState = rememberLazyGridState()
     val pullRefreshState = rememberPullToRefreshState()
-    val albumGridColumns by rememberEnumPreference(AlbumGridColumnsKey, defaultValue = AlbumGridColumns.TWO)
-    val albumGridConnectedSquares by rememberPreference(AlbumGridConnectedSquaresKey, defaultValue = false)
-
-    LaunchedEffect(sortDescending) {
-        gridState.scrollToItem(0)
-    }
+    val scrollBehavior = appBarScrollBehavior()
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -94,38 +94,164 @@ fun HomeScreen(
         },
         modifier = Modifier.fillMaxSize(),
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(if (albumGridColumns == AlbumGridColumns.THREE) 3 else 2),
-            state = gridState,
+        LazyColumn(
+            // Each tile pads itself 8dp top and bottom (16dp between tiles), so the extra 8dp
+            // here gives the first and last tiles the same 16dp from the bars.
             contentPadding = LocalPlayerAwareWindowInsets.current
                 .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top + WindowInsetsSides.Bottom)
+                .add(WindowInsets(top = 8.dp, bottom = 8.dp))
                 .asPaddingValues(),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
         ) {
             items(
-                items = albums,
-                // Prefixing with sortDescending changes every key when the order flips, so the
-                // grid treats it as a full item swap instead of trying to keep an existing
-                // key's tile pinned in the viewport (which is what caused the jump-to-bottom).
-                key = { "${sortDescending}_${it.name}" },
-            ) { album ->
-                CoverGridTile(
-                    title = album.name,
-                    subtitle = "${album.episodes.size} episodes",
-                    thumbnailUrl = album.coverUrl,
-                    connectedSquare = albumGridConnectedSquares,
-                    modifier = Modifier.combinedClickable(
-                        onClick = {
-                            navController.navigate("odyssey_album/${Uri.encode(album.name)}")
-                        },
-                        onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        },
-                    ),
+                items = categories,
+                key = { it.route },
+            ) { category ->
+                CategoryTile(
+                    category = category,
+                    onClick = { navController.navigate(category.route) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
         }
     }
+
+    TopAppBar(
+        title = { Text(stringResource(R.string.home)) },
+        actions = {
+            IconButton(onClick = { navController.navigate("settings") }) {
+                Icon(
+                    painter = painterResource(R.drawable.settings),
+                    contentDescription = null,
+                )
+            }
+        },
+        scrollBehavior = scrollBehavior,
+        colors = collapsingTopAppBarColors(),
+    )
+}
+
+private const val COLLAGE_COLUMNS = 3
+private const val COLLAGE_ROWS = 2
+
+/** The gap between neighboring covers - and between the outer covers and the tile's edge - as a
+ * fraction of the tile's height. The covers grow to fill whatever height is left. */
+private const val COLLAGE_GAP_FRACTION = 0.05f
+
+/** A full-width 2:1 tile: a grid of the category's covers on the right, faded
+ * out toward the left into a solid panel carrying the name and size. */
+@Composable
+private fun CategoryTile(
+    category: HomeCategory,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tileColor = MaterialTheme.colorScheme.capsuleColor
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(2f)
+            .clip(RoundedCornerShape(16.dp))
+            .background(tileColor)
+            .clickable(onClick = onClick),
+    ) {
+        if (category.imageUrls.isNotEmpty()) {
+            CoverCollage(
+                imageUrls = category.imageUrls,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        0f to tileColor,
+                        0.3f to tileColor,
+                        0.75f to tileColor.copy(alpha = 0f),
+                    ),
+                ),
+        )
+
+        Column(
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .fillMaxHeight()
+                // Stops short of the first collage column, so long names wrap instead of
+                // running over a cover.
+                .fillMaxWidth(0.4f)
+                .padding(start = 20.dp),
+        ) {
+            Text(
+                text = category.title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = category.subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** [imageUrls] as an evenly spaced grid of equal squares, aligned to the tile's right edge. */
+@Composable
+private fun CoverCollage(
+    imageUrls: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier) {
+        val gap = maxHeight * COLLAGE_GAP_FRACTION
+        val coverSize = (maxHeight - gap * (COLLAGE_ROWS + 1)) / COLLAGE_ROWS
+        repeat(COLLAGE_ROWS) { row ->
+            repeat(COLLAGE_COLUMNS) { column ->
+                // Fewer covers than cells (a small category) just repeats them.
+                val url = imageUrls[(row * COLLAGE_COLUMNS + column) % imageUrls.size]
+                CollageCover(
+                    url = url,
+                    modifier = Modifier
+                        .offset(
+                            x = maxWidth - (coverSize + gap) * (COLLAGE_COLUMNS - column),
+                            y = gap + (coverSize + gap) * row,
+                        )
+                        .size(coverSize)
+                        .shadow(elevation = 6.dp, shape = RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+            }
+        }
+    }
+}
+
+/** One collage cover, decoded at a small fixed size: the Home screen shows up to 30 of these
+ * at once, each under half the tile's height. */
+@Composable
+private fun CollageCover(
+    url: String,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    // Usually already in memory (prefetched at startup), which draws instantly; the image
+    // loader's default crossfade only kicks in for one that still has to be loaded, so a
+    // straggler eases in instead of popping.
+    val request = remember(url) { homeCollageCoverRequest(context, url) }
+    AsyncImage(
+        model = request,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier,
+    )
 }
 
 /**

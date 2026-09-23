@@ -1,6 +1,9 @@
 package com.skintclub.odyssey.ui.screens
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,17 +36,22 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
@@ -54,6 +62,7 @@ import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubGrouping
+import com.skintclub.odyssey.constants.ShowEpisodeNumberKey
 import com.skintclub.odyssey.constants.ThumbnailCornerRadius
 import com.skintclub.odyssey.extensions.togglePlayPause
 import com.skintclub.odyssey.playback.queues.OdysseyQueue
@@ -64,7 +73,11 @@ import com.skintclub.odyssey.ui.component.LocalMenuState
 import com.skintclub.odyssey.ui.component.MediaMetadataListItem
 import com.skintclub.odyssey.ui.menu.OdysseyEpisodeMenu
 import com.skintclub.odyssey.ui.menu.OdysseyGroupingMenu
+import com.skintclub.odyssey.ui.theme.capsuleColor
+import com.skintclub.odyssey.ui.utils.appBarScrollBehavior
 import com.skintclub.odyssey.ui.utils.backToMain
+import com.skintclub.odyssey.ui.utils.collapsingTopAppBarColors
+import com.skintclub.odyssey.utils.rememberPreference
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 
 /**
@@ -95,7 +108,9 @@ fun OdysseyEpisodeListScreen(
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val isPlaying by playerConnection.isPlaying.collectAsState()
 
+    val scrollBehavior = appBarScrollBehavior()
     val albums by viewModel.albums.collectAsState()
+    val showEpisodeNumber by rememberPreference(ShowEpisodeNumberKey, defaultValue = false)
     val signedCookie by viewModel.signedCookie.collectAsState()
     val downloads by LocalDownloadUtil.current.downloads.collectAsState()
 
@@ -143,9 +158,11 @@ fun OdysseyEpisodeListScreen(
     LazyColumn(
         contentPadding =
             LocalPlayerAwareWindowInsets.current
-                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top + WindowInsetsSides.Bottom)
                 .asPaddingValues(),
-        modifier = Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)),
+        // The top inset is content padding (not a modifier) so the list scrolls up under the
+        // top bar - otherwise the bar sliding away would leave an empty strip behind.
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
     ) {
         if (grouping != null) {
             val description = grouping.fullDescription?.takeIf { it.isNotBlank() }
@@ -166,11 +183,7 @@ fun OdysseyEpisodeListScreen(
                             if (description != null) Spacer(Modifier.height(12.dp))
                         }
                         if (description != null) {
-                            Text(
-                                text = description,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            ExpandableDescription(description)
                         }
                     }
                 }
@@ -231,8 +244,9 @@ fun OdysseyEpisodeListScreen(
             items = episodes,
             key = { index, episode -> (episode["id"] as? String) ?: (episode["download_url"] as? String) ?: index },
         ) { index, episode ->
-            val metadata = odysseyEpisodeToMediaMetadata(context, episode)
-            val mediaItem = odysseyEpisodeToMediaItem(context, episode, signedCookie)
+            val metadata = remember(episode, showEpisodeNumber) {
+                odysseyEpisodeToMediaMetadata(context, episode, showEpisodeNumber)
+            }
             val location = episodeLocations[episode["id"] as? String]
 
             MediaMetadataListItem(
@@ -285,8 +299,8 @@ fun OdysseyEpisodeListScreen(
                                     navController = navController,
                                     viewModel = viewModel,
                                     mediaMetadata = metadata,
-                                    mediaItem = mediaItem,
-                                    albumName = location?.first ?: title,
+                                    mediaItem = odysseyEpisodeToMediaItem(context, episode, signedCookie),
+                                    albumName = location?.first,
                                     episodeIndex = location?.second ?: index,
                                     isLiked = episode["is_bookmarked"] == true,
                                     onDismiss = menuState::dismiss,
@@ -328,6 +342,8 @@ fun OdysseyEpisodeListScreen(
 
     TopAppBar(
         title = { Text(title) },
+        scrollBehavior = scrollBehavior,
+        colors = collapsingTopAppBarColors(),
         navigationIcon = {
             IconButton(
                 onClick = navController::navigateUp,
@@ -434,3 +450,47 @@ fun OdysseyPlaylistScreen(
     val episodes = remember(groupings, playlistId) { clubClient.playlistEpisodesFrom(groupings, playlistId) }
     OdysseyEpisodeListScreen(navController, viewModel, grouping?.name ?: "Playlist", episodes, grouping)
 }
+
+/** A grouping's description as a capsule: clamped to [COLLAPSED_DESCRIPTION_LINES] with a
+ * chevron, tapping it expands to the full text (and back). A description that already fits
+ * gets neither the chevron nor the tap target. */
+@Composable
+private fun ExpandableDescription(description: String) {
+    var expanded by rememberSaveable(description) { mutableStateOf(false) }
+    // Latched from the collapsed layout: once expanded the text no longer overflows, but it
+    // still needs the chevron to collapse again.
+    var canExpand by remember(description) { mutableStateOf(false) }
+
+    Row(
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.capsuleColor)
+            .then(if (canExpand) Modifier.clickable { expanded = !expanded } else Modifier)
+            .animateContentSize()
+            .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = if (canExpand) 8.dp else 16.dp),
+    ) {
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (expanded) Int.MAX_VALUE else COLLAPSED_DESCRIPTION_LINES,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { result ->
+                if (!expanded && result.hasVisualOverflow) canExpand = true
+            },
+            modifier = Modifier.weight(1f),
+        )
+        if (canExpand) {
+            Icon(
+                painter = painterResource(if (expanded) R.drawable.expand_less else R.drawable.expand_more),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+    }
+}
+
+private const val COLLAPSED_DESCRIPTION_LINES = 3
