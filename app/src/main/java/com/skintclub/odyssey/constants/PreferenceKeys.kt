@@ -7,7 +7,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 
+/** Superseded by [ThemeColorSourceKey]; still read once, as that setting's default, so the old
+ * switch's choice carries over (on -> artwork, off -> wallpaper). */
 val DynamicThemeKey = booleanPreferencesKey("dynamicTheme")
+val ThemeColorSourceKey = stringPreferencesKey("themeColorSource")
 val DarkModeKey = stringPreferencesKey("darkMode")
 val PureBlackKey = booleanPreferencesKey("pureBlack")
 val DefaultOpenTabKey = stringPreferencesKey("defaultOpenTab")
@@ -290,6 +293,10 @@ val ClubRefreshTokenKey = stringPreferencesKey("odysseyRefreshToken")
 val ClubViewerIdKey = stringPreferencesKey("odysseyViewerId")
 val ClubPinKey = stringPreferencesKey("odysseyPin")
 val OdysseySortReversedKey = booleanPreferencesKey("odysseySortReversed")
+val EpisodesSortReversedKey = booleanPreferencesKey("episodesSortReversed")
+val SeriesSortReversedKey = booleanPreferencesKey("seriesSortReversed")
+val CollectionsSortReversedKey = booleanPreferencesKey("collectionsSortReversed")
+val PodcastsSortReversedKey = booleanPreferencesKey("podcastsSortReversed")
 val OdysseySignedCookieKey = stringPreferencesKey("odysseySignedCookie")
 val ClubContentGroupingsCacheKey = stringPreferencesKey("clubContentGroupingsCache")
 val ExcludeBonusEpisodesKey = booleanPreferencesKey("excludeBonusEpisodes")

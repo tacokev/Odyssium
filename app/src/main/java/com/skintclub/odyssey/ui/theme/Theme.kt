@@ -28,12 +28,15 @@ fun InnerTuneTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     pureBlack: Boolean = false,
     themeColor: Color = DefaultThemeColor,
+    /** Whether [DefaultThemeColor] means "use the wallpaper's Material You palette" (Android
+     * 12+) rather than the fixed default blue. */
+    useWallpaperColors: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val colorScheme =
-        remember(darkTheme, pureBlack, themeColor) {
-            if (themeColor == DefaultThemeColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        remember(darkTheme, pureBlack, themeColor, useWallpaperColors) {
+            if (themeColor == DefaultThemeColor && useWallpaperColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (darkTheme) {
                     dynamicDarkColorScheme(context).pureBlack(pureBlack)
                 } else {
@@ -156,3 +159,9 @@ val ColorSaver =
 
         override fun SaverScope.save(value: Color): Int = value.toArgb()
     }
+
+/** Background for content "capsules" (Home's category tiles, an album's description). Pure black
+ * only blacks out surface/background (see [pureBlack]), so there capsules drop to the darkest
+ * container tone - just off black - rather than a grey panel. */
+val ColorScheme.capsuleColor: Color
+    get() = if (surface == Color.Black) surfaceContainerLowest else surfaceContainerHigh

@@ -170,6 +170,14 @@ class ClubClient(private val context: Context) {
          * is what [isLogoutComplete] watches for. */
         const val LOGOUT_URL = "https://app.adventuresinodyssey.com/logout"
 
+        /** Grouping types behind the Home screen's category tiles. */
+        const val EPISODE_HOME_TYPE = "Episode Home"
+        const val SERIES_TYPE = "Series"
+        const val PODCAST_YEAR_TYPE = "Podcast Year"
+        const val COLLECTION_TYPE = "Collection"
+
+        private val firstNumberRegex = Regex("""\d+""")
+
         /** True once the logout redirect chain has landed somewhere other than the logout
          * page itself, meaning the server-side session is gone and it's safe to clear local
          * state. */
@@ -578,6 +586,73 @@ class ClubClient(private val context: Context) {
             content.shortName?.let { episode["short_name"] = it }
             episode
         }
+    }
+
+    /** Every grouping of [type] (e.g. "Series", "Podcast Year"), ordered by the first number in
+     * its name ("Episodes 51 to 100", "2007") so numbered groupings come out in sequence
+     * regardless of API order; unnumbered ones follow, alphabetically. */
+    fun groupingsOfType(groupings: List<ClubGrouping>, type: String): List<ClubGrouping> =
+        groupings
+            .filter { it.type == type }
+            .sortedWith(
+                compareBy<ClubGrouping>(
+                    { firstNumberRegex.find(it.name)?.value?.toIntOrNull() ?: Int.MAX_VALUE },
+                    { it.name },
+                ),
+            )
+
+    /** The "Collection" groupings (soundtracks, themed sets, ...) that have anything playable,
+     * in the API's own order - their names mix numbering schemes ("Season 3 Soundtrack",
+     * "Vol. 1"), so [groupingsOfType]'s number sort would scramble them. A couple are all
+     * articles or videos, which would only open an empty episode list. */
+    fun collectionsFrom(groupings: List<ClubGrouping>): List<ClubGrouping> =
+        groupings.filter { grouping ->
+            grouping.type == COLLECTION_TYPE && grouping.contentList.any { it.type == "Audio" }
+        }
+
+    /** Flattens any grouping's audio content into the episode-map shape. Episodes that also
+     * live in an Album reuse that album's own episode map (real album name, album cover as
+     * the player artwork, copyright year) so they look identical to browsing the album;
+     * anything album-less - podcasts, mostly - is built from the grouping itself. */
+    fun groupingEpisodesFrom(groupings: List<ClubGrouping>, grouping: ClubGrouping): List<Map<String, Any>> {
+        val albumEpisodeById = albumEpisodesFrom(groupings).associateBy { it["id"] as String }
+        return groupingEpisodesFrom(grouping, albumEpisodeById)
+    }
+
+    private fun groupingEpisodesFrom(
+        grouping: ClubGrouping,
+        albumEpisodeById: Map<String, Map<String, Any>>,
+    ): List<Map<String, Any>> =
+        grouping.contentList.filter { it.type == "Audio" }.distinctBy { it.id }.map { content ->
+            albumEpisodeById[content.id] ?: mutableMapOf<String, Any>(
+                "id" to content.id,
+                "name" to content.name,
+                "album_name" to grouping.name,
+                "download_url" to (content.downloadUrl ?: ""),
+                "image_small" to (content.thumbnailSmall ?: grouping.imageUrl ?: ""),
+                "image_medium" to (content.thumbnailMedium ?: grouping.imageUrl ?: ""),
+                "image_large" to (grouping.imageUrl ?: content.thumbnailMedium ?: ""),
+                "is_bookmarked" to content.isBookmarked,
+            ).apply {
+                // No shared album cover to fall back on, so scrolling rows show the episode's
+                // own small thumbnail rather than the grouping's cover on every card.
+                content.thumbnailSmall?.let { put("list_thumbnail", it) }
+                content.description?.let { put("description", it) }
+                content.shortName?.let { put("short_name", it) }
+            }
+        }
+
+    /** Pairs each of [sections] (e.g. the "Episodes 1 to 50", ... blocks, or the podcast
+     * years) with its episodes, dropping any with nothing playable. [groupings] is the full
+     * cache, used to resolve album-backed episodes. */
+    fun sectionsFrom(
+        groupings: List<ClubGrouping>,
+        sections: List<ClubGrouping>,
+    ): List<Pair<ClubGrouping, List<Map<String, Any>>>> {
+        val albumEpisodeById = albumEpisodesFrom(groupings).associateBy { it["id"] as String }
+        return sections
+            .map { it to groupingEpisodesFrom(it, albumEpisodeById) }
+            .filter { (_, episodes) -> episodes.isNotEmpty() }
     }
 
     /** Fetches a single content item's full detail and returns its download_url, fresh and

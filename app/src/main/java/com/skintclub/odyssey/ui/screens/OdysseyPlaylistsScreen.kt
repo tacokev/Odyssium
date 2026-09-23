@@ -13,19 +13,26 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
+import com.skintclub.odyssey.ui.utils.appBarScrollBehavior
+import com.skintclub.odyssey.ui.utils.collapsingTopAppBarColors
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 
 /** Fixed, always-present tiles shown above the user's own cached playlists. */
@@ -43,13 +50,16 @@ fun OdysseyPlaylistsScreen(
     val haptic = LocalHapticFeedback.current
     val playlists by viewModel.playlists.collectAsState()
     val userPlaylists = remember(playlists) { playlists.filter { it.isUserCreated } }
+    val scrollBehavior = appBarScrollBehavior()
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         contentPadding = LocalPlayerAwareWindowInsets.current
             .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top + WindowInsetsSides.Bottom)
             .asPaddingValues(),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(scrollBehavior.nestedScrollConnection),
     ) {
         items(
             items = PinnedPlaylist.entries,
@@ -94,4 +104,18 @@ fun OdysseyPlaylistsScreen(
             )
         }
     }
+
+    TopAppBar(
+        title = { Text(stringResource(R.string.filter_library)) },
+        actions = {
+            IconButton(onClick = { navController.navigate("settings") }) {
+                Icon(
+                    painter = painterResource(R.drawable.settings),
+                    contentDescription = null,
+                )
+            }
+        },
+        scrollBehavior = scrollBehavior,
+        colors = collapsingTopAppBarColors(),
+    )
 }

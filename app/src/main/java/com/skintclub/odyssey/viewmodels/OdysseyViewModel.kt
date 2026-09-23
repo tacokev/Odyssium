@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.DownloadService
+import coil.imageLoader
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubGrouping
 import com.skintclub.odyssey.club.ClubPlaylistOption
@@ -19,13 +20,13 @@ import com.skintclub.odyssey.playback.queues.isSubsequentPart
 import com.skintclub.odyssey.utils.dataStore
 import com.skintclub.odyssey.utils.get
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
-import javax.inject.Inject
 
 @HiltViewModel
 class OdysseyViewModel @Inject constructor(
@@ -47,6 +48,14 @@ class OdysseyViewModel @Inject constructor(
      * its episode list from (via [ClubClient.playlistEpisodesFrom]). */
     private val _groupings = MutableStateFlow<List<ClubGrouping>>(emptyList())
     val groupings = _groupings.asStateFlow()
+
+    /** The Home screen's category tiles. Seeded from [HomeTilesSnapshot] so they (and their
+     * covers, prefetched right here) are ready on a cold start before the full grouping cache
+     * has even been parsed; recomputed and re-saved whenever the groupings change. */
+    private val _homeCategories = MutableStateFlow(
+        HomeTilesSnapshot.load(application).orEmpty().also { prefetchHomeCovers(it) },
+    )
+    val homeCategories = _homeCategories.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
@@ -348,12 +357,37 @@ class OdysseyViewModel @Inject constructor(
     private fun applyEpisodes(episodes: List<Map<String, Any>>) {
         baseAlbums = episodes.groupBy { it["album_name"] as? String ?: "Unknown" }
             .map { (name, episodesInAlbum) ->
-                val cover = (episodesInAlbum.firstOrNull()?.get("image_medium") as? String)?.takeIf { it.isNotBlank() }
-                    ?: (episodesInAlbum.firstOrNull()?.get("image_small") as? String)?.takeIf { it.isNotBlank() }
+                // image_large is the album's own cover (see ClubClient.albumEpisodesFrom) - the same
+                // one the album's page shows - whereas image_medium/small are the first
+                // episode's own thumbnail, which for some albums is episode-specific art.
+                val first = episodesInAlbum.firstOrNull()
+                val cover = (first?.get("image_large") as? String)?.takeIf { it.isNotBlank() }
+                    ?: (first?.get("image_medium") as? String)?.takeIf { it.isNotBlank() }
+                    ?: (first?.get("image_small") as? String)?.takeIf { it.isNotBlank() }
                 OdysseyAlbum(name, episodesInAlbum, cover)
             }
             .sortedWith(albumOrderComparator)
         applySortOrder()
+        updateHomeCategories()
+    }
+
+    private fun updateHomeCategories() {
+        val categories = homeCategoriesFrom(clubClient, _groupings.value, baseAlbums.size)
+        if (categories == _homeCategories.value) return
+        _homeCategories.value = categories
+        prefetchHomeCovers(categories)
+        viewModelScope.launch(Dispatchers.IO) {
+            HomeTilesSnapshot.save(getApplication(), categories)
+        }
+    }
+
+    /** Warms Coil's memory cache with the Home collage covers, so they're decoded by the time
+     * the tiles draw rather than each one starting its own disk read + decode on first frame. */
+    private fun prefetchHomeCovers(categories: List<HomeCategory>) {
+        val context = getApplication<Application>()
+        categories.flatMap { it.imageUrls }.forEach { url ->
+            context.imageLoader.enqueue(homeCollageCoverRequest(context, url))
+        }
     }
 
     data class OdysseyAlbum(

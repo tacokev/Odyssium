@@ -31,6 +31,32 @@ fun NavGraphBuilder.navigationBuilder(
     composable(Screens.Home.route) {
         HomeScreen(navController, odysseyViewModel)
     }
+    composable(ODYSSEY_ALBUMS_ROUTE) {
+        OdysseyAlbumsScreen(navController, odysseyViewModel)
+    }
+    composable("odyssey_episodes") {
+        OdysseyAllEpisodesScreen(navController, odysseyViewModel)
+    }
+    composable("odyssey_series") {
+        OdysseySeriesScreen(navController, odysseyViewModel)
+    }
+    composable("odyssey_collections") {
+        OdysseyCollectionsScreen(navController, odysseyViewModel)
+    }
+    composable("odyssey_podcasts") {
+        OdysseyPodcastsScreen(navController, odysseyViewModel)
+    }
+    composable(
+        ODYSSEY_GROUPING_ROUTE,
+        arguments = listOf(navArgument("groupingId") { type = NavType.StringType }),
+    ) { backStackEntry ->
+        val groupingId = backStackEntry.arguments?.getString("groupingId").orEmpty()
+        OdysseyGroupingScreen(
+            navController = navController,
+            viewModel = odysseyViewModel,
+            groupingId = groupingId,
+        )
+    }
     composable(Screens.Playlists.route) {
         OdysseyPlaylistsScreen(navController, odysseyViewModel)
     }
