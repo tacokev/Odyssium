@@ -107,6 +107,8 @@
     <string name="share">Share</string>
     <string name="delete">Delete</string>
     <string name="remove_from_history">Remove from history</string>
+    <string name="remove_from_secret_episodes">Remove</string>
+    <string name="added_to_secret_episodes">Added to Secret Episodes</string>
     <string name="search_online">Search online</string>
     <string name="sync">Sync</string>
     <string name="advanced">Advanced</string>
@@ -206,7 +208,7 @@
     <string name="lyrics_not_found">Lyrics not found</string>
     <string name="no_description_available">No description available.</string>
     <string name="sleep_timer">Sleep timer</string>
-    <string name="end_of_song">End of song</string>
+    <string name="end_of_episode">End of episode</string>
     <plurals name="minute">
         <item quantity="one">1 minute</item>
         <item quantity="other">%d minutes</item>

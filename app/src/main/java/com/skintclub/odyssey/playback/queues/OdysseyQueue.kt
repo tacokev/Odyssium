@@ -9,6 +9,8 @@ import com.skintclub.odyssey.constants.ClubAudioLoadModeKey
 import com.skintclub.odyssey.constants.ShowEpisodeNumberKey
 import com.skintclub.odyssey.extensions.toEnum
 import com.skintclub.odyssey.models.MediaMetadata
+import com.skintclub.odyssey.playback.ODYSSEY_MEDIA_HOST
+import com.skintclub.odyssey.playback.isSignedCookiePath
 import com.skintclub.odyssey.utils.dataStore
 import com.skintclub.odyssey.utils.get
 
@@ -16,13 +18,12 @@ class OdysseyQueue(
     val context: Context,
     val episodes: List<Map<String, Any>>,
     val startIndex: Int,
-    val signedCookie: String?,
     override val preloadItem: MediaMetadata? = null,
 ) : Queue {
     override suspend fun getInitialStatus(): Queue.Status =
         Queue.Status(
             title = episodes.getOrNull(startIndex)?.get("album_name") as? String,
-            items = episodes.map { odysseyEpisodeToMediaItem(context, it, signedCookie) },
+            items = episodes.map { odysseyEpisodeToMediaItem(context, it) },
             mediaItemIndex = startIndex,
         )
 
@@ -121,28 +122,33 @@ fun odysseyEpisodeThumbnailUrl(episode: Map<String, Any>): String? =
         ?: (episode["image_small"] as? String)?.takeIf { it.isNotBlank() }
 
 /** Scheme for a placeholder URI that stands in for an episode's real streaming URL when the
- * "Content request" audio-loading mode is active. [MusicService]'s [ResolvingDataSource]
+ * "Content request" audio-loading mode is active, or for content the signed cookie doesn't
+ * cover (e.g. podcasts) in any mode. [MusicService]'s [ResolvingDataSource]
  * resolves it to a fresh, ready-to-stream `download_url` right before that episode actually
- * loads, via [com.skintclub.odyssey.club.ClubClient.fetchContentDownloadUrl] - so the extra
+ * loads, via [com.skintclub.odyssey.club.ClubClient.getContentDownloadUrl] - so the extra
  * per-episode round trip only happens for episodes actually played, not the whole queue. */
 const val ODYSSEY_CONTENT_URI_SCHEME = "odyssey-content"
 
+/** In "Signed cookie" mode the URI is the bare CDN URL - [resolveOdysseyDataSpec] attaches the
+ * current cookie at request time, so a queue built now doesn't carry a cookie that's expired by
+ * the time it plays. Content the cookie doesn't cover (see [isSignedCookiePath]) always uses a
+ * "Content request" placeholder instead. */
 fun odysseyEpisodeToMediaItem(
     context: Context,
     episode: Map<String, Any>,
-    signedCookie: String?,
 ): MediaItem {
-    val urlPrefix = "https://media.adventuresinodyssey.com/"
     val downloadUrl = episode["download_url"] as? String ?: ""
     val contentId = episode["id"] as? String
     val loadMode = context.dataStore[ClubAudioLoadModeKey].toEnum(ClubAudioLoadMode.SIGNED_COOKIE)
+    val useContentRequest = loadMode == ClubAudioLoadMode.CONTENT_REQUEST || !isSignedCookiePath(downloadUrl)
+    // A secret episode (see SecretEpisodes.kt) has no club content id to request, so it's
+    // always streamed with the signed cookie, whatever the load mode.
+    val isSecret = episode["secret"] == true
     val url =
-        if (loadMode == ClubAudioLoadMode.CONTENT_REQUEST && !contentId.isNullOrBlank()) {
+        if (useContentRequest && !isSecret && !contentId.isNullOrBlank()) {
             "$ODYSSEY_CONTENT_URI_SCHEME://$contentId"
-        } else if (signedCookie != null) {
-            "$urlPrefix$downloadUrl$signedCookie"
         } else {
-            "$urlPrefix$downloadUrl"
+            "https://$ODYSSEY_MEDIA_HOST/${downloadUrl.trimStart('/')}"
         }
 
     val metadata = odysseyEpisodeToMediaMetadata(context, episode)

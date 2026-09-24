@@ -169,7 +169,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">متن‌ترانه پیدا نشد</string>
     <string name="sleep_timer">شمارنده‌ی خواب</string>
-    <string name="end_of_song">پایان ترانه</string>
     <plurals name="minute">
         <item quantity="one" tools:ignore="ImpliedQuantity">۱ دقیقه</item>
         <item quantity="other">%d دقیقه</item>

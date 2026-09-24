@@ -161,7 +161,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">가사 찾을 수 없습니다.</string>
     <string name="sleep_timer">수면 타이머</string>
-    <string name="end_of_song">음악의 끝</string>
     <plurals name="minute">
         <item quantity="other">%d 분</item>
     </plurals>

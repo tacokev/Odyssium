@@ -192,7 +192,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">歌詞が見つかりません</string>
     <string name="sleep_timer">スリープタイマー</string>
-    <string name="end_of_song">曲の終わり</string>
     <plurals name="minute">
 
         <item quantity="other">%d 分</item>

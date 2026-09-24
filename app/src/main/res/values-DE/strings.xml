@@ -192,7 +192,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">Liedtext nicht gefunden</string>
     <string name="sleep_timer">Schlaf-Timer</string>
-    <string name="end_of_song">Ende des Liedes</string>
     <plurals name="minute">
         <item quantity="one">1 Minute</item>
         <item quantity="other">%d Minuten</item>

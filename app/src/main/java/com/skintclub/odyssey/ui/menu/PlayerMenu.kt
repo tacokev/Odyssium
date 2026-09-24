@@ -47,6 +47,7 @@ import com.skintclub.odyssey.LocalDatabase
 import com.skintclub.odyssey.LocalDownloadUtil
 import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
+import com.skintclub.odyssey.club.isSecretEpisodeId
 import com.skintclub.odyssey.models.MediaMetadata
 import com.skintclub.odyssey.playback.ExoDownloadService
 import com.skintclub.odyssey.playback.queues.odysseyEpisodeToMediaItem
@@ -82,10 +83,12 @@ fun PlayerMenu(
     // and the like/share/add-to-playlist actions below) rather than just the generic
     // MediaMetadata the player otherwise works with.
     val odysseyAlbums = viewModel?.albums?.collectAsState()?.value.orEmpty()
-    val currentEpisode = remember(odysseyAlbums, mediaMetadata.id) {
+    val secretEpisodes = viewModel?.secretEpisodes?.collectAsState()?.value.orEmpty()
+    val currentEpisode = remember(odysseyAlbums, secretEpisodes, mediaMetadata.id) {
         odysseyAlbums.firstNotNullOfOrNull { album -> album.episodes.firstOrNull { (it["id"] as? String) == mediaMetadata.id } }
+            ?: secretEpisodes.firstOrNull { (it["id"] as? String) == mediaMetadata.id }
     }
-    val signedCookie = viewModel?.signedCookie?.collectAsState()?.value
+    val isSecret = isSecretEpisodeId(mediaMetadata.id)
     val showOdysseyActions = viewModel != null && isQueueTrigger != true && currentEpisode != null
     val isLiked = currentEpisode?.get("is_bookmarked") == true
 
@@ -191,7 +194,7 @@ fun PlayerMenu(
                     // rest of the library's download-aware screens can find it, and the id
                     // itself as the download "uri" (resolved elsewhere, same as playback).
                     val uri = if (currentEpisode != null) {
-                        odysseyEpisodeToMediaItem(context, currentEpisode, signedCookie).localConfiguration!!.uri
+                        odysseyEpisodeToMediaItem(context, currentEpisode).localConfiguration!!.uri
                     } else {
                         database.transaction { insert(mediaMetadata) }
                         mediaMetadata.id.toUri()
@@ -224,7 +227,8 @@ fun PlayerMenu(
             ) {
                 showPlaylistPicker = true
             }
-            GridMenuItem(
+            // A secret episode has no club page to share.
+            if (!isSecret) GridMenuItem(
                 icon = R.drawable.share,
                 title = R.string.share,
             ) {

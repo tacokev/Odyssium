@@ -161,7 +161,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">Lirik tidak ditemukan</string>
     <string name="sleep_timer">Timer tidur</string>
-    <string name="end_of_song">Akhir lagu</string>
     <plurals name="minute">
         <item quantity="other">%d menit</item>
     </plurals>

@@ -189,7 +189,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">Δεν βρέθηκαν στίχοι</string>
     <string name="sleep_timer">Χρονόμετρο ύπνου</string>
-    <string name="end_of_song">Τέλος τραγουδιού</string>
     <plurals name="minute">
         <item quantity="one">1 λεπτό</item>
         <item quantity="other">%d λεπτά</item>

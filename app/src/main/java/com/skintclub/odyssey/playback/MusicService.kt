@@ -25,6 +25,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
@@ -187,6 +188,12 @@ class MusicService :
                 .setSeekForwardIncrementMs(10000)
                 .build()
                 .apply {
+                    // Audio-only app: the club's video content ("Play videos as audio") has
+                    // its video track skipped entirely rather than decoded to nowhere.
+                    trackSelectionParameters = trackSelectionParameters
+                        .buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
+                        .build()
                     addListener(this@MusicService)
                     sleepTimer = SleepTimer(scope, this)
                     addListener(sleepTimer)
@@ -485,6 +492,7 @@ class MusicService :
     override fun onPlaybackStateChanged(
         @Player.State playbackState: Int,
     ) {
+        if (playbackState == Player.STATE_READY) signedCookieRetryMediaId = null
         if (playbackState == STATE_IDLE) {
             currentQueue = EmptyQueue
             player.shuffleModeEnabled = false
@@ -530,7 +538,27 @@ class MusicService :
         }
     }
 
+    /** The media item a fresh-cookie retry was already spent on, so a genuinely forbidden
+     * episode falls through to normal error handling instead of retrying forever. Cleared once
+     * anything plays, so a cookie that expires again much later still gets its retry. */
+    private var signedCookieRetryMediaId: String? = null
+
+    /** A CDN 403 means a cached signed cookie or content-request URL stopped working before its
+     * policy said it would (or was revoked); drop them and re-prepare once, which sends the
+     * request back through [resolveOdysseyDataSpec] to fetch new ones. */
+    private fun retryWithFreshSignedCookie(error: PlaybackException): Boolean {
+        val cause = error.cause as? HttpDataSource.InvalidResponseCodeException ?: return false
+        if (cause.responseCode != 403 || cause.dataSpec.uri.host != ODYSSEY_MEDIA_HOST) return false
+        val mediaId = player.currentMediaItem?.mediaId ?: return false
+        if (signedCookieRetryMediaId == mediaId) return false
+        signedCookieRetryMediaId = mediaId
+        ClubClient.invalidateSignedUrls()
+        player.prepare()
+        return true
+    }
+
     override fun onPlayerError(error: PlaybackException) {
+        if (retryWithFreshSignedCookie(error)) return
         if (dataStore.get(AutoSkipNextOnErrorKey, false) && player.hasNextMediaItem()) {
             player.seekToNext()
             player.prepare()

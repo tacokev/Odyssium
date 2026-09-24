@@ -64,11 +64,13 @@ import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubGrouping
+import com.skintclub.odyssey.club.isPlayableContent
 import com.skintclub.odyssey.constants.AlbumGridColumns
 import com.skintclub.odyssey.constants.AlbumGridColumnsKey
 import com.skintclub.odyssey.constants.AlbumGridConnectedSquaresKey
 import com.skintclub.odyssey.constants.CollectionsSortReversedKey
 import com.skintclub.odyssey.constants.EpisodesSortReversedKey
+import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.constants.PodcastsSortReversedKey
 import com.skintclub.odyssey.constants.SeriesSortReversedKey
 import com.skintclub.odyssey.constants.ThumbnailCornerRadius
@@ -173,7 +175,8 @@ fun OdysseyAllEpisodesScreen(
     val context = LocalContext.current
     val clubClient = remember { ClubClient(context) }
     val groupings by viewModel.groupings.collectAsState()
-    val sections = remember(groupings) {
+    val playVideosAsAudio by viewModel.playVideosAsAudio.collectAsState()
+    val sections = remember(groupings, playVideosAsAudio) {
         clubClient.sectionsFrom(groupings, clubClient.groupingsOfType(groupings, ClubClient.EPISODE_HOME_TYPE))
     }
     OdysseySectionedEpisodesScreen(navController, viewModel, "Episodes", sections, EpisodesSortReversedKey)
@@ -189,7 +192,8 @@ fun OdysseyPodcastsScreen(
     val context = LocalContext.current
     val clubClient = remember { ClubClient(context) }
     val groupings by viewModel.groupings.collectAsState()
-    val sections = remember(groupings) {
+    val playVideosAsAudio by viewModel.playVideosAsAudio.collectAsState()
+    val sections = remember(groupings, playVideosAsAudio) {
         clubClient.sectionsFrom(groupings, clubClient.groupingsOfType(groupings, ClubClient.PODCAST_YEAR_TYPE).reversed())
     }
     OdysseySectionedEpisodesScreen(navController, viewModel, "Podcasts", sections, PodcastsSortReversedKey)
@@ -216,7 +220,6 @@ private fun OdysseySectionedEpisodesScreen(
     val menuState = LocalMenuState.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val albums by viewModel.albums.collectAsState()
-    val signedCookie by viewModel.signedCookie.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val scrollBehavior = appBarScrollBehavior()
     val listState = rememberLazyListState()
@@ -290,7 +293,6 @@ private fun OdysseySectionedEpisodesScreen(
                                             context = context,
                                             episodes = episodes,
                                             startIndex = if (sortReversed) episodes.lastIndex - index else index,
-                                            signedCookie = signedCookie,
                                         ),
                                     )
                                 },
@@ -302,7 +304,7 @@ private fun OdysseySectionedEpisodesScreen(
                                             navController = navController,
                                             viewModel = viewModel,
                                             mediaMetadata = odysseyEpisodeToMediaMetadata(context, episode),
-                                            mediaItem = odysseyEpisodeToMediaItem(context, episode, signedCookie),
+                                            mediaItem = odysseyEpisodeToMediaItem(context, episode),
                                             albumName = location?.first,
                                             episodeIndex = location?.second ?: (if (sortReversed) episodes.lastIndex - index else index),
                                             isLiked = episode["is_bookmarked"] == true,
@@ -409,7 +411,8 @@ fun OdysseyCollectionsScreen(
     val context = LocalContext.current
     val clubClient = remember { ClubClient(context) }
     val groupings by viewModel.groupings.collectAsState()
-    val collections = remember(groupings) { clubClient.collectionsFrom(groupings) }
+    val playVideosAsAudio by viewModel.playVideosAsAudio.collectAsState()
+    val collections = remember(groupings, playVideosAsAudio) { clubClient.collectionsFrom(groupings) }
     OdysseyGroupingGridScreen(navController, "Collections", collections, CollectionsSortReversedKey)
 }
 
@@ -428,6 +431,7 @@ private fun OdysseyGroupingGridScreen(
     val gridState = rememberLazyGridState()
     var sortReversed by rememberPreference(sortReversedKey, defaultValue = false)
     val shownGroupings = remember(groupings, sortReversed) { if (sortReversed) groupings.asReversed() else groupings }
+    val playVideosAsAudio by rememberPreference(PlayVideosAsAudioKey, defaultValue = true)
     ScrollToTopOnChange(sortReversed) { gridState.scrollToItem(0) }
 
     LazyVerticalGrid(
@@ -448,7 +452,7 @@ private fun OdysseyGroupingGridScreen(
         ) { grouping ->
             CoverGridTile(
                 title = grouping.name,
-                subtitle = "${grouping.contentList.count { it.type == "Audio" }} episodes",
+                subtitle = "${grouping.contentList.count { isPlayableContent(it, playVideosAsAudio) }} episodes",
                 thumbnailUrl = grouping.imageUrl,
                 modifier = Modifier.combinedClickable(
                     onClick = {
@@ -494,7 +498,8 @@ fun OdysseyGroupingScreen(
     val clubClient = remember { ClubClient(context) }
     val groupings by viewModel.groupings.collectAsState()
     val grouping = remember(groupings, groupingId) { groupings.firstOrNull { it.id == groupingId } }
-    val episodes = remember(groupings, grouping) {
+    val playVideosAsAudio by viewModel.playVideosAsAudio.collectAsState()
+    val episodes = remember(groupings, grouping, playVideosAsAudio) {
         grouping?.let { clubClient.groupingEpisodesFrom(groupings, it) }.orEmpty()
     }
     OdysseyEpisodeListScreen(navController, viewModel, grouping?.name ?: "", episodes, grouping)

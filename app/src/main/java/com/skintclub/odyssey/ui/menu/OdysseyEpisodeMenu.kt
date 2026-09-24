@@ -12,6 +12,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -23,6 +26,7 @@ import androidx.navigation.NavController
 import com.skintclub.odyssey.LocalDownloadUtil
 import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
+import com.skintclub.odyssey.club.isSecretEpisodeId
 import com.skintclub.odyssey.models.MediaMetadata
 import com.skintclub.odyssey.playback.ExoDownloadService
 import com.skintclub.odyssey.ui.component.GridMenu
@@ -45,6 +49,19 @@ fun OdysseyEpisodeMenu(
     val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val download by LocalDownloadUtil.current.getDownload(mediaMetadata.id).collectAsState(initial = null)
+    var showPlaylistPicker by remember { mutableStateOf(false) }
+
+    if (showPlaylistPicker) {
+        OdysseyPlaylistPickerDialog(
+            viewModel = viewModel,
+            onDismiss = { showPlaylistPicker = false },
+            onPlaylistSelected = { playlistId ->
+                viewModel.addEpisodesToPlaylist(playlistId, listOf(mediaMetadata.id))
+                showPlaylistPicker = false
+                onDismiss()
+            },
+        )
+    }
 
     MediaMetadataListItem(
         mediaMetadata = mediaMetadata,
@@ -135,6 +152,21 @@ fun OdysseyEpisodeMenu(
         ) {
             onDismiss()
             viewModel.setEpisodeLiked(mediaMetadata.id, !isLiked)
+        }
+        GridMenuItem(
+            icon = R.drawable.playlist_add,
+            title = R.string.add_to_playlist,
+        ) {
+            showPlaylistPicker = true
+        }
+        if (isSecretEpisodeId(mediaMetadata.id)) {
+            GridMenuItem(
+                icon = R.drawable.delete,
+                title = R.string.remove_from_secret_episodes,
+            ) {
+                onDismiss()
+                viewModel.removeSecretEpisode(mediaMetadata.id)
+            }
         }
         if (albumName != null) {
             GridMenuItem(

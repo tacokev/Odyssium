@@ -60,7 +60,9 @@ fun OdysseyPlaylistEditScreen(
     }
     val episodes = remember(playlistId) {
         mutableStateListOf<Map<String, Any>>().apply {
-            addAll(clubClient.playlistEpisodesFrom(groupings, playlistId))
+            // Always with videos: the save sends this exact list back as the playlist's
+            // content, so anything left out here would be deleted from it.
+            addAll(clubClient.playlistEpisodesFrom(groupings, playlistId, playVideosAsAudio = true))
         }
     }
 

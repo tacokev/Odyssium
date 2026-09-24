@@ -70,7 +70,6 @@ fun OdysseyEpisodeDetailsScreen(
     val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val albums by viewModel.albums.collectAsState()
-    val signedCookie by viewModel.signedCookie.collectAsState()
 
     val album = albums.find { it.name == albumName } ?: return
     val episode = album.episodes.getOrNull(episodeIndex) ?: return
@@ -169,7 +168,6 @@ fun OdysseyEpisodeDetailsScreen(
                                     context = context,
                                     episodes = album.episodes,
                                     startIndex = episodeIndex,
-                                    signedCookie = signedCookie,
                                 ),
                             )
                         },
@@ -187,7 +185,7 @@ fun OdysseyEpisodeDetailsScreen(
 
                     OutlinedButton(
                         onClick = {
-                            playerConnection.playNext(odysseyEpisodeToMediaItem(context, episode, signedCookie))
+                            playerConnection.playNext(odysseyEpisodeToMediaItem(context, episode))
                         },
                         contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                         modifier = Modifier.weight(1f),

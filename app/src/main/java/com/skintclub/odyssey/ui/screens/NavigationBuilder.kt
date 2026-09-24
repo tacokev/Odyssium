@@ -7,6 +7,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.skintclub.odyssey.club.SECRET_EPISODES_ROUTE
 import com.skintclub.odyssey.ui.screens.settings.AboutScreen
 import com.skintclub.odyssey.ui.screens.settings.AccountSettings
 import com.skintclub.odyssey.ui.screens.settings.AppearanceSettings
@@ -65,6 +66,9 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("odyssey_downloaded") {
         OdysseyDownloadedScreen(navController, odysseyViewModel)
+    }
+    composable(SECRET_EPISODES_ROUTE) {
+        OdysseySecretEpisodesScreen(navController, odysseyViewModel)
     }
     composable(
         "odyssey_playlist/{playlistId}",

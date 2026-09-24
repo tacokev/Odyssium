@@ -13,13 +13,19 @@ import com.skintclub.odyssey.constants.ClubMembershipExpiresKey
 import com.skintclub.odyssey.constants.ClubPinKey
 import com.skintclub.odyssey.constants.ClubRefreshTokenKey
 import com.skintclub.odyssey.constants.ClubViewerIdKey
+import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
+import com.skintclub.odyssey.playback.ODYSSEY_MEDIA_HOST
 import com.skintclub.odyssey.utils.dataStore
+import com.skintclub.odyssey.utils.get
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -29,6 +35,7 @@ import okhttp3.Response
 import java.io.IOException
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 data class ClubProfile(
@@ -115,6 +122,14 @@ private data class ClubGroupingsPageResponse(
     val contentGroupings: List<ClubGrouping> = emptyList(),
 )
 
+/** A signed CDN credential (cookie query string or pre-signed URL) and when it stops working. */
+/** Whether [content] is offered for playback: audio always, and video (played as audio only)
+ * while "Play videos as audio" is on. Everything else - articles, mostly - never is. */
+fun isPlayableContent(content: ClubContent, playVideosAsAudio: Boolean): Boolean =
+    content.type == "Audio" || (playVideosAsAudio && content.type == "Video")
+
+private class CachedSigned(val value: String, val expiresAtMillis: Long)
+
 private fun JsonElement?.toYearStringOrNull(): String? {
     if (this == null || isJsonNull || !isJsonPrimitive) return null
     val primitive = asJsonPrimitive
@@ -163,6 +178,13 @@ class ClubClient(private val context: Context) {
 
     var codeVerifier: String? = null
 
+    /** The "Play videos as audio" setting, read once per list built (not per item - each
+     * read is a blocking DataStore lookup). */
+    fun playVideosAsAudio(): Boolean = context.dataStore.get(PlayVideosAsAudioKey, true)
+
+    private fun playableFilter(playVideosAsAudio: Boolean = playVideosAsAudio()): (ClubContent) -> Boolean =
+        { isPlayableContent(it, playVideosAsAudio) }
+
     companion object {
         /** The club's own logout page. It doesn't render anything useful itself — it just
          * kicks off a server-side session teardown and, once that's done, redirects away -
@@ -177,6 +199,46 @@ class ClubClient(private val context: Context) {
         const val COLLECTION_TYPE = "Collection"
 
         private val firstNumberRegex = Regex("""\d+""")
+
+        /** The CDN's signed cookie and content-request URLs (keyed by content id), shared
+         * process-wide: MusicService, DownloadUtil and the view model each build their own
+         * ClubClient, but all stream from the same CDN. */
+        @Volatile
+        private var cachedSignedCookie: CachedSigned? = null
+        private val signedCookieMutex = Mutex()
+        private val cachedContentDownloadUrls = ConcurrentHashMap<String, CachedSigned>()
+
+        /** Refresh this long before a signature's own expiry, so a request that starts just
+         * before it doesn't get cut off partway through loading. */
+        private const val SIGNED_REFRESH_MARGIN_MS = 2 * 60 * 1000L
+
+        /** Assumed lifetime when a signature can't be parsed for an expiry. */
+        private const val SIGNED_FALLBACK_TTL_MS = 30 * 60 * 1000L
+
+        private val policyExpiryRegex = Regex(""""DateLessThan"\s*:\s*\{\s*"AWS:EpochTime"\s*:\s*(\d+)""")
+
+        /** Forgets every cached signed cookie/URL so the next request fetches new ones - for
+         * when the CDN rejects one before its signature said it would expire. */
+        fun invalidateSignedUrls() {
+            cachedSignedCookie = null
+            cachedContentDownloadUrls.clear()
+        }
+
+        private fun CachedSigned.isFresh() = System.currentTimeMillis() < expiresAtMillis - SIGNED_REFRESH_MARGIN_MS
+
+        /** When a CloudFront-signed [url] stops being valid: its canned-policy `Expires`, or
+         * else the `DateLessThan` inside its custom `Policy` (CloudFront's URL-safe base64:
+         * `-`/`_`/`~` stand in for `+`/`=`/`/`). */
+        private fun signedExpiryMillis(url: HttpUrl?): Long {
+            url?.queryParameter("Expires")?.toLongOrNull()?.let { return it * 1000 }
+            val policyJson = url?.queryParameter("Policy")?.let { policy ->
+                runCatching {
+                    String(Base64.decode(policy.replace('-', '+').replace('_', '=').replace('~', '/'), Base64.DEFAULT))
+                }.getOrNull()
+            }
+            val epochSeconds = policyJson?.let { policyExpiryRegex.find(it) }?.groupValues?.get(1)?.toLongOrNull()
+            return epochSeconds?.times(1000) ?: (System.currentTimeMillis() + SIGNED_FALLBACK_TTL_MS)
+        }
 
         /** True once the logout redirect chain has landed somewhere other than the logout
          * page itself, meaning the server-side session is gone and it's safe to clear local
@@ -502,12 +564,13 @@ class ClubClient(private val context: Context) {
     /** Flattens the "Album" groupings' audio content into the simple episode-map shape the
      * rest of the app (queue building, album/episode screens) already expects. */
     fun albumEpisodesFrom(groupings: List<ClubGrouping>): List<Map<String, Any>> {
+        val isPlayable = playableFilter()
         val episodes = mutableListOf<Map<String, Any>>()
         for (grouping in groupings) {
             if (grouping.type != "Album") continue
             val albumYear = grouping.albumCopyrightYear.toYearStringOrNull()
             for (content in grouping.contentList) {
-                if (content.type != "Audio") continue
+                if (!isPlayable(content)) continue
                 val episode = mutableMapOf<String, Any>(
                     "id" to content.id,
                     "name" to content.name,
@@ -559,8 +622,14 @@ class ClubClient(private val context: Context) {
      * the API's own `album_name` on a playlist's content items is unreliable (it's been seen
      * always echoing the *playlist's* name instead), so each episode's real album is instead
      * resolved by cross-referencing every cached Album grouping's own content by id. Only
-     * falls back to the playlist's name if an episode genuinely isn't in any cached album. */
-    fun playlistEpisodesFrom(groupings: List<ClubGrouping>, playlistId: String): List<Map<String, Any>> {
+     * falls back to the playlist's name if an episode genuinely isn't in any cached album.
+     * [playVideosAsAudio] defaults to the setting; the playlist editor passes true so saving
+     * an edit can't silently drop videos the setting happens to be hiding. */
+    fun playlistEpisodesFrom(
+        groupings: List<ClubGrouping>,
+        playlistId: String,
+        playVideosAsAudio: Boolean = playVideosAsAudio(),
+    ): List<Map<String, Any>> {
         val grouping = groupings.firstOrNull { it.type == "Playlist" && it.id == playlistId } ?: return emptyList()
         val albumNameByContentId = buildMap {
             groupings.filter { it.type == "Album" }.forEach { album ->
@@ -571,7 +640,7 @@ class ClubClient(private val context: Context) {
         // debug playlist on the club) - the episode list is keyed by content id downstream
         // (LazyColumn keys, download cache keys, etc.), so duplicates need to go here rather
         // than wherever it's consumed.
-        return grouping.contentList.filter { it.type == "Audio" }.distinctBy { it.id }.map { content ->
+        return grouping.contentList.filter(playableFilter(playVideosAsAudio)).distinctBy { it.id }.map { content ->
             val episode = mutableMapOf<String, Any>(
                 "id" to content.id,
                 "name" to content.name,
@@ -604,11 +673,14 @@ class ClubClient(private val context: Context) {
     /** The "Collection" groupings (soundtracks, themed sets, ...) that have anything playable,
      * in the API's own order - their names mix numbering schemes ("Season 3 Soundtrack",
      * "Vol. 1"), so [groupingsOfType]'s number sort would scramble them. A couple are all
-     * articles or videos, which would only open an empty episode list. */
-    fun collectionsFrom(groupings: List<ClubGrouping>): List<ClubGrouping> =
-        groupings.filter { grouping ->
-            grouping.type == COLLECTION_TYPE && grouping.contentList.any { it.type == "Audio" }
+     * articles (or videos, while "Play videos as audio" is off), which would only open an
+     * empty episode list. */
+    fun collectionsFrom(groupings: List<ClubGrouping>): List<ClubGrouping> {
+        val isPlayable = playableFilter()
+        return groupings.filter { grouping ->
+            grouping.type == COLLECTION_TYPE && grouping.contentList.any(isPlayable)
         }
+    }
 
     /** Flattens any grouping's audio content into the episode-map shape. Episodes that also
      * live in an Album reuse that album's own episode map (real album name, album cover as
@@ -616,14 +688,15 @@ class ClubClient(private val context: Context) {
      * anything album-less - podcasts, mostly - is built from the grouping itself. */
     fun groupingEpisodesFrom(groupings: List<ClubGrouping>, grouping: ClubGrouping): List<Map<String, Any>> {
         val albumEpisodeById = albumEpisodesFrom(groupings).associateBy { it["id"] as String }
-        return groupingEpisodesFrom(grouping, albumEpisodeById)
+        return groupingEpisodesFrom(grouping, albumEpisodeById, playableFilter())
     }
 
     private fun groupingEpisodesFrom(
         grouping: ClubGrouping,
         albumEpisodeById: Map<String, Map<String, Any>>,
+        isPlayable: (ClubContent) -> Boolean,
     ): List<Map<String, Any>> =
-        grouping.contentList.filter { it.type == "Audio" }.distinctBy { it.id }.map { content ->
+        grouping.contentList.filter(isPlayable).distinctBy { it.id }.map { content ->
             albumEpisodeById[content.id] ?: mutableMapOf<String, Any>(
                 "id" to content.id,
                 "name" to content.name,
@@ -650,16 +723,25 @@ class ClubClient(private val context: Context) {
         sections: List<ClubGrouping>,
     ): List<Pair<ClubGrouping, List<Map<String, Any>>>> {
         val albumEpisodeById = albumEpisodesFrom(groupings).associateBy { it["id"] as String }
+        val isPlayable = playableFilter()
         return sections
-            .map { it to groupingEpisodesFrom(it, albumEpisodeById) }
+            .map { it to groupingEpisodesFrom(it, albumEpisodeById, isPlayable) }
             .filter { (_, episodes) -> episodes.isNotEmpty() }
     }
 
-    /** Fetches a single content item's full detail and returns its download_url, fresh and
-     * ready to stream from as-is (no signed-cookie query string needed). Used by the "Content
-     * request" audio-loading mode, which trades this extra round-trip per episode for not
-     * depending on the shared signed cookie that [fetchSignedCookie] hands out. */
-    suspend fun fetchContentDownloadUrl(contentId: String): String? = withContext(Dispatchers.IO) {
+    /** A content item's download_url, ready to stream from as-is (no signed-cookie query
+     * string needed). Used by the "Content request" audio-loading mode, which trades an extra
+     * round-trip per episode for not depending on the shared signed cookie that
+     * [fetchSignedCookie] hands out. Cached per content id until its signature nears expiry,
+     * since the player resolves a URL for every range request (each seek, each chunk). */
+    suspend fun getContentDownloadUrl(contentId: String): String? {
+        cachedContentDownloadUrls[contentId]?.takeIf { it.isFresh() }?.let { return it.value }
+        val url = fetchContentDownloadUrl(contentId) ?: return null
+        cachedContentDownloadUrls[contentId] = CachedSigned(url, signedExpiryMillis(url.toHttpUrlOrNull()))
+        return url
+    }
+
+    private suspend fun fetchContentDownloadUrl(contentId: String): String? = withContext(Dispatchers.IO) {
         val vid = getViewerId()
         val p = getPin()
         val response = authorizedCall("fetchContentDownloadUrl") { token ->
@@ -675,7 +757,23 @@ class ClubClient(private val context: Context) {
         gson.fromJson(body, ClubContent::class.java)?.downloadUrl
     }
 
-    suspend fun fetchSignedCookie(): String? = withContext(Dispatchers.IO) {
+    /** The CDN's signed cookie as a `?Policy=...&Signature=...&Key-Pair-Id=...` query string,
+     * from the process-wide cache unless it's missing, within [SIGNED_REFRESH_MARGIN_MS] of
+     * expiring, or [forceRefresh] is set. Only grants access to
+     * [com.skintclub.odyssey.playback.isSignedCookiePath] paths. */
+    suspend fun getSignedCookie(forceRefresh: Boolean = false): String? {
+        fun freshCached() = cachedSignedCookie?.takeIf { it.isFresh() }?.value
+        if (!forceRefresh) freshCached()?.let { return it }
+        return signedCookieMutex.withLock {
+            // Another caller may have refreshed it while this one waited on the lock.
+            if (!forceRefresh) freshCached()?.let { return@withLock it }
+            val query = fetchSignedCookie()
+            cachedSignedCookie = query?.let { CachedSigned(it, signedExpiryMillis("https://$ODYSSEY_MEDIA_HOST/$it".toHttpUrlOrNull())) }
+            query
+        }
+    }
+
+    private suspend fun fetchSignedCookie(): String? = withContext(Dispatchers.IO) {
         val vid = getViewerId()
         val p = getPin()
         val response = authorizedCall("fetchSignedCookie") { token ->
@@ -722,6 +820,7 @@ class ClubClient(private val context: Context) {
     }
 
     suspend fun logout() {
+        invalidateSignedUrls()
         context.dataStore.edit {
             it.remove(ClubAccessTokenKey)
             it.remove(ClubRefreshTokenKey)

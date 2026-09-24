@@ -169,7 +169,6 @@
     <!-- Player -->
     <string name="lyrics_not_found">ଗୀତ ର ପାଠ୍ୟ ମିଳିଲା ନାହିଁ</string>
     <string name="sleep_timer">Sleep timer</string>
-    <string name="end_of_song">End of song</string>
     <plurals name="minute">
         <item quantity="one">1 minute</item>
         <item quantity="other">%d minutes</item>

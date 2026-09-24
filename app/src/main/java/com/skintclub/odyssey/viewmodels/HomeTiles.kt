@@ -6,6 +6,8 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 import com.skintclub.odyssey.club.ClubClient
+import com.skintclub.odyssey.club.ClubContent
+import com.skintclub.odyssey.club.isPlayableContent
 import com.skintclub.odyssey.club.ClubGrouping
 import java.io.File
 
@@ -21,8 +23,6 @@ data class HomeCategory(
 /** How many covers each Home tile's collage shows. */
 const val HOME_COLLAGE_COVER_COUNT = 6
 
-private val albumNumberRegex = Regex("""^#\s*(\d+)""")
-
 fun homeCategoriesFrom(
     clubClient: ClubClient,
     groupings: List<ClubGrouping>,
@@ -32,6 +32,8 @@ fun homeCategoriesFrom(
     val series = clubClient.groupingsOfType(groupings, ClubClient.SERIES_TYPE)
     val collections = clubClient.collectionsFrom(groupings)
     val podcastYears = clubClient.groupingsOfType(groupings, ClubClient.PODCAST_YEAR_TYPE)
+    val playVideosAsAudio = clubClient.playVideosAsAudio()
+    val isPlayable = { content: ClubContent -> isPlayableContent(content, playVideosAsAudio) }
     fun List<ClubGrouping>.covers() =
         mapNotNull { it.imageUrl?.takeIf(String::isNotBlank) }.distinct().take(HOME_COLLAGE_COVER_COUNT)
     return listOf(
@@ -44,7 +46,7 @@ fun homeCategoriesFrom(
             imageUrls = groupings
                 .filter { it.type == "Album" }
                 .mapNotNull { album ->
-                    albumNumberRegex.find(album.name)?.groupValues?.get(1)?.toIntOrNull()?.let { it to album }
+                    albumNumberOf(album.name)?.let { it to album }
                 }
                 .sortedByDescending { (number, _) -> number }
                 .map { (_, album) -> album }
@@ -53,7 +55,7 @@ fun homeCategoriesFrom(
         HomeCategory(
             route = "odyssey_episodes",
             title = "Episodes",
-            subtitle = "${episodeHomes.sumOf { home -> home.contentList.count { it.type == "Audio" } }} episodes",
+            subtitle = "${episodeHomes.sumOf { home -> home.contentList.count(isPlayable) }} episodes",
             imageUrls = episodeHomes.covers(),
         ),
         HomeCategory(
@@ -71,10 +73,10 @@ fun homeCategoriesFrom(
         HomeCategory(
             route = "odyssey_podcasts",
             title = "Podcasts",
-            subtitle = "${podcastYears.sumOf { year -> year.contentList.count { it.type == "Audio" } }} podcasts",
+            subtitle = "${podcastYears.sumOf { year -> year.contentList.count(isPlayable) }} podcasts",
             // The years all share one podcast logo, so use the latest podcasts' own art.
             imageUrls = podcastYears.asReversed()
-                .flatMap { year -> year.contentList.filter { it.type == "Audio" } }
+                .flatMap { year -> year.contentList.filter(isPlayable) }
                 .mapNotNull { it.thumbnailSmall?.takeIf(String::isNotBlank) }
                 .distinct()
                 .take(HOME_COLLAGE_COVER_COUNT),

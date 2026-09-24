@@ -31,6 +31,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
+import com.skintclub.odyssey.club.SECRET_EPISODES_ROUTE
+import com.skintclub.odyssey.club.SECRET_EPISODES_TITLE
 import com.skintclub.odyssey.ui.utils.appBarScrollBehavior
 import com.skintclub.odyssey.ui.utils.collapsingTopAppBarColors
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
@@ -50,6 +52,7 @@ fun OdysseyPlaylistsScreen(
     val haptic = LocalHapticFeedback.current
     val playlists by viewModel.playlists.collectAsState()
     val userPlaylists = remember(playlists) { playlists.filter { it.isUserCreated } }
+    val secretEpisodes by viewModel.secretEpisodes.collectAsState()
     val scrollBehavior = appBarScrollBehavior()
 
     LazyVerticalGrid(
@@ -83,6 +86,30 @@ fun OdysseyPlaylistsScreen(
                     },
                 ),
             )
+        }
+
+        // Stays a secret until the first one is added from the search bar.
+        if (secretEpisodes.isNotEmpty()) {
+            item(key = SECRET_EPISODES_ROUTE) {
+                CoverGridTile(
+                    title = SECRET_EPISODES_TITLE,
+                    subtitle = "${secretEpisodes.size} episodes",
+                    thumbnailUrl = null,
+                    icon = {
+                        Icon(
+                            painter = painterResource(R.drawable.lock),
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                        )
+                    },
+                    modifier = Modifier.combinedClickable(
+                        onClick = { navController.navigate(SECRET_EPISODES_ROUTE) },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        },
+                    ),
+                )
+            }
         }
 
         items(
