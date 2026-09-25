@@ -9,6 +9,7 @@ import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubContent
 import com.skintclub.odyssey.club.isPlayableContent
 import com.skintclub.odyssey.club.ClubGrouping
+import com.skintclub.odyssey.club.ODYSSEY_COMICS_ROUTE
 import java.io.File
 
 /** One of the Home screen's category tiles. Serialized names are pinned so a minified build
@@ -26,6 +27,7 @@ const val HOME_COLLAGE_COVER_COUNT = 6
 fun homeCategoriesFrom(
     clubClient: ClubClient,
     groupings: List<ClubGrouping>,
+    comicSeries: List<ClubGrouping>,
     albumCount: Int,
 ): List<HomeCategory> {
     val episodeHomes = clubClient.groupingsOfType(groupings, ClubClient.EPISODE_HOME_TYPE)
@@ -36,7 +38,7 @@ fun homeCategoriesFrom(
     val isPlayable = { content: ClubContent -> isPlayableContent(content, playVideosAsAudio) }
     fun List<ClubGrouping>.covers() =
         mapNotNull { it.imageUrl?.takeIf(String::isNotBlank) }.distinct().take(HOME_COLLAGE_COVER_COUNT)
-    return listOf(
+    return listOfNotNull(
         HomeCategory(
             route = "odyssey_albums",
             title = "Albums",
@@ -81,6 +83,15 @@ fun homeCategoriesFrom(
                 .distinct()
                 .take(HOME_COLLAGE_COVER_COUNT),
         ),
+        // Only once there's something to read, so the tile doesn't show up empty.
+        comicSeries.takeIf { it.isNotEmpty() }?.let { series ->
+            HomeCategory(
+                route = ODYSSEY_COMICS_ROUTE,
+                title = "Comics",
+                subtitle = "${series.size} series",
+                imageUrls = series.covers(),
+            )
+        },
     )
 }
 

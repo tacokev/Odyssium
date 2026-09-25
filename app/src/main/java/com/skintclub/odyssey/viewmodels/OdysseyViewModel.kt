@@ -9,13 +9,21 @@ import androidx.media3.exoplayer.offline.DownloadService
 import coil.imageLoader
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubGrouping
-import com.skintclub.odyssey.club.ClubPlaylistOption
+import com.skintclub.odyssey.club.ClubContent
+import com.skintclub.odyssey.club.ClubLink
+import com.skintclub.odyssey.club.ComicSeriesSnapshot
+import com.skintclub.odyssey.club.LocalPlaylistStore
 import com.skintclub.odyssey.club.SecretEpisode
 import com.skintclub.odyssey.club.SecretEpisodesState
 import com.skintclub.odyssey.club.SecretEpisodesStore
+import com.skintclub.odyssey.club.fetchIndexedComicSeries
+import com.skintclub.odyssey.club.isLocalPlaylistId
+import com.skintclub.odyssey.club.isPlayableContent
 import com.skintclub.odyssey.club.isSecretEpisodeId
+import com.skintclub.odyssey.club.mergeComicSeries
 import com.skintclub.odyssey.club.parseSecretEpisodePath
 import com.skintclub.odyssey.club.secretEpisodeMap
+import com.skintclub.odyssey.club.toGrouping
 import com.skintclub.odyssey.constants.OdysseySortReversedKey
 import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.constants.RandomizerListMode
@@ -36,11 +44,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 @HiltViewModel
 class OdysseyViewModel @Inject constructor(
@@ -53,17 +63,34 @@ class OdysseyViewModel @Inject constructor(
     private val _albums = MutableStateFlow<List<OdysseyAlbum>>(emptyList())
     val albums = _albums.asStateFlow()
 
-    private val _playlists = MutableStateFlow<List<ClubPlaylistOption>>(emptyList())
-    val playlists = _playlists.asStateFlow()
-
-    /** The raw groupings behind [_albums]/[_playlists]. Besides letting [pickRandomEpisode]
-     * look up a selected playlist's episode membership without a separate DataStore
-     * round-trip on every button press, this is also what a playlist detail screen derives
-     * its episode list from (via [ClubClient.playlistEpisodesFrom]). */
+    /** The club's own groupings, behind [_albums]; [groupings] adds the local playlists. */
     private val _groupings = MutableStateFlow<List<ClubGrouping>>(emptyList())
-    val groupings = _groupings.asStateFlow()
 
     private val secretEpisodesStore = SecretEpisodesStore(application)
+    private val localPlaylistStore = LocalPlaylistStore(application)
+
+    private val localPlaylists = localPlaylistStore.playlists
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** The club's groupings plus the local playlists (see [LocalPlaylistStore]) as "Playlist"
+     * groupings of their own. Besides letting [pickRandomEpisode] look up a selected
+     * playlist's episode membership without a separate DataStore round-trip on every button
+     * press, this is also what a playlist detail screen derives its episode list from (via
+     * [ClubClient.playlistEpisodesFrom]). */
+    val groupings = combine(_groupings, localPlaylists) { club, local ->
+        if (local.isEmpty()) {
+            club
+        } else {
+            val contentById = HashMap<String, ClubContent>()
+            club.forEach { grouping -> grouping.contentList.forEach { contentById.putIfAbsent(it.id, it) } }
+            club + local.map { it.toGrouping(contentById) }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Every playlist - the club's (official and the user's own) and the local ones. */
+    val playlists = groupings
+        .map { clubClient.playlistsFrom(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Settings > Content > "Play videos as audio". Every episode list is built from it (see
      * [ClubClient.playVideosAsAudio]), so flipping it rebuilds them - see [init]. */
@@ -89,6 +116,17 @@ class OdysseyViewModel @Inject constructor(
         buildOdysseySearchIndex(clubClient, groupings, albums.sortedWith(albumOrderComparator), secret)
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, OdysseySearchIndex.EMPTY)
+
+    /** Every comic series from the club's arc index (see [fetchIndexedComicSeries]), as last
+     * fetched - seeded from [ComicSeriesSnapshot] and refreshed after each grouping refresh. */
+    private val indexedComicSeries = MutableStateFlow(ComicSeriesSnapshot.load(application))
+
+    /** The Comics screen's series: [indexedComicSeries], then any comic series in the grouping
+     * cache it doesn't list. */
+    val comicSeries = combine(indexedComicSeries, _groupings) { indexed, groupings ->
+        mergeComicSeries(indexed, clubClient.comicSeriesFrom(groupings))
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** The Home screen's category tiles. Seeded from [HomeTilesSnapshot] so they (and their
      * covers, prefetched right here) are ready on a cold start before the full grouping cache
@@ -196,6 +234,7 @@ class OdysseyViewModel @Inject constructor(
                 clubClient.getSignedCookie(forceRefresh = true)
 
                 applyGroupings(fetchedGroupings)
+                viewModelScope.launch { refreshComicSeries() }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -203,6 +242,21 @@ class OdysseyViewModel @Inject constructor(
             _needsRelogin.value = true
         }
         _isRefreshing.value = false
+    }
+
+    /** Rebuilds [indexedComicSeries] from the club's arc index. Failing leaves the last list
+     * in place - comics aren't worth sending anyone back through login over. */
+    private suspend fun refreshComicSeries() {
+        val series = try {
+            fetchIndexedComicSeries(clubClient, indexedComicSeries.value)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return
+        }
+        if (series == indexedComicSeries.value) return
+        indexedComicSeries.value = series
+        updateHomeCategories()
+        withContext(Dispatchers.IO) { ComicSeriesSnapshot.save(getApplication(), series) }
     }
 
     /** The exact filter combination a [nonRepeatingBag] was built from; a call with a
@@ -260,7 +314,7 @@ class OdysseyViewModel @Inject constructor(
         nonRepeating: Boolean,
     ): Pair<String, Int>? {
         val listEpisodeIds = if (listMode != RandomizerListMode.OFF && !playlistId.isNullOrBlank()) {
-            clubClient.playlistEpisodeIds(_groupings.value, playlistId)
+            clubClient.playlistEpisodeIds(groupings.value, playlistId)
         } else {
             null
         }
@@ -339,6 +393,10 @@ class OdysseyViewModel @Inject constructor(
             viewModelScope.launch { secretEpisodesStore.addToPlaylist(playlistId, secretIds) }
         }
         if (contentIds.isEmpty()) return
+        if (isLocalPlaylistId(playlistId)) {
+            viewModelScope.launch { localPlaylistStore.add(playlistId, contentIds) }
+            return
+        }
         viewModelScope.launch {
             val added = try {
                 clubClient.addContentToPlaylist(playlistId, contentIds, _groupings.value)
@@ -359,12 +417,24 @@ class OdysseyViewModel @Inject constructor(
                 }
             }
             _groupings.value = updatedGroupings
-            _playlists.value = clubClient.playlistsFrom(updatedGroupings)
+        }
+    }
+
+    /** Creates a local playlist named [name] (see [LocalPlaylistStore]) holding [ids] - which
+     * may be empty, for one made from the library to fill later. */
+    fun createPlaylist(name: String, ids: List<String> = emptyList()) {
+        viewModelScope.launch {
+            val playlistId = localPlaylistStore.create(name)
+            if (ids.isNotEmpty()) addEpisodesToPlaylist(playlistId, ids)
         }
     }
 
     /** Renames a playlist and/or reorders its content, then patches local state to match. */
     fun updatePlaylist(playlistId: String, name: String, orderedContentIds: List<String>) {
+        if (isLocalPlaylistId(playlistId)) {
+            viewModelScope.launch { localPlaylistStore.update(playlistId, name, orderedContentIds) }
+            return
+        }
         viewModelScope.launch {
             val updated = try {
                 clubClient.updatePlaylist(playlistId, name, orderedContentIds, _groupings.value)
@@ -383,12 +453,18 @@ class OdysseyViewModel @Inject constructor(
                 }
             }
             _groupings.value = updatedGroupings
-            _playlists.value = clubClient.playlistsFrom(updatedGroupings)
         }
     }
 
     /** Deletes a user-created playlist, then removes it from local state. */
     fun deletePlaylist(playlistId: String) {
+        if (isLocalPlaylistId(playlistId)) {
+            viewModelScope.launch {
+                localPlaylistStore.delete(playlistId)
+                secretEpisodesStore.forgetPlaylist(playlistId)
+            }
+            return
+        }
         viewModelScope.launch {
             try {
                 clubClient.deletePlaylist(playlistId)
@@ -398,7 +474,6 @@ class OdysseyViewModel @Inject constructor(
             }
             val updatedGroupings = _groupings.value.filterNot { it.id == playlistId && it.type == "Playlist" }
             _groupings.value = updatedGroupings
-            _playlists.value = clubClient.playlistsFrom(updatedGroupings)
             secretEpisodesStore.forgetPlaylist(playlistId)
         }
     }
@@ -426,17 +501,74 @@ class OdysseyViewModel @Inject constructor(
         return state.playlistMembers[playlistId].orEmpty().mapNotNull { id -> byId[id]?.let(::secretEpisodeMap) }
     }
 
+    /** What [link] points at, from the cached catalog where possible and the club's API
+     * otherwise. A link can open the app cold, before the cache has loaded, so this waits
+     * briefly for it before deciding nothing matches. */
+    suspend fun resolveClubLink(link: ClubLink): ClubLinkTarget {
+        withTimeoutOrNull(LINK_CACHE_WAIT_MS) { groupings.first { it.isNotEmpty() } }
+        return when (link) {
+            is ClubLink.Content -> resolveContentLink(link)
+            is ClubLink.Grouping -> resolveGroupingLink(link.groupingId)
+        }
+    }
+
+    private suspend fun resolveContentLink(link: ClubLink.Content): ClubLinkTarget {
+        val contentId = link.contentId
+        fun ClubGrouping.holds(id: String) = contentList.any { it.id == id }
+
+        val comics = comicSeries.value
+        val comicSeriesId = (comics.firstOrNull { it.id == link.groupingId && it.holds(contentId) } ?: comics.firstOrNull { it.holds(contentId) })?.id
+        if (comicSeriesId != null) return ClubLinkTarget.Comic(comicSeriesId, contentId)
+
+        baseAlbums.forEach { album ->
+            val index = album.episodes.indexOfFirst { it["id"] == contentId }
+            if (index >= 0) return ClubLinkTarget.AlbumEpisode(album.name, album.episodes, index)
+        }
+
+        // Anything else playable the cache has (a podcast, a playlist's episode...), queued with
+        // the rest of the grouping it came from - the one the link names, if it's there.
+        val all = groupings.value
+        val containing = (all.filter { it.id == link.groupingId } + all.filter { it.type != "Album" && it.holds(contentId) })
+        containing.forEach { grouping ->
+            val episodes = episodesOf(grouping)
+            val index = episodes.indexOfFirst { it["id"] == contentId }
+            if (index >= 0) return ClubLinkTarget.Episode(episodes, index)
+        }
+
+        // Not cached at all: ask the club. Playback needs only the content id (it's streamed
+        // by content request when there's no CDN path), so the content itself is enough.
+        val content = try {
+            clubClient.fetchContent(contentId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        } ?: return ClubLinkTarget.NotFound
+        if (!isPlayableContent(content, playVideosAsAudio.value)) return ClubLinkTarget.NotFound
+        val standIn = ClubGrouping(name = content.albumName.orEmpty(), imageUrl = content.thumbnailMedium, contentList = listOf(content))
+        val episode = clubClient.groupingEpisodesFrom(_groupings.value, standIn).firstOrNull() ?: return ClubLinkTarget.NotFound
+        return ClubLinkTarget.Episode(listOf(episode), 0)
+    }
+
+    private fun resolveGroupingLink(groupingId: String): ClubLinkTarget {
+        if (comicSeries.value.any { it.id == groupingId }) return ClubLinkTarget.ComicSeries(groupingId)
+        val grouping = groupings.value.firstOrNull { it.id == groupingId } ?: return ClubLinkTarget.NotFound
+        return when (grouping.type) {
+            "Album" -> ClubLinkTarget.Album(grouping.name)
+            "Playlist" -> ClubLinkTarget.Playlist(grouping.id)
+            else -> ClubLinkTarget.Grouping(grouping.id)
+        }
+    }
+
     /** Everything [grouping] plays, in order - what playing a whole grouping search result queues. */
     fun episodesOf(grouping: ClubGrouping): List<Map<String, Any>> = when (grouping.type) {
         "Album" -> baseAlbums.firstOrNull { it.name == grouping.name }?.episodes.orEmpty()
-        "Playlist" -> clubClient.playlistEpisodesFrom(_groupings.value, grouping.id) +
+        "Playlist" -> clubClient.playlistEpisodesFrom(groupings.value, grouping.id) +
             secretEpisodesInPlaylist(secretEpisodesState.value, grouping.id)
         else -> clubClient.groupingEpisodesFrom(_groupings.value, grouping)
     }
 
     private fun applyGroupings(newGroupings: List<ClubGrouping>) {
         _groupings.value = newGroupings
-        _playlists.value = clubClient.playlistsFrom(newGroupings)
         // Freshly fetched content may have changed what's eligible, so let the next pick
         // rebuild the bag from scratch rather than finishing out one built from old data.
         nonRepeatingBag = mutableListOf()
@@ -462,7 +594,8 @@ class OdysseyViewModel @Inject constructor(
     }
 
     private fun updateHomeCategories() {
-        val categories = homeCategoriesFrom(clubClient, _groupings.value, baseAlbums.size)
+        val comics = mergeComicSeries(indexedComicSeries.value, clubClient.comicSeriesFrom(_groupings.value))
+        val categories = homeCategoriesFrom(clubClient, _groupings.value, comics, baseAlbums.size)
         if (categories == _homeCategories.value) return
         _homeCategories.value = categories
         prefetchHomeCovers(categories)
@@ -487,6 +620,9 @@ class OdysseyViewModel @Inject constructor(
     )
 
     companion object {
+        /** How long [resolveClubLink] waits on a cold start for the grouping cache to load. */
+        private const val LINK_CACHE_WAIT_MS = 10_000L
+
         /** Albums without a leading "#<number>" sort first; numbered albums follow, ordered by
          * that number, with each half-album right after its whole-numbered one. */
         private val albumOrderComparator =
@@ -507,4 +643,26 @@ fun albumNumberOf(name: String): Double? {
     val match = albumNumberRegex.find(name) ?: return null
     val whole = match.groupValues[1].toDoubleOrNull() ?: return null
     return if (match.groupValues[2].isNotEmpty()) whole + 0.5 else whole
+}
+
+/** Where a club link (see [com.skintclub.odyssey.club.parseClubLink]) leads in the app. */
+sealed interface ClubLinkTarget {
+    /** An album's episode: [episodes] is the album's list, [index] this one. */
+    data class AlbumEpisode(val albumName: String, val episodes: List<Map<String, Any>>, val index: Int) : ClubLinkTarget
+
+    /** Any other playable episode, with the list it's queued in. */
+    data class Episode(val episodes: List<Map<String, Any>>, val index: Int) : ClubLinkTarget
+
+    data class Comic(val seriesId: String, val contentId: String) : ClubLinkTarget
+
+    data class Album(val name: String) : ClubLinkTarget
+
+    data class ComicSeries(val seriesId: String) : ClubLinkTarget
+
+    data class Playlist(val playlistId: String) : ClubLinkTarget
+
+    data class Grouping(val groupingId: String) : ClubLinkTarget
+
+    /** Nothing the app can show - an article, say, or content that's gone. */
+    data object NotFound : ClubLinkTarget
 }

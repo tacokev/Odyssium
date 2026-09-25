@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -27,16 +26,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.constants.PlayerHorizontalPadding
-import com.skintclub.odyssey.constants.ShowLyricsKey
 import com.skintclub.odyssey.constants.SwipeThumbnailKey
 import com.skintclub.odyssey.constants.ThumbnailCornerRadius
-import com.skintclub.odyssey.ui.component.Lyrics
 import com.skintclub.odyssey.utils.rememberPreference
 import kotlin.math.roundToInt
 
@@ -53,26 +49,17 @@ fun Thumbnail(
     showArtwork: Boolean = true,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
-    val currentView = LocalView.current
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val error by playerConnection.error.collectAsState()
 
-    val showLyrics by rememberPreference(ShowLyricsKey, false)
     val swipeThumbnail by rememberPreference(SwipeThumbnailKey, true)
-
-    DisposableEffect(showLyrics) {
-        currentView.keepScreenOn = showLyrics
-        onDispose {
-            currentView.keepScreenOn = false
-        }
-    }
 
     var offsetX by remember { mutableFloatStateOf(0f) }
 
     Box(modifier = modifier) {
         AnimatedVisibility(
-            visible = !showLyrics && error == null,
+            visible = error == null,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier =
@@ -135,18 +122,6 @@ fun Thumbnail(
                             },
                 )
             }
-        }
-
-        AnimatedVisibility(
-            visible = showLyrics && error == null,
-            enter = fadeIn(),
-            exit = fadeOut(),
-        ) {
-            Lyrics(
-                sliderPositionProvider = sliderPositionProvider,
-                changeColor = changeColor,
-                color = color,
-            )
         }
 
         AnimatedVisibility(

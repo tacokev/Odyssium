@@ -54,9 +54,9 @@ fun OdysseyEpisodeMenu(
     if (showPlaylistPicker) {
         OdysseyPlaylistPickerDialog(
             viewModel = viewModel,
+            episodeIds = listOf(mediaMetadata.id),
             onDismiss = { showPlaylistPicker = false },
-            onPlaylistSelected = { playlistId ->
-                viewModel.addEpisodesToPlaylist(playlistId, listOf(mediaMetadata.id))
+            onDone = {
                 showPlaylistPicker = false
                 onDismiss()
             },

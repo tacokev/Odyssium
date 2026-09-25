@@ -239,10 +239,10 @@ val HistoryDuration = floatPreferencesKey("historyDuration")
 val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
 val PlayerStyleKey = stringPreferencesKey("playerStyle")
 
+// A saved style that's since been removed (M3E) reads back as DEFAULT - see String.toEnum.
 enum class PlayerStyle {
     DEFAULT,
     APPLE,
-    M3E,
 }
 
 val MiniPlayerStyleKey = stringPreferencesKey("miniPlayerStyle")
@@ -302,6 +302,9 @@ val ClubContentGroupingsCacheKey = stringPreferencesKey("clubContentGroupingsCac
 /** JSON-encoded [com.skintclub.odyssey.club.SecretEpisodesState]: the locally-added "Secret
  * Episodes", their local like state, and their local playlist memberships. */
 val SecretEpisodesKey = stringPreferencesKey("secretEpisodes")
+
+/** Playlists made in the app, kept only on this device (see LocalPlaylistStore), as JSON. */
+val LocalPlaylistsKey = stringPreferencesKey("localPlaylists")
 val ExcludeBonusEpisodesKey = booleanPreferencesKey("excludeBonusEpisodes")
 val ExcludeSubsequentPartsKey = booleanPreferencesKey("excludeSubsequentParts")
 val RandomizerListModeKey = stringPreferencesKey("randomizerListMode")
@@ -321,6 +324,10 @@ val ShowEpisodeNumberKey = booleanPreferencesKey("showEpisodeNumber")
 /** Whether the club's "Video" content is listed and played (audio track only) alongside its
  * audio episodes. On by default. */
 val PlayVideosAsAudioKey = booleanPreferencesKey("playVideosAsAudio")
+
+/** Whether your club playlists show in the library. On by default; off hides them there
+ * without touching them on the club. */
+val SyncPlaylistsKey = booleanPreferencesKey("syncPlaylists")
 
 /** ISO date (YYYY-MM-DD) from the club's own "membership_expires" field, cached from the
  * last /viewer fetch so it can be checked on app open without a network round trip. */

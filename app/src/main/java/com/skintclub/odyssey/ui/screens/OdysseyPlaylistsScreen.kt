@@ -19,7 +19,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -33,8 +35,11 @@ import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.SECRET_EPISODES_ROUTE
 import com.skintclub.odyssey.club.SECRET_EPISODES_TITLE
+import com.skintclub.odyssey.constants.SyncPlaylistsKey
+import com.skintclub.odyssey.ui.menu.CreatePlaylistDialog
 import com.skintclub.odyssey.ui.utils.appBarScrollBehavior
 import com.skintclub.odyssey.ui.utils.collapsingTopAppBarColors
+import com.skintclub.odyssey.utils.rememberPreference
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 
 /** Fixed, always-present tiles shown above the user's own cached playlists. */
@@ -51,7 +56,22 @@ fun OdysseyPlaylistsScreen(
 ) {
     val haptic = LocalHapticFeedback.current
     val playlists by viewModel.playlists.collectAsState()
-    val userPlaylists = remember(playlists) { playlists.filter { it.isUserCreated } }
+    val syncPlaylists by rememberPreference(SyncPlaylistsKey, defaultValue = true)
+    // Club playlists hide while "Sync playlists" is off; ones made in the app always show.
+    val userPlaylists = remember(playlists, syncPlaylists) {
+        playlists.filter { it.isUserCreated && (syncPlaylists || it.isLocal) }
+    }
+    var showCreateDialog by remember { mutableStateOf(false) }
+
+    if (showCreateDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreateDialog = false },
+            onCreate = { name ->
+                viewModel.createPlaylist(name)
+                showCreateDialog = false
+            },
+        )
+    }
     val secretEpisodes by viewModel.secretEpisodes.collectAsState()
     val scrollBehavior = appBarScrollBehavior()
 
@@ -135,6 +155,12 @@ fun OdysseyPlaylistsScreen(
     TopAppBar(
         title = { Text(stringResource(R.string.filter_library)) },
         actions = {
+            IconButton(onClick = { showCreateDialog = true }) {
+                Icon(
+                    painter = painterResource(R.drawable.add),
+                    contentDescription = "New playlist",
+                )
+            }
             IconButton(onClick = { navController.navigate("settings") }) {
                 Icon(
                     painter = painterResource(R.drawable.settings),

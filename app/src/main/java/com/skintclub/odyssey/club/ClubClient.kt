@@ -108,11 +108,19 @@ data class ClubPlaylistOption(
     val isUserCreated: Boolean,
     val imageUrl: String?,
     val episodeCount: Int,
-)
+) {
+    /** Made in the app and kept on this device, rather than on the club. */
+    val isLocal: Boolean get() = isLocalPlaylistId(id)
+}
 
 private data class ClubProfilesResponse(
     val profiles: List<ClubProfile> = emptyList(),
     val metadata: ClubViewerMetadata? = null,
+)
+
+private data class ClubArticleBody(
+    @SerializedName("content_body") val contentBody: String? = null,
+    @SerializedName("content_body_html") val contentBodyHtml: String? = null,
 )
 
 private data class ClubGroupingsPageMetadata(val totalPageCount: Int = 1)
@@ -197,6 +205,7 @@ class ClubClient(private val context: Context) {
         const val SERIES_TYPE = "Series"
         const val PODCAST_YEAR_TYPE = "Podcast Year"
         const val COLLECTION_TYPE = "Collection"
+        const val BOOK_SERIES_TYPE = "Book Series"
 
         private val firstNumberRegex = Regex("""\d+""")
 
@@ -680,6 +689,72 @@ class ClubClient(private val context: Context) {
         return groupings.filter { grouping ->
             grouping.type == COLLECTION_TYPE && grouping.contentList.any(isPlayable)
         }
+    }
+
+    /** The comics in the grouping cache: the "Elsewhere in Odyssey" arc groupings (type "Book
+     * Series", like the prose books, store listings and audiobooks it's otherwise used for).
+     * The cache only holds the newest few arcs - the full, ordered list comes from the club's
+     * arc index (see [com.skintclub.odyssey.club.fetchIndexedComicSeries]), which this is
+     * merged under. */
+    fun comicSeriesFrom(groupings: List<ClubGrouping>): List<ClubGrouping> =
+        groupings.filter { grouping ->
+            grouping.type == BOOK_SERIES_TYPE &&
+                grouping.name.startsWith("Elsewhere in Odyssey", ignoreCase = true) &&
+                grouping.contentList.any { it.type == "Article" }
+        }
+
+    /** A single content grouping by id - for groupings the bulk search leaves out, like all
+     * but the newest few comic arcs. */
+    suspend fun fetchGrouping(groupingId: String): ClubGrouping? = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        val response = authorizedCall("fetchGrouping") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/contentgrouping/$groupingId")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .build()
+        }
+        val body = response.use { it.body?.string() }
+        gson.fromJson(body, ClubGroupingsPageResponse::class.java)?.contentGroupings?.firstOrNull()
+    }
+
+    /** A single content item by id - for a link to something the grouping cache doesn't hold. */
+    suspend fun fetchContent(contentId: String): ClubContent? = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        val response = authorizedCall("fetchContent") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/content/$contentId")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .build()
+        }
+        val body = response.use { it.body?.string() }
+        gson.fromJson(body, ClubContent::class.java)?.takeIf { it.id.isNotBlank() }
+    }
+
+    /** An Article's HTML body (both the current and legacy renderings, either of which may be
+     * missing), for pulling out whatever it links to. */
+    suspend fun fetchArticleBodies(contentId: String): List<String> = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        val response = authorizedCall("fetchArticleBodies") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/content/$contentId")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .build()
+        }
+        val body = response.use { it.body?.string() }
+        val article = gson.fromJson(body, ClubArticleBody::class.java)
+        listOfNotNull(article?.contentBody, article?.contentBodyHtml).filter { it.isNotBlank() }
     }
 
     /** Flattens any grouping's audio content into the episode-map shape. Episodes that also

@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,9 +79,12 @@ import androidx.media3.common.Player
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.rememberNavController
 import coil.imageLoader
 import coil.request.ImageRequest
+import com.skintclub.odyssey.club.ClubLink
+import com.skintclub.odyssey.club.parseClubLink
 import com.skintclub.odyssey.constants.*
 import com.skintclub.odyssey.db.MusicDatabase
 import com.skintclub.odyssey.extensions.*
@@ -112,13 +116,17 @@ import com.skintclub.odyssey.utils.dataStore
 import com.skintclub.odyssey.utils.get
 import com.skintclub.odyssey.utils.rememberEnumPreference
 import com.skintclub.odyssey.utils.rememberPreference
+import com.skintclub.odyssey.viewmodels.ClubLinkTarget
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 import com.valentinilk.shimmer.LocalShimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -132,6 +140,10 @@ class MainActivity : ComponentActivity() {
     lateinit var downloadUtil: DownloadUtil
 
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
+
+    /** A club link the app was opened with (tapped anywhere on the phone, or shared to it),
+     * waiting for the UI to open it. */
+    private val pendingClubLink = MutableStateFlow<ClubLink?>(null)
     private val serviceConnection =
         object : ServiceConnection {
             override fun onServiceConnected(
@@ -148,6 +160,23 @@ class MainActivity : ComponentActivity() {
                 playerConnection = null
             }
         }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeClubLink(intent)
+    }
+
+    /** Queues [intent]'s club link, if it has one: a tapped link's URL, or a shared one's text. */
+    private fun takeClubLink(intent: Intent?) {
+        val text = when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.dataString
+            Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+            else -> null
+        } ?: return
+        // A shared link can arrive with a title or message around it.
+        val link = parseClubLink(text) ?: text.split(Regex("""\s+""")).firstNotNullOfOrNull(::parseClubLink)
+        if (link != null) pendingClubLink.value = link
+    }
 
     override fun onStart() {
         super.onStart()
@@ -174,6 +203,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Only a fresh launch: after a rotation, savedInstanceState is set and the link that
+        // opened the app has already been handled.
+        if (savedInstanceState == null) takeClubLink(intent)
 
         lifecycleScope.launch {
             dataStore.data
@@ -210,7 +242,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(playerConnection, themeColorSource, isSystemInDarkTheme) {
                 val playerConnection = playerConnection
                 if (themeColorSource != ThemeColorSource.ARTWORK || playerConnection == null) {
-                    themeColor = DefaultThemeColor
+                    themeColor = themeColorSource.seed ?: DefaultThemeColor
                     return@LaunchedEffect
                 }
                 playerConnection.service.currentMediaMetadata.collectLatest { song ->
@@ -237,7 +269,9 @@ class MainActivity : ComponentActivity() {
                 darkTheme = useDarkTheme,
                 pureBlack = pureBlack,
                 themeColor = themeColor,
-                useWallpaperColors = themeColorSource != ThemeColorSource.DEFAULT,
+                // Only a wallpaper-based source falls back to the wallpaper's palette; a fixed
+                // color (Default included) always builds from its own seed.
+                useWallpaperColors = themeColorSource.seed == null,
             ) {
                 BoxWithConstraints(
                     modifier =
@@ -441,10 +475,62 @@ class MainActivity : ComponentActivity() {
                     val onSearchQueryChange: (TextFieldValue) -> Unit = { value ->
                         if (!playSecretEpisode(value.text)) onQueryChange(value)
                     }
+                    // Opens where a club link leads. An episode is played when [playEpisode] (a
+                    // link entered in search); otherwise (a link tapped elsewhere) an album
+                    // episode opens its page, and only an episode without one is played.
+                    suspend fun openClubLinkTarget(target: ClubLinkTarget, playEpisode: Boolean) {
+                        // A link from outside the app starts afresh from Home, so Back from
+                        // it goes Home (then out) rather than through whatever was open before.
+                        fun open(route: String) {
+                            navController.navigate(route) {
+                                if (!playEpisode) {
+                                    popUpTo(navController.graph.findStartDestination().id)
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                        suspend fun play(episodes: List<Map<String, Any>>, index: Int) {
+                            // Opened cold by a link, the player service may still be binding.
+                            val connection = snapshotFlow { playerConnection }.filterNotNull().first()
+                            connection.playQueue(OdysseyQueue(this@MainActivity, episodes, index))
+                        }
+                        when (target) {
+                            is ClubLinkTarget.AlbumEpisode ->
+                                if (playEpisode) {
+                                    play(target.episodes, target.index)
+                                } else {
+                                    open("odyssey_episode/${Uri.encode(target.albumName)}/${target.index}")
+                                }
+                            is ClubLinkTarget.Episode -> play(target.episodes, target.index)
+                            is ClubLinkTarget.Comic ->
+                                open("odyssey_comic/${Uri.encode(target.seriesId)}/${Uri.encode(target.contentId)}")
+                            is ClubLinkTarget.Album -> open("odyssey_album/${Uri.encode(target.name)}")
+                            is ClubLinkTarget.ComicSeries -> open("odyssey_comic_series/${Uri.encode(target.seriesId)}")
+                            is ClubLinkTarget.Playlist -> open("odyssey_playlist/${Uri.encode(target.playlistId)}")
+                            is ClubLinkTarget.Grouping -> open("odyssey_grouping/${Uri.encode(target.groupingId)}")
+                            ClubLinkTarget.NotFound ->
+                                Toast.makeText(this@MainActivity, "Couldn't open that link in the app", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
+                    LaunchedEffect(Unit) {
+                        pendingClubLink.filterNotNull().collect { link ->
+                            pendingClubLink.value = null
+                            openClubLinkTarget(odysseyViewModel.resolveClubLink(link), playEpisode = false)
+                        }
+                    }
+
                     // Enter plays the top result: the first episode, or failing that the whole
-                    // first grouping.
+                    // first grouping. A club link plays the episode it points to.
                     val onSearchSubmit: (String) -> Unit = { text ->
-                        if (!playSecretEpisode(text)) {
+                        val clubLink = parseClubLink(text)
+                        if (clubLink != null) {
+                            onQueryChange(TextFieldValue())
+                            onActiveChange(false)
+                            coroutineScope.launch {
+                                openClubLinkTarget(odysseyViewModel.resolveClubLink(clubLink), playEpisode = true)
+                            }
+                        } else if (!playSecretEpisode(text)) {
                             val firstEpisode = searchResults.episodes.firstOrNull()
                             val queue = if (firstEpisode != null) {
                                 OdysseyQueue(this@MainActivity, firstEpisode.queue, firstEpisode.queueIndex)

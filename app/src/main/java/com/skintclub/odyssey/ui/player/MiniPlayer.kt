@@ -51,11 +51,13 @@ import com.skintclub.odyssey.constants.ThumbnailCornerRadius
 import com.skintclub.odyssey.extensions.togglePlayPause
 import com.skintclub.odyssey.models.MediaMetadata
 import com.skintclub.odyssey.utils.rememberEnumPreference
+import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 
 @Composable
 fun MiniPlayer(
     positionProvider: () -> Long,
     durationProvider: () -> Long,
+    viewModel: OdysseyViewModel,
     modifier: Modifier = Modifier,
 ) {
     val miniPlayerStyle by rememberEnumPreference(MiniPlayerStyleKey, defaultValue = MiniPlayerStyle.DEFAULT)
@@ -64,7 +66,7 @@ fun MiniPlayer(
         MiniPlayerStyle.DEFAULT ->
             DefaultMiniPlayer(positionProvider = positionProvider, durationProvider = durationProvider, modifier = modifier)
         MiniPlayerStyle.MODERN ->
-            ModernMiniPlayer(positionProvider = positionProvider, durationProvider = durationProvider, modifier = modifier)
+            ModernMiniPlayer(positionProvider = positionProvider, durationProvider = durationProvider, viewModel = viewModel, modifier = modifier)
         MiniPlayerStyle.APPLE ->
             AppleMiniPlayer(positionProvider = positionProvider, durationProvider = durationProvider, modifier = modifier)
     }

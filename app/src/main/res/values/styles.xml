@@ -9,5 +9,10 @@
         <item name="android:enforceNavigationBarContrast" tools:ignore="NewApi">false</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- The app draws its own light/dark theme (Compose). Without this, the Light parent
+             lets Android's automatic "force dark" invert parts of the screen on its own - it
+             was flipping top bars and panels to light colors over big bright content like the
+             Drake comic pages. -->
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
     </style>
 </resources>

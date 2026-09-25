@@ -107,6 +107,8 @@ fun <T> ListPreference(
     valueText: @Composable (T) -> String,
     onValueSelected: (T) -> Unit,
     isEnabled: Boolean = true,
+    /** Drawn between each option's radio button and its text - e.g. a color swatch. */
+    valueLeading: (@Composable (T) -> Unit)? = null,
 ) {
     var showDialog by remember {
         mutableStateOf(false)
@@ -130,6 +132,10 @@ fun <T> ListPreference(
                         selected = value == selectedValue,
                         onClick = null,
                     )
+
+                    valueLeading?.let { leading ->
+                        Box(modifier = Modifier.padding(start = 16.dp)) { leading(value) }
+                    }
 
                     Text(
                         text = valueText(value),

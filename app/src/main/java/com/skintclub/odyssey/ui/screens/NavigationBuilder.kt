@@ -7,6 +7,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.skintclub.odyssey.club.ODYSSEY_COMICS_ROUTE
+import com.skintclub.odyssey.club.ODYSSEY_COMIC_ROUTE
+import com.skintclub.odyssey.club.ODYSSEY_COMIC_SERIES_ROUTE
 import com.skintclub.odyssey.club.SECRET_EPISODES_ROUTE
 import com.skintclub.odyssey.ui.screens.settings.AboutScreen
 import com.skintclub.odyssey.ui.screens.settings.AccountSettings
@@ -46,6 +49,34 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("odyssey_podcasts") {
         OdysseyPodcastsScreen(navController, odysseyViewModel)
+    }
+    composable(ODYSSEY_COMICS_ROUTE) {
+        OdysseyComicsScreen(navController, odysseyViewModel)
+    }
+    composable(
+        ODYSSEY_COMIC_SERIES_ROUTE,
+        arguments = listOf(navArgument("groupingId") { type = NavType.StringType }),
+    ) { backStackEntry ->
+        val groupingId = backStackEntry.arguments?.getString("groupingId").orEmpty()
+        OdysseyComicSeriesScreen(
+            navController = navController,
+            viewModel = odysseyViewModel,
+            groupingId = groupingId,
+        )
+    }
+    composable(
+        ODYSSEY_COMIC_ROUTE,
+        arguments = listOf(
+            navArgument("groupingId") { type = NavType.StringType },
+            navArgument("contentId") { type = NavType.StringType },
+        ),
+    ) { backStackEntry ->
+        OdysseyComicReaderScreen(
+            navController = navController,
+            viewModel = odysseyViewModel,
+            groupingId = backStackEntry.arguments?.getString("groupingId").orEmpty(),
+            contentId = backStackEntry.arguments?.getString("contentId").orEmpty(),
+        )
     }
     composable(
         ODYSSEY_GROUPING_ROUTE,

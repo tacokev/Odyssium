@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
-import com.skintclub.odyssey.LocalDatabase
 import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.constants.DarkModeKey
@@ -66,6 +65,7 @@ import com.skintclub.odyssey.extensions.togglePlayPause
 import com.skintclub.odyssey.ui.screens.settings.DarkMode
 import com.skintclub.odyssey.utils.rememberEnumPreference
 import com.skintclub.odyssey.utils.rememberPreference
+import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 import kotlin.math.roundToInt
 
 /**
@@ -76,10 +76,10 @@ import kotlin.math.roundToInt
 fun ModernMiniPlayer(
     positionProvider: () -> Long,
     durationProvider: () -> Long,
+    viewModel: OdysseyViewModel,
     modifier: Modifier = Modifier,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
-    val database = LocalDatabase.current
 
     val swipeThumbnail by rememberPreference(SwipeThumbnailKey, defaultValue = true)
 
@@ -96,8 +96,8 @@ fun ModernMiniPlayer(
     val playbackState by playerConnection.playbackState.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
-    val librarySong by database.song(mediaMetadata?.id).collectAsState(initial = null)
-    val isLiked = librarySong?.song?.liked == true
+    val episodeId = mediaMetadata?.id
+    val isLiked = rememberEpisodeLiked(viewModel, episodeId)
 
     val gradientColors = rememberMiniPlayerGradientColors(mediaMetadata, miniPlayerBackground)
 
@@ -303,7 +303,9 @@ fun ModernMiniPlayer(
                             ).background(
                                 color = if (isLiked) errorColor.copy(alpha = 0.1f) else Color.Transparent,
                                 shape = CircleShape,
-                            ).clickable { playerConnection.service.toggleLike() },
+                            ).clickable(enabled = episodeId != null) {
+                                episodeId?.let { viewModel.setEpisodeLiked(it, !isLiked) }
+                            },
                 ) {
                     Icon(
                         painter = painterResource(if (isLiked) R.drawable.favorite else R.drawable.favorite_border),

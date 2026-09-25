@@ -58,9 +58,9 @@ fun OdysseyGroupingMenu(
     if (showPlaylistPicker) {
         OdysseyPlaylistPickerDialog(
             viewModel = viewModel,
+            episodeIds = episodes.mapNotNull { it["id"] as? String },
             onDismiss = { showPlaylistPicker = false },
-            onPlaylistSelected = { playlistId ->
-                viewModel.addEpisodesToPlaylist(playlistId, episodes.mapNotNull { it["id"] as? String })
+            onDone = {
                 showPlaylistPicker = false
                 onDismiss()
             },

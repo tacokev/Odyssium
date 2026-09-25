@@ -56,7 +56,6 @@ import com.skintclub.odyssey.constants.MediaSessionConstants.CommandToggleRepeat
 import com.skintclub.odyssey.constants.MediaSessionConstants.CommandToggleShuffle
 import com.skintclub.odyssey.db.MusicDatabase
 import com.skintclub.odyssey.db.entities.Event
-import com.skintclub.odyssey.db.entities.LyricsEntity
 import com.skintclub.odyssey.di.DownloadCache
 import com.skintclub.odyssey.di.PlayerCache
 import com.skintclub.odyssey.extensions.SilentHandler
@@ -88,7 +87,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -238,25 +236,6 @@ class MusicService :
 
         currentMediaMetadata.debounce(1000).collect(scope) {
             updateNotification()
-        }
-
-        combine(
-            currentMediaMetadata.distinctUntilChangedBy { it?.id },
-            dataStore.data.map { it[ShowLyricsKey] ?: false }.distinctUntilChanged(),
-        ) { mediaMetadata, showLyrics ->
-            mediaMetadata to showLyrics
-        }.collectLatest(scope) { (mediaMetadata, showLyrics) ->
-            if (showLyrics && mediaMetadata != null && database.lyrics(mediaMetadata.id).first() == null) {
-                val lyrics = lyricsHelper.getLyrics(mediaMetadata)
-                database.query {
-                    upsert(
-                        LyricsEntity(
-                            id = mediaMetadata.id,
-                            lyrics = lyrics,
-                        ),
-                    )
-                }
-            }
         }
 
         dataStore.data

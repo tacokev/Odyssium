@@ -1,13 +1,17 @@
 package com.skintclub.odyssey.ui.screens.settings
 
 import android.os.Build
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -20,6 +24,8 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -33,6 +39,7 @@ import com.skintclub.odyssey.ui.component.IconButton
 import com.skintclub.odyssey.ui.component.ListPreference
 import com.skintclub.odyssey.ui.component.PreferenceGroupTitle
 import com.skintclub.odyssey.ui.component.SwitchPreference
+import com.skintclub.odyssey.ui.theme.DefaultThemeColor
 import com.skintclub.odyssey.utils.rememberEnumPreference
 import com.skintclub.odyssey.utils.rememberPreference
 
@@ -75,11 +82,15 @@ fun AppearanceSettings(
             values = ThemeColorSource.entries.filter {
                 it != ThemeColorSource.WALLPAPER || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
             },
-            valueText = {
-                when (it) {
-                    ThemeColorSource.WALLPAPER -> "Wallpaper"
-                    ThemeColorSource.ARTWORK -> "Playing episode"
-                    ThemeColorSource.DEFAULT -> "Default"
+            valueText = { it.label },
+            valueLeading = { source ->
+                source.seed?.let { seed ->
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(seed),
+                    )
                 }
             },
             onValueSelected = onThemeColorSourceChange,
@@ -126,7 +137,6 @@ fun AppearanceSettings(
                 when (it) {
                     PlayerStyle.DEFAULT -> stringResource(R.string.default_)
                     PlayerStyle.APPLE -> stringResource(R.string.apple_music)
-                    PlayerStyle.M3E -> stringResource(R.string.player_style_m3e)
                 }
             },
         )
@@ -208,16 +218,23 @@ fun AppearanceSettings(
     )
 }
 
-/** Where the app's accent colors come from. */
-enum class ThemeColorSource {
+/** Where the app's accent colors come from: the wallpaper, the playing episode, or one fixed
+ * [seed] color the whole palette is built from. Entries are stored by name, so new ones go
+ * anywhere but existing names must stay. */
+enum class ThemeColorSource(val label: String, val seed: Color? = null) {
     /** The system's Material You palette, from the wallpaper (Android 12+). */
-    WALLPAPER,
+    WALLPAPER("Wallpaper"),
 
     /** Extracted from the playing episode's cover; wallpaper colors when nothing's playing. */
-    ARTWORK,
+    ARTWORK("Playing episode"),
 
     /** The app's own fixed blue. */
-    DEFAULT,
+    DEFAULT("Default", DefaultThemeColor),
+
+    RUKU_RED("Ruku Red", Color(0xFFD32F2F)),
+    GREEN_RING("Green Ring", Color(0xFF2E7D32)),
+    IMAGINATION_PURPLE("Imagination Purple", Color(0xFF7E57C2)),
+    LAGOON_TEAL("Lagoon Teal", Color(0xFF00897B)),
 }
 
 /** [ThemeColorSourceKey], defaulting to whatever the old on/off dynamic theme switch was set to

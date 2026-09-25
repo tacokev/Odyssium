@@ -60,10 +60,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -167,7 +164,7 @@ import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
 /**
- * A fully custom, hand-rolled pill slider (not androidx Slider) used by the Apple/M3E
+ * A fully custom, hand-rolled pill slider (not androidx Slider) used by the Apple
  * player styles. Material3's Slider constrains the overall touch/layout height to its
  * own internal sizing regardless of a custom track's requested height, which made both
  * the timeline and volume sliders read as too thin and unreliable to drag. This owns its
@@ -674,6 +671,7 @@ fun BottomSheetPlayer(
             MiniPlayer(
                 positionProvider = { position },
                 durationProvider = { duration },
+                viewModel = odysseyViewModel,
             )
         },
     ) {
@@ -750,7 +748,7 @@ fun BottomSheetPlayer(
         }
 
         val controlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { mediaMetadata ->
-            var showLyrics by rememberPreference(ShowLyricsKey, defaultValue = false)
+            val isLiked = rememberEpisodeLiked(odysseyViewModel, mediaMetadata.id)
 
             val playPauseRoundness by animateDpAsState(
                 targetValue = if (isPlaying) 24.dp else 36.dp,
@@ -852,15 +850,15 @@ fun BottomSheetPlayer(
                             .clip(RoundedCornerShape(24.dp))
                             .background(MaterialTheme.colorScheme.secondaryContainer)
                             .clickable {
-                                showLyrics = !showLyrics
+                                odysseyViewModel.setEpisodeLiked(mediaMetadata.id, !isLiked)
                             },
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.lyrics),
+                        painter = painterResource(if (isLiked) R.drawable.favorite else R.drawable.favorite_border),
                         contentDescription = null,
                         colorFilter =
                             ColorFilter.tint(
-                                if (showLyrics) {
+                                if (isLiked) {
                                     MaterialTheme.colorScheme.primary
                                 } else {
                                     MaterialTheme.colorScheme.onSecondaryContainer
@@ -1131,7 +1129,7 @@ fun BottomSheetPlayer(
         }
 
         val playerAppleContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { metadata ->
-            var showLyricsV2 by rememberPreference(ShowLyricsKey, defaultValue = false)
+            val isLiked = rememberEpisodeLiked(odysseyViewModel, metadata.id)
 
             val audioContext = LocalContext.current
             val audioManager =
@@ -1438,13 +1436,13 @@ fun BottomSheetPlayer(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     IconButton(
-                        onClick = { showLyricsV2 = !showLyricsV2 },
+                        onClick = { odysseyViewModel.setEpisodeLiked(metadata.id, !isLiked) },
                         onLongClick = {},
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.lyrics),
+                            painter = painterResource(if (isLiked) R.drawable.favorite else R.drawable.favorite_border),
                             contentDescription = null,
-                            tint = if (showLyricsV2) MaterialTheme.colorScheme.primary else onBackgroundColor.copy(alpha = 0.6f),
+                            tint = if (isLiked) MaterialTheme.colorScheme.primary else onBackgroundColor.copy(alpha = 0.6f),
                         )
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1472,240 +1470,6 @@ fun BottomSheetPlayer(
                             painter = painterResource(R.drawable.queue_music),
                             contentDescription = null,
                             tint = onBackgroundColor.copy(alpha = 0.6f),
-                        )
-                    }
-                }
-            }
-        }
-
-        val playerM3eContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { metadata ->
-            var showLyricsM3e by rememberPreference(ShowLyricsKey, defaultValue = false)
-
-            // M3 Expressive lets the library's own updated component defaults (Slider,
-            // FilledIconButton/FilledTonalIconButton shapes and motion) carry the look,
-            // rather than hand-rolled shapes.
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = PlayerHorizontalPadding),
-            ) {
-                Text(
-                    text = metadata.title,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = onBackgroundColor,
-                    modifier = Modifier.basicMarquee(),
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = metadata.artists.joinToString { it.name },
-                    style = MaterialTheme.typography.titleMedium,
-                    color = onBackgroundColor.copy(alpha = 0.7f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = if (onArtistClick != null) Modifier.clickable(onClick = onArtistClick) else Modifier,
-                )
-
-                Spacer(Modifier.height(20.dp))
-
-                val m3eCurrentPos = sliderPosition ?: position
-                Slider(
-                    value = m3eCurrentPos.toFloat(),
-                    valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                    onValueChange = { sliderPosition = it.toLong() },
-                    onValueChangeFinished = {
-                        sliderPosition?.let {
-                            playerConnection.player.seekTo(it)
-                            position = it
-                        }
-                        sliderPosition = null
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = makeTimeString(m3eCurrentPos),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = onBackgroundColor.copy(alpha = 0.7f),
-                    )
-                    Text(
-                        text = if (duration != C.TIME_UNSET) makeTimeString(duration) else "",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = onBackgroundColor.copy(alpha = 0.7f),
-                    )
-                }
-
-                Spacer(Modifier.height(20.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    FilledTonalIconButton(
-                        onClick = onSeekBack,
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(seekBackIcon),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-
-                    FilledTonalIconButton(
-                        onClick = playerConnection::seekToPrevious,
-                        enabled = canSkipPrevious,
-                        modifier = Modifier.size(56.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.skip_previous),
-                            contentDescription = null,
-                            modifier = Modifier.size(28.dp),
-                        )
-                    }
-
-                    FilledIconButton(
-                        onClick = {
-                            if (playbackState == STATE_ENDED) {
-                                playerConnection.player.seekTo(0, 0)
-                                playerConnection.player.playWhenReady = true
-                            } else {
-                                playerConnection.player.togglePlayPause()
-                            }
-                        },
-                        shape = RoundedCornerShape(50),
-                        modifier =
-                            Modifier
-                                .width(120.dp)
-                                .height(72.dp),
-                    ) {
-                        Icon(
-                            painter =
-                                painterResource(
-                                    if (playbackState == STATE_ENDED) {
-                                        R.drawable.replay
-                                    } else if (isPlaying) {
-                                        R.drawable.pause
-                                    } else {
-                                        R.drawable.play
-                                    },
-                                ),
-                            contentDescription = null,
-                            modifier = Modifier.size(36.dp),
-                        )
-                    }
-
-                    FilledTonalIconButton(
-                        onClick = playerConnection::seekToNext,
-                        enabled = canSkipNext,
-                        modifier = Modifier.size(56.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.skip_next),
-                            contentDescription = null,
-                            modifier = Modifier.size(28.dp),
-                        )
-                    }
-
-                    FilledTonalIconButton(
-                        onClick = onSeekForward,
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(seekForwardIcon),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(20.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    FilledTonalIconButton(
-                        onClick = {
-                            if (sleepTimerEnabled) {
-                                playerConnection.service.sleepTimer.clear()
-                            } else {
-                                showSleepTimerDialog = true
-                            }
-                        },
-                        colors =
-                            if (sleepTimerEnabled) {
-                                IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                )
-                            } else {
-                                IconButtonDefaults.filledTonalIconButtonColors()
-                            },
-                    ) {
-                        if (sleepTimerEnabled) {
-                            Text(
-                                text = makeTimeString(sleepTimerTimeLeft),
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                            )
-                        } else {
-                            Icon(
-                                painter = painterResource(R.drawable.bedtime),
-                                contentDescription = null,
-                            )
-                        }
-                    }
-                    FilledTonalIconButton(
-                        onClick = { showLyricsM3e = !showLyricsM3e },
-                        colors =
-                            if (showLyricsM3e) {
-                                IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                )
-                            } else {
-                                IconButtonDefaults.filledTonalIconButtonColors()
-                            },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.lyrics),
-                            contentDescription = null,
-                        )
-                    }
-                    FilledTonalIconButton(
-                        onClick = { queueSheetState.expandSoft() },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.queue_music),
-                            contentDescription = null,
-                        )
-                    }
-                    FilledTonalIconButton(
-                        onClick = {
-                            menuState.show {
-                                PlayerMenu(
-                                    mediaMetadata = metadata,
-                                    navController = navController,
-                                    playerBottomSheetState = state,
-                                    viewModel = odysseyViewModel,
-                                    onShowDetailsDialog = onShowDetails,
-                                    onDismiss = menuState::dismiss,
-                                )
-                            }
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.more_horiz),
-                            contentDescription = null,
                         )
                     }
                 }
@@ -1803,7 +1567,6 @@ fun BottomSheetPlayer(
                         mediaMetadata?.let {
                             when (playerStyle) {
                                 PlayerStyle.APPLE -> playerAppleContent(it)
-                                PlayerStyle.M3E -> playerM3eContent(it)
                                 PlayerStyle.DEFAULT -> {}
                             }
                         }
