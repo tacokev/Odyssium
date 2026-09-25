@@ -21,9 +21,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -37,6 +40,8 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 data class ClubProfile(
     @SerializedName("viewer_id") val viewerId: String = "",
@@ -79,6 +84,40 @@ data class ClubContent(
     val progress: ClubProgress? = null,
     @SerializedName("is_bookmarked") val isBookmarked: Boolean = false,
     val tags: List<ClubTag> = emptyList(),
+)
+
+/** A character featured in a content item ("characters" on its detail). */
+data class ClubCharacter(
+    val id: String? = null,
+    val name: String? = null,
+    @SerializedName("thumbnail_small") val thumbnailSmall: String? = null,
+    @SerializedName("thumbnail_medium") val thumbnailMedium: String? = null,
+)
+
+/** A crew member credited on a content item ("authors" on its detail) - director, writer, ... */
+data class ClubCrewMember(
+    val name: String? = null,
+    val role: String? = null,
+)
+
+/** The parts of a content item's full detail (`content/{id}`) the app uses: its streaming
+ * URL for "Content request" playback, and everything the episode details page shows. */
+data class ClubContentDetails(
+    val id: String = "",
+    val subtype: String? = null,
+    @SerializedName("download_url") val downloadUrl: String? = null,
+    @SerializedName("air_date") val airDate: String? = null,
+    val characters: List<ClubCharacter>? = null,
+    val authors: List<ClubCrewMember>? = null,
+    val tags: List<ClubTag>? = null,
+    @SerializedName("long_theme") val longTheme: String? = null,
+    @SerializedName("bible_verse") val bibleVerse: String? = null,
+    /** HTML. */
+    val devotional: String? = null,
+    val recommendations: List<ClubContent>? = null,
+    /** The response body this was parsed from, for the details page's "View response". Not a
+     * JSON field ([Transient] keeps Gson from looking for one). */
+    @Transient val rawJson: String? = null,
 )
 
 data class ClubGrouping(
@@ -130,13 +169,30 @@ private data class ClubGroupingsPageResponse(
     val contentGroupings: List<ClubGrouping> = emptyList(),
 )
 
-/** A signed CDN credential (cookie query string or pre-signed URL) and when it stops working. */
 /** Whether [content] is offered for playback: audio always, and video (played as audio only)
  * while "Play videos as audio" is on. Everything else - articles, mostly - never is. */
 fun isPlayableContent(content: ClubContent, playVideosAsAudio: Boolean): Boolean =
     content.type == "Audio" || (playVideosAsAudio && content.type == "Video")
 
+/** A signed CDN credential (cookie query string or pre-signed URL) and when it stops working. */
 private class CachedSigned(val value: String, val expiresAtMillis: Long)
+
+/** Runs this call like `execute()`, but cancellably: cancelling the calling coroutine cancels
+ * the HTTP request instead of waiting it out (e.g. leaving an episode page mid-load). */
+private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
+    continuation.invokeOnCancellation { cancel() }
+    enqueue(
+        object : Callback {
+            override fun onResponse(call: Call, response: Response) {
+                if (continuation.isActive) continuation.resume(response) else response.close()
+            }
+
+            override fun onFailure(call: Call, e: IOException) {
+                if (continuation.isActive) continuation.resumeWithException(e)
+            }
+        },
+    )
+}
 
 private fun JsonElement?.toYearStringOrNull(): String? {
     if (this == null || isJsonNull || !isJsonPrimitive) return null
@@ -216,6 +272,12 @@ class ClubClient(private val context: Context) {
         private var cachedSignedCookie: CachedSigned? = null
         private val signedCookieMutex = Mutex()
         private val cachedContentDownloadUrls = ConcurrentHashMap<String, CachedSigned>()
+
+        /** Content details fetched this session, least recently used dropped past 200 - enough
+         * to page back and forth through a randomizer run without refetching. */
+        private val contentDetailsCache = object : LinkedHashMap<String, ClubContentDetails>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ClubContentDetails>?) = size > 200
+        }
 
         /** Refresh this long before a signature's own expiry, so a request that starts just
          * before it doesn't get cut off partway through loading. */
@@ -348,12 +410,12 @@ class ClubClient(private val context: Context) {
     private suspend fun authorizedCall(label: String, build: (accessToken: String) -> Request): Response =
         withContext(Dispatchers.IO) {
             val token = getAccessToken() ?: throw IOException("$label failed: not logged in")
-            var response = client.newCall(build(token)).execute()
+            var response = client.newCall(build(token)).await()
             if (response.code == 401) {
                 response.close()
                 val refreshedToken = if (refreshAccessToken()) getAccessToken() else null
                 if (refreshedToken != null) {
-                    response = client.newCall(build(refreshedToken)).execute()
+                    response = client.newCall(build(refreshedToken)).await()
                 }
             }
             if (!response.isSuccessful) {
@@ -808,18 +870,36 @@ class ClubClient(private val context: Context) {
      * string needed). Used by the "Content request" audio-loading mode, which trades an extra
      * round-trip per episode for not depending on the shared signed cookie that
      * [fetchSignedCookie] hands out. Cached per content id until its signature nears expiry,
-     * since the player resolves a URL for every range request (each seek, each chunk). */
+     * since the player resolves a URL for every range request (each seek, each chunk). The
+     * request is the same one [getContentDetails] makes, and each fills the other's cache. */
     suspend fun getContentDownloadUrl(contentId: String): String? {
         cachedContentDownloadUrls[contentId]?.takeIf { it.isFresh() }?.let { return it.value }
-        val url = fetchContentDownloadUrl(contentId) ?: return null
-        cachedContentDownloadUrls[contentId] = CachedSigned(url, signedExpiryMillis(url.toHttpUrlOrNull()))
-        return url
+        return fetchContentDetails(contentId)?.downloadUrl
     }
 
-    private suspend fun fetchContentDownloadUrl(contentId: String): String? = withContext(Dispatchers.IO) {
+    /** A content item's full detail, for the episode details page - from this session's cache
+     * when it's been fetched before (by an earlier visit, or by "Content request" playback of
+     * the same episode). Cancelling the calling coroutine cancels the request. */
+    suspend fun getContentDetails(contentId: String): ClubContentDetails? =
+        cachedContentDetails(contentId) ?: fetchContentDetails(contentId)
+
+    /** [getContentDetails] without the network - null if it hasn't been fetched this session. */
+    fun cachedContentDetails(contentId: String): ClubContentDetails? =
+        synchronized(contentDetailsCache) { contentDetailsCache[contentId] }
+
+    private suspend fun fetchContentDetails(contentId: String): ClubContentDetails? {
+        val details = requestContentDetails(contentId) ?: return null
+        synchronized(contentDetailsCache) { contentDetailsCache[contentId] = details }
+        details.downloadUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            cachedContentDownloadUrls[contentId] = CachedSigned(url, signedExpiryMillis(url.toHttpUrlOrNull()))
+        }
+        return details
+    }
+
+    private suspend fun requestContentDetails(contentId: String): ClubContentDetails? = withContext(Dispatchers.IO) {
         val vid = getViewerId()
         val p = getPin()
-        val response = authorizedCall("fetchContentDownloadUrl") { token ->
+        val response = authorizedCall("fetchContentDetails") { token ->
             Request.Builder()
                 .url(apiBase + "apexrest/v1/content/$contentId?tag=true&series=true&recommendations=true&player=true&parent=true")
                 .header("Authorization", "Bearer $token")
@@ -829,7 +909,7 @@ class ClubClient(private val context: Context) {
                 .build()
         }
         val body = response.use { it.body?.string() }
-        gson.fromJson(body, ClubContent::class.java)?.downloadUrl
+        gson.fromJson(body, ClubContentDetails::class.java)?.copy(rawJson = body)
     }
 
     /** The CDN's signed cookie as a `?Policy=...&Signature=...&Key-Pair-Id=...` query string,

@@ -570,6 +570,8 @@ fun BottomSheetPlayer(
             showDetailsDialog = true
         }
     }
+    val onTitleClick: (() -> Unit)? = if (currentOdysseyEpisode != null) onShowDetails else null
+    val titleClickModifier = if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier
 
     if (showDetailsDialog) {
         AlertDialog(
@@ -780,7 +782,7 @@ fun BottomSheetPlayer(
                         overflow = TextOverflow.Ellipsis,
                         color = onBackgroundColor,
                         modifier =
-                            Modifier
+                            titleClickModifier
                                 .basicMarquee()
                     )
                 }
@@ -1197,7 +1199,7 @@ fun BottomSheetPlayer(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             color = onBackgroundColor,
-                            modifier = Modifier.basicMarquee(),
+                            modifier = titleClickModifier.basicMarquee(),
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
