@@ -15,4 +15,9 @@
              Drake comic pages. -->
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
     </style>
+
+    <!-- Video playback: black behind the player from the first frame, rather than a white flash. -->
+    <style name="Theme.InnerTune.Video">
+        <item name="android:windowBackground">#000000</item>
+    </style>
 </resources>

@@ -125,6 +125,33 @@ private data class ClubArticleBody(
 
 private data class ClubGroupingsPageMetadata(val totalPageCount: Int = 1)
 
+/** One page of a `content/search` - the endpoint behind the club site's own content-type pages
+ * (Animations, Video Podcasts, ...). */
+private data class ClubContentSearchPage(
+    @SerializedName("results") val results: List<ClubContent>? = null,
+    @SerializedName("total_pages") val totalPages: Int = 1,
+)
+
+/** The playback fields of a single content item. */
+private data class ClubPlaybackDetail(
+    @SerializedName("stream_url") val streamUrl: String? = null,
+    @SerializedName("download_url") val downloadUrl: String? = null,
+    @SerializedName("signed_cookie") val signedCookie: String? = null,
+)
+
+/**
+ * Where a video streams from. The club site plays [streamUrl] (HLS) when there is one and
+ * [downloadUrl] (a single file) otherwise, authorizing every request - the HLS playlist and each
+ * of its segments alike - with the CloudFront cookies in [cookieHeader], valid until
+ * [expiresAtMillis].
+ */
+data class ClubVideoSource(
+    val streamUrl: String?,
+    val downloadUrl: String?,
+    val cookieHeader: String?,
+    val expiresAtMillis: Long,
+)
+
 private data class ClubGroupingsPageResponse(
     val metadata: ClubGroupingsPageMetadata? = null,
     val contentGroupings: List<ClubGrouping> = emptyList(),
@@ -206,6 +233,7 @@ class ClubClient(private val context: Context) {
         const val PODCAST_YEAR_TYPE = "Podcast Year"
         const val COLLECTION_TYPE = "Collection"
         const val BOOK_SERIES_TYPE = "Book Series"
+        const val BONUS_VIDEO_HOME_TYPE = "Bonus Video Home"
 
         private val firstNumberRegex = Regex("""\d+""")
 
@@ -736,6 +764,90 @@ class ClubClient(private val context: Context) {
         }
         val body = response.use { it.body?.string() }
         gson.fromJson(body, ClubContent::class.java)?.takeIf { it.id.isNotBlank() }
+    }
+
+    /** Every content item the club's `content/search` returns for [contentType] (and, if given,
+     * [subtype]) in [orderBy] order (a Salesforce ORDER BY clause, e.g. "Episode_Number__c
+     * ASC") - what the club site's own content-type pages (Animations, Video Podcasts, ...)
+     * list. Stops after [maxPages] pages, as a guard against a runaway result set. */
+    suspend fun searchContent(
+        contentType: String,
+        subtype: String?,
+        orderBy: String,
+        pageSize: Int = 50,
+        maxPages: Int = 20,
+    ): List<ClubContent> = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        val all = mutableListOf<ClubContent>()
+        var page = 1
+        var totalPages = 1
+        while (page <= totalPages && page <= maxPages) {
+            val url = (apiBase + "apexrest/v1/content/search").toHttpUrlOrNull()!!.newBuilder()
+                .addQueryParameter("community", "Adventures in Odyssey")
+                .addQueryParameter("content_type", contentType)
+                .apply { if (subtype != null) addQueryParameter("content_subtype", subtype) }
+                .addQueryParameter("orderby", orderBy)
+                .addQueryParameter("pagenum", page.toString())
+                .addQueryParameter("pagecount", pageSize.toString())
+                .build()
+            val response = authorizedCall("searchContent") { token ->
+                Request.Builder()
+                    .url(url)
+                    .header("Authorization", "Bearer $token")
+                    .header("x-experience-name", experienceName)
+                    .header("x-viewer-id", vid ?: "")
+                    .header("x-pin", p)
+                    .build()
+            }
+            val body = response.use { it.body?.string() }
+            val parsed = gson.fromJson(body, ClubContentSearchPage::class.java)
+            val results = parsed?.results.orEmpty()
+            all += results
+            if (page == 1) totalPages = parsed?.totalPages ?: 1
+            if (results.isEmpty()) break
+            page++
+        }
+        all.distinctBy { it.id }
+    }
+
+    /** Where video [contentId] streams from, fetched fresh - the same content request the club
+     * site's own video player makes. Null if the club gives no URL for it at all. */
+    suspend fun fetchVideoSource(contentId: String): ClubVideoSource? = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        val response = authorizedCall("fetchVideoSource") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/content/$contentId?tag=true&series=true&recommendations=true&player=true&parent=true")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .build()
+        }
+        val body = response.use { it.body?.string() }
+        val detail = gson.fromJson(body, ClubPlaybackDetail::class.java) ?: return@withContext null
+        fun String?.toMediaUrl() = this?.takeIf { it.isNotBlank() }?.let { url ->
+            if (url.startsWith("http", ignoreCase = true)) url else "https://$ODYSSEY_MEDIA_HOST/${url.trimStart('/')}"
+        }
+        val streamUrl = detail.streamUrl.toMediaUrl()
+        val downloadUrl = detail.downloadUrl.toMediaUrl()
+        if (streamUrl == null && downloadUrl == null) return@withContext null
+        // The signed cookie arrives as a URL whose query holds the three CloudFront values; the
+        // site turns them into cookies, which (unlike a signed URL's query) also cover every
+        // segment an HLS playlist points at.
+        val cookieUrl = detail.signedCookie?.toHttpUrlOrNull()
+        val cookieHeader = cookieUrl?.let { url ->
+            val policy = url.queryParameter("Policy")
+            val signature = url.queryParameter("Signature")
+            val keyPairId = url.queryParameter("Key-Pair-Id")
+            if (policy == null || signature == null || keyPairId == null) {
+                null
+            } else {
+                "CloudFront-Policy=$policy; CloudFront-Signature=$signature; CloudFront-Key-Pair-Id=$keyPairId"
+            }
+        }
+        ClubVideoSource(streamUrl, downloadUrl, cookieHeader, signedExpiryMillis(cookieUrl ?: (streamUrl ?: downloadUrl)?.toHttpUrlOrNull()))
     }
 
     /** An Article's HTML body (both the current and legacy renderings, either of which may be

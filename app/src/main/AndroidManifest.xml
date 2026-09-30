@@ -78,6 +78,16 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- Club video playback (see VideoPlayerActivity). Handles rotation itself, so the
+             player isn't torn down going in and out of fullscreen. -->
+        <activity
+            android:name=".ui.video.VideoPlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:theme="@style/Theme.InnerTune.Video" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.FileProvider"

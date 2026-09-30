@@ -10,6 +10,8 @@ import androidx.navigation.navArgument
 import com.skintclub.odyssey.club.ODYSSEY_COMICS_ROUTE
 import com.skintclub.odyssey.club.ODYSSEY_COMIC_ROUTE
 import com.skintclub.odyssey.club.ODYSSEY_COMIC_SERIES_ROUTE
+import com.skintclub.odyssey.club.ODYSSEY_VIDEOS_ROUTE
+import com.skintclub.odyssey.club.ODYSSEY_VIDEO_SHELF_ROUTE
 import com.skintclub.odyssey.club.SECRET_EPISODES_ROUTE
 import com.skintclub.odyssey.ui.screens.settings.AboutScreen
 import com.skintclub.odyssey.ui.screens.settings.AccountSettings
@@ -76,6 +78,19 @@ fun NavGraphBuilder.navigationBuilder(
             viewModel = odysseyViewModel,
             groupingId = backStackEntry.arguments?.getString("groupingId").orEmpty(),
             contentId = backStackEntry.arguments?.getString("contentId").orEmpty(),
+        )
+    }
+    composable(ODYSSEY_VIDEOS_ROUTE) {
+        OdysseyVideosScreen(navController, odysseyViewModel)
+    }
+    composable(
+        ODYSSEY_VIDEO_SHELF_ROUTE,
+        arguments = listOf(navArgument("shelfId") { type = NavType.StringType }),
+    ) { backStackEntry ->
+        OdysseyVideoShelfScreen(
+            navController = navController,
+            viewModel = odysseyViewModel,
+            shelfId = backStackEntry.arguments?.getString("shelfId").orEmpty(),
         )
     }
     composable(

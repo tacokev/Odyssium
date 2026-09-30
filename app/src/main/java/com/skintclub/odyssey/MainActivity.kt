@@ -100,6 +100,7 @@ import com.skintclub.odyssey.ui.component.*
 import com.skintclub.odyssey.ui.component.shimmer.ShimmerTheme
 import com.skintclub.odyssey.ui.menu.OdysseyEpisodeMenu
 import com.skintclub.odyssey.ui.player.BottomSheetPlayer
+import com.skintclub.odyssey.ui.video.VideoPlayerActivity
 import com.skintclub.odyssey.ui.screens.*
 import com.skintclub.odyssey.ui.screens.search.OdysseySearchResultsList
 import com.skintclub.odyssey.ui.screens.settings.DarkMode
@@ -502,6 +503,9 @@ class MainActivity : ComponentActivity() {
                                     open("odyssey_episode/${Uri.encode(target.albumName)}/${target.index}")
                                 }
                             is ClubLinkTarget.Episode -> play(target.episodes, target.index)
+                            is ClubLinkTarget.Video -> startActivity(
+                                VideoPlayerActivity.intent(this@MainActivity, target.shelfTitle, target.videos, target.index),
+                            )
                             is ClubLinkTarget.Comic ->
                                 open("odyssey_comic/${Uri.encode(target.seriesId)}/${Uri.encode(target.contentId)}")
                             is ClubLinkTarget.Album -> open("odyssey_album/${Uri.encode(target.name)}")

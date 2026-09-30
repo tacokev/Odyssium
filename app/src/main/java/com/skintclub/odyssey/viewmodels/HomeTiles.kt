@@ -10,6 +10,9 @@ import com.skintclub.odyssey.club.ClubContent
 import com.skintclub.odyssey.club.isPlayableContent
 import com.skintclub.odyssey.club.ClubGrouping
 import com.skintclub.odyssey.club.ODYSSEY_COMICS_ROUTE
+import com.skintclub.odyssey.club.ODYSSEY_VIDEOS_ROUTE
+import com.skintclub.odyssey.club.VideoShelf
+import com.skintclub.odyssey.club.videoThumbnailUrl
 import java.io.File
 
 /** One of the Home screen's category tiles. Serialized names are pinned so a minified build
@@ -28,6 +31,7 @@ fun homeCategoriesFrom(
     clubClient: ClubClient,
     groupings: List<ClubGrouping>,
     comicSeries: List<ClubGrouping>,
+    videoShelves: List<VideoShelf>,
     albumCount: Int,
 ): List<HomeCategory> {
     val episodeHomes = clubClient.groupingsOfType(groupings, ClubClient.EPISODE_HOME_TYPE)
@@ -90,6 +94,20 @@ fun homeCategoriesFrom(
                 title = "Comics",
                 subtitle = "${series.size} series",
                 imageUrls = series.covers(),
+            )
+        },
+        videoShelves.takeIf { it.isNotEmpty() }?.let { shelves ->
+            HomeCategory(
+                route = ODYSSEY_VIDEOS_ROUTE,
+                title = "Videos",
+                subtitle = "${shelves.sumOf { it.videos.size }} videos",
+                // One from each shelf first, so the collage isn't all one show.
+                imageUrls = shelves
+                    .flatMap { shelf -> shelf.videos.withIndex().map { (index, video) -> index to video } }
+                    .sortedBy { (index, _) -> index }
+                    .mapNotNull { (_, video) -> videoThumbnailUrl(video) }
+                    .distinct()
+                    .take(HOME_COLLAGE_COVER_COUNT),
             )
         },
     )

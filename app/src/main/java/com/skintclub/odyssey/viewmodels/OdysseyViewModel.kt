@@ -16,6 +16,9 @@ import com.skintclub.odyssey.club.LocalPlaylistStore
 import com.skintclub.odyssey.club.SecretEpisode
 import com.skintclub.odyssey.club.SecretEpisodesState
 import com.skintclub.odyssey.club.SecretEpisodesStore
+import com.skintclub.odyssey.club.VideoShelvesSnapshot
+import com.skintclub.odyssey.club.fetchVideoShelves
+import com.skintclub.odyssey.club.mergeBonusVideoShelves
 import com.skintclub.odyssey.club.fetchIndexedComicSeries
 import com.skintclub.odyssey.club.isLocalPlaylistId
 import com.skintclub.odyssey.club.isPlayableContent
@@ -128,6 +131,17 @@ class OdysseyViewModel @Inject constructor(
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** The video shelves from the club's content searches (see [fetchVideoShelves]), as last
+     * fetched - seeded from [VideoShelvesSnapshot] and refreshed after each grouping refresh. */
+    private val fetchedVideoShelves = MutableStateFlow(VideoShelvesSnapshot.load(application))
+
+    /** The Videos screen's shelves: [fetchedVideoShelves] with the Bonus Video shelves rebuilt
+     * from the current grouping cache. */
+    val videoShelves = combine(fetchedVideoShelves, _groupings) { fetched, groupings ->
+        mergeBonusVideoShelves(fetched, groupings)
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     /** The Home screen's category tiles. Seeded from [HomeTilesSnapshot] so they (and their
      * covers, prefetched right here) are ready on a cold start before the full grouping cache
      * has even been parsed; recomputed and re-saved whenever the groupings change. */
@@ -235,6 +249,7 @@ class OdysseyViewModel @Inject constructor(
 
                 applyGroupings(fetchedGroupings)
                 viewModelScope.launch { refreshComicSeries() }
+                viewModelScope.launch { refreshVideoShelves() }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -257,6 +272,21 @@ class OdysseyViewModel @Inject constructor(
         indexedComicSeries.value = series
         updateHomeCategories()
         withContext(Dispatchers.IO) { ComicSeriesSnapshot.save(getApplication(), series) }
+    }
+
+    /** Rebuilds [fetchedVideoShelves] from the club's content searches. Failing leaves the last
+     * shelves in place, same as comics. */
+    private suspend fun refreshVideoShelves() {
+        val shelves = try {
+            fetchVideoShelves(clubClient, _groupings.value, fetchedVideoShelves.value)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return
+        }
+        if (shelves == fetchedVideoShelves.value) return
+        fetchedVideoShelves.value = shelves
+        updateHomeCategories()
+        withContext(Dispatchers.IO) { VideoShelvesSnapshot.save(getApplication(), shelves) }
     }
 
     /** The exact filter combination a [nonRepeatingBag] was built from; a call with a
@@ -520,6 +550,13 @@ class OdysseyViewModel @Inject constructor(
         val comicSeriesId = (comics.firstOrNull { it.id == link.groupingId && it.holds(contentId) } ?: comics.firstOrNull { it.holds(contentId) })?.id
         if (comicSeriesId != null) return ClubLinkTarget.Comic(comicSeriesId, contentId)
 
+        // A video opens in the video player, with the rest of its shelf after it - even where
+        // "Play videos as audio" would also find it in an album.
+        videoShelves.value.forEach { shelf ->
+            val index = shelf.videos.indexOfFirst { it.id == contentId }
+            if (index >= 0) return ClubLinkTarget.Video(shelf.title, shelf.videos, index)
+        }
+
         baseAlbums.forEach { album ->
             val index = album.episodes.indexOfFirst { it["id"] == contentId }
             if (index >= 0) return ClubLinkTarget.AlbumEpisode(album.name, album.episodes, index)
@@ -543,6 +580,7 @@ class OdysseyViewModel @Inject constructor(
             e.printStackTrace()
             null
         } ?: return ClubLinkTarget.NotFound
+        if (content.type == "Video") return ClubLinkTarget.Video(content.albumName.orEmpty(), listOf(content), 0)
         if (!isPlayableContent(content, playVideosAsAudio.value)) return ClubLinkTarget.NotFound
         val standIn = ClubGrouping(name = content.albumName.orEmpty(), imageUrl = content.thumbnailMedium, contentList = listOf(content))
         val episode = clubClient.groupingEpisodesFrom(_groupings.value, standIn).firstOrNull() ?: return ClubLinkTarget.NotFound
@@ -595,7 +633,8 @@ class OdysseyViewModel @Inject constructor(
 
     private fun updateHomeCategories() {
         val comics = mergeComicSeries(indexedComicSeries.value, clubClient.comicSeriesFrom(_groupings.value))
-        val categories = homeCategoriesFrom(clubClient, _groupings.value, comics, baseAlbums.size)
+        val videos = mergeBonusVideoShelves(fetchedVideoShelves.value, _groupings.value)
+        val categories = homeCategoriesFrom(clubClient, _groupings.value, comics, videos, baseAlbums.size)
         if (categories == _homeCategories.value) return
         _homeCategories.value = categories
         prefetchHomeCovers(categories)
@@ -654,6 +693,9 @@ sealed interface ClubLinkTarget {
     data class Episode(val episodes: List<Map<String, Any>>, val index: Int) : ClubLinkTarget
 
     data class Comic(val seriesId: String, val contentId: String) : ClubLinkTarget
+
+    /** A video: [videos] is the shelf it's played through, [index] this one. */
+    data class Video(val shelfTitle: String, val videos: List<ClubContent>, val index: Int) : ClubLinkTarget
 
     data class Album(val name: String) : ClubLinkTarget
 
