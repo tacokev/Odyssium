@@ -24,7 +24,8 @@ import com.skintclub.odyssey.constants.AudioQuality
 import com.skintclub.odyssey.constants.AudioQualityKey
 import com.skintclub.odyssey.constants.AutoSkipNextOnErrorKey
 import com.skintclub.odyssey.constants.PersistentQueueKey
-import com.skintclub.odyssey.constants.SeekExtraThirtySecondsKey
+import com.skintclub.odyssey.constants.SeekIncrement
+import com.skintclub.odyssey.constants.SeekIncrementKey
 import com.skintclub.odyssey.constants.SkipSilenceKey
 import com.skintclub.odyssey.constants.StopMusicOnTaskClearKey
 import com.skintclub.odyssey.ui.component.EnumListPreference
@@ -46,7 +47,7 @@ fun PlayerSettings(
     val (audioNormalization, onAudioNormalizationChange) = rememberPreference(AudioNormalizationKey, defaultValue = true)
     val (autoSkipNextOnError, onAutoSkipNextOnErrorChange) = rememberPreference(AutoSkipNextOnErrorKey, defaultValue = false)
     val (stopMusicOnTaskClear, onStopMusicOnTaskClearChange) = rememberPreference(StopMusicOnTaskClearKey, defaultValue = false)
-    val (seekExtraThirtySeconds, onSeekExtraThirtySecondsChange) = rememberPreference(SeekExtraThirtySecondsKey, defaultValue = false)
+    val (seekIncrement, onSeekIncrementChange) = rememberEnumPreference(SeekIncrementKey, defaultValue = SeekIncrement.TEN)
 
     Column(
         Modifier
@@ -100,12 +101,18 @@ fun PlayerSettings(
             checked = stopMusicOnTaskClear,
             onCheckedChange = onStopMusicOnTaskClearChange,
         )
-        SwitchPreference(
-            title = { Text(stringResource(R.string.seek_extra_thirty_seconds)) },
-            description = stringResource(R.string.seek_extra_thirty_seconds_desc),
+        EnumListPreference(
+            title = { Text(stringResource(R.string.seek_buttons)) },
             icon = { Icon(painterResource(R.drawable.forward_30), null) },
-            checked = seekExtraThirtySeconds,
-            onCheckedChange = onSeekExtraThirtySecondsChange,
+            selectedValue = seekIncrement,
+            onValueSelected = onSeekIncrementChange,
+            valueText = {
+                when (it) {
+                    SeekIncrement.TEN -> stringResource(R.string.seek_ten)
+                    SeekIncrement.THIRTY -> stringResource(R.string.seek_thirty)
+                    SeekIncrement.BACK_TEN_FORWARD_THIRTY -> stringResource(R.string.seek_back_ten_forward_thirty)
+                }
+            },
         )
     }
 

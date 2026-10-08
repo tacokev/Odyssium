@@ -33,7 +33,16 @@ val ProxyUrlKey = stringPreferencesKey("proxyUrl")
 val ProxyTypeKey = stringPreferencesKey("proxyType")
 val SimilarContent = booleanPreferencesKey("similarContent")
 
-val SeekExtraThirtySecondsKey = booleanPreferencesKey("seekExtraThirtySeconds")
+val SeekIncrementKey = stringPreferencesKey("seekIncrement")
+
+enum class SeekIncrement(
+    val backMs: Long,
+    val forwardMs: Long,
+) {
+    TEN(10_000L, 10_000L),
+    THIRTY(30_000L, 30_000L),
+    BACK_TEN_FORWARD_THIRTY(10_000L, 30_000L),
+}
 
 val AudioQualityKey = stringPreferencesKey("audioQuality")
 
@@ -234,7 +243,6 @@ enum class PlayerBackgroundStyle {
 }
 
 val TopSize = stringPreferencesKey("topSize")
-val HistoryDuration = floatPreferencesKey("historyDuration")
 
 val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
 val PlayerStyleKey = stringPreferencesKey("playerStyle")

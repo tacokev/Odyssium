@@ -130,6 +130,9 @@ class MusicService :
     var queueTitle: String? = null
 
     val currentMediaMetadata = MutableStateFlow<com.skintclub.odyssey.models.MediaMetadata?>(null)
+
+    // The item that already has a history entry for its current play-through.
+    private var historyRecordedFor: String? = null
     private val currentSong =
         currentMediaMetadata
             .flatMapLatest { mediaMetadata ->
@@ -494,6 +497,32 @@ class MusicService :
         if (events.containsAny(EVENT_TIMELINE_CHANGED, EVENT_POSITION_DISCONTINUITY)) {
             currentMediaMetadata.value = player.currentMetadata
         }
+        if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) historyRecordedFor = null
+        if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION) && player.isPlaying) {
+            recordHistory()
+        }
+    }
+
+    /** Adds the current item to listen history as soon as it starts playing. */
+    private fun recordHistory() {
+        val metadata = player.currentMetadata ?: return
+        if (historyRecordedFor == metadata.id) return
+        historyRecordedFor = metadata.id
+        if (dataStore.get(PauseListenHistoryKey, false)) return
+        database.query {
+            // Events reference the song table, so the item has to exist there first.
+            insert(metadata)
+            try {
+                insert(
+                    Event(
+                        songId = metadata.id,
+                        timestamp = LocalDateTime.now(),
+                        playTime = 0,
+                    ),
+                )
+            } catch (_: SQLException) {
+            }
+        }
     }
 
     override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -605,24 +634,10 @@ class MusicService :
     ) {
         val mediaItem = eventTime.timeline.getWindow(eventTime.windowIndex, Timeline.Window()).mediaItem
 
-        if (playbackStats.totalPlayTimeMs >= (
-                dataStore[HistoryDuration]?.times(1000f)
-                    ?: 30000f
-            ) &&
-            !dataStore.get(PauseListenHistoryKey, false)
-        ) {
+        if (playbackStats.totalPlayTimeMs > 0 && !dataStore.get(PauseListenHistoryKey, false)) {
             database.query {
                 incrementTotalPlayTime(mediaItem.mediaId, playbackStats.totalPlayTimeMs)
-                try {
-                    insert(
-                        Event(
-                            songId = mediaItem.mediaId,
-                            timestamp = LocalDateTime.now(),
-                            playTime = playbackStats.totalPlayTimeMs,
-                        ),
-                    )
-                } catch (_: SQLException) {
-                }
+                updateLatestEventPlayTime(mediaItem.mediaId, playbackStats.totalPlayTimeMs)
             }
         }
     }

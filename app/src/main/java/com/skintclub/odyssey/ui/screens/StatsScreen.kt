@@ -2,52 +2,57 @@ package com.skintclub.odyssey.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.skintclub.innertube.models.WatchEndpoint
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
-import com.skintclub.odyssey.constants.StatPeriod
 import com.skintclub.odyssey.extensions.togglePlayPause
-import com.skintclub.odyssey.models.toMediaMetadata
-import com.skintclub.odyssey.playback.queues.YouTubeQueue
-import com.skintclub.odyssey.ui.component.ChoiceChipsRow
+import com.skintclub.odyssey.ui.component.EmptyPlaceholder
 import com.skintclub.odyssey.ui.component.IconButton
-import com.skintclub.odyssey.ui.component.LocalItemsGrid
 import com.skintclub.odyssey.ui.component.LocalMenuState
 import com.skintclub.odyssey.ui.component.NavigationTitle
-import com.skintclub.odyssey.ui.menu.AlbumMenu
-import com.skintclub.odyssey.ui.menu.ArtistMenu
+import com.skintclub.odyssey.ui.component.SongListItem
 import com.skintclub.odyssey.ui.menu.SongMenu
 import com.skintclub.odyssey.ui.utils.backToMain
-import com.skintclub.odyssey.utils.joinByBullet
-import com.skintclub.odyssey.utils.makeTimeString
+import com.skintclub.odyssey.viewmodels.ListeningStats
 import com.skintclub.odyssey.viewmodels.StatsViewModel
-import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.time.format.TextStyle
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -61,92 +66,7 @@ fun StatsScreen(
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
-    val indexChips by viewModel.indexChips.collectAsState()
-    val mostPlayedSongs by viewModel.mostPlayedSongs.collectAsState()
-    val mostPlayedSongsStats by viewModel.mostPlayedSongsStats.collectAsState()
-    val mostPlayedArtists by viewModel.mostPlayedArtists.collectAsState()
-    val mostPlayedAlbums by viewModel.mostPlayedAlbums.collectAsState()
-
-    val firstEvent by viewModel.firstEvent.collectAsState()
-    val currentDate = LocalDateTime.now()
-
-    val coroutineScope = rememberCoroutineScope()
-
-    val selectedOption by viewModel.selectedOption.collectAsState()
-
-    val weeklyDates =
-        if (currentDate != null && firstEvent != null) {
-            generateSequence(currentDate) { it.minusWeeks(1) }
-                .takeWhile { it.isAfter(firstEvent?.event?.timestamp?.minusWeeks(1)) }
-                .mapIndexed { index, date ->
-                    val endDate = date.plusWeeks(1).minusDays(1).coerceAtMost(currentDate)
-                    val formatter = DateTimeFormatter.ofPattern("dd MMM")
-
-                    val startDateFormatted = formatter.format(date)
-                    val endDateFormatted = formatter.format(endDate)
-
-                    val startMonth = date.month
-                    val endMonth = endDate.month
-                    val startYear = date.year
-                    val endYear = endDate.year
-
-                    val text =
-                        when {
-                            startYear != currentDate.year -> "$startDateFormatted, $startYear - $endDateFormatted, $endYear"
-                            startMonth != endMonth -> "$startDateFormatted - $endDateFormatted"
-                            else -> "${date.dayOfMonth} - $endDateFormatted"
-                        }
-                    Pair(index, text)
-                }.toList()
-        } else {
-            emptyList()
-        }
-
-    val monthlyDates =
-        if (currentDate != null && firstEvent != null) {
-            generateSequence(currentDate.plusMonths(1).withDayOfMonth(1).minusDays(1)) { it.minusMonths(1) }
-                .takeWhile {
-                    it.isAfter(
-                        firstEvent
-                            ?.event
-                            ?.timestamp
-                            ?.withDayOfMonth(1),
-                    )
-                }.mapIndexed { index, date ->
-                    val formatter = DateTimeFormatter.ofPattern("MMM")
-                    val formattedDate = formatter.format(date)
-                    val text =
-                        if (date.year != currentDate.year) {
-                            "$formattedDate ${date.year}"
-                        } else {
-                            formattedDate
-                        }
-                    Pair(index, text)
-                }.toList()
-        } else {
-            emptyList()
-        }
-
-    val yearlyDates =
-        if (currentDate != null && firstEvent != null) {
-            generateSequence(
-                currentDate
-                    .plusYears(1)
-                    .withDayOfYear(1)
-                    .minusDays(1),
-            ) { it.minusYears(1) }
-                .takeWhile {
-                    it.isAfter(
-                        firstEvent
-                            ?.event
-                            ?.timestamp,
-                    )
-                }.mapIndexed { index, date ->
-                    Pair(index, "${date.year}")
-                }.toList()
-        } else {
-            emptyList()
-        }
+    val stats by viewModel.stats.collectAsState()
 
     LazyColumn(
         contentPadding =
@@ -156,190 +76,93 @@ fun StatsScreen(
                 ).asPaddingValues(),
         modifier = Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)),
     ) {
-        item {
-            ChoiceChipsRow(
-                chips =
-                    when (selectedOption) {
-                        OptionStats.WEEKS -> weeklyDates
-                        OptionStats.MONTHS -> monthlyDates
-                        OptionStats.YEARS -> yearlyDates
-                        OptionStats.CONTINUOUS -> {
-                            listOf(
-                                StatPeriod.WEEK_1.ordinal to pluralStringResource(R.plurals.n_week, 1, 1),
-                                StatPeriod.MONTH_1.ordinal to pluralStringResource(R.plurals.n_month, 1, 1),
-                                StatPeriod.MONTH_3.ordinal to pluralStringResource(R.plurals.n_month, 3, 3),
-                                StatPeriod.MONTH_6.ordinal to pluralStringResource(R.plurals.n_month, 6, 6),
-                                StatPeriod.YEAR_1.ordinal to pluralStringResource(R.plurals.n_year, 1, 1),
-                                StatPeriod.ALL.ordinal to stringResource(R.string.filter_all),
-                            )
-                        }
-                    },
-                options =
-                    listOf(
-                        OptionStats.CONTINUOUS to stringResource(id = R.string.continuous),
-                        OptionStats.WEEKS to stringResource(R.string.weeks),
-                        OptionStats.MONTHS to stringResource(R.string.months),
-                        OptionStats.YEARS to stringResource(R.string.years),
-                    ),
-                selectedOption = selectedOption,
-                onSelectionChange = {
-                    viewModel.selectedOption.value = it
-                    viewModel.indexChips.value = 0
-                },
-                currentValue = indexChips,
-                onValueUpdate = { viewModel.indexChips.value = it },
-            )
-        }
-
-        item(key = "mostPlayedSongs") {
-            NavigationTitle(
-                title = "${mostPlayedSongsStats.size} ${stringResource(id = R.string.songs)}",
-                modifier = Modifier.animateItem(),
-            )
-
-            LazyRow(
-                modifier = Modifier.animateItem(),
-            ) {
-                itemsIndexed(
-                    items = mostPlayedSongsStats,
-                    key = { _, song -> song.id },
-                ) { index, song ->
-                    LocalItemsGrid(
-                        title = "${index + 1}. ${song.title}",
-                        subtitle =
-                            joinByBullet(
-                                pluralStringResource(
-                                    R.plurals.n_time,
-                                    song.songCountListened,
-                                    song.songCountListened,
-                                ),
-                                makeTimeString(song.timeListened),
-                            ),
-                        thumbnailUrl = song.thumbnailUrl,
-                        isActive = song.id == mediaMetadata?.id,
-                        isPlaying = isPlaying,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = {
-                                        if (song.id == mediaMetadata?.id) {
-                                            playerConnection.player.togglePlayPause()
-                                        } else {
-                                            playerConnection.playQueue(
-                                                YouTubeQueue(
-                                                    endpoint = WatchEndpoint(song.id),
-                                                    preloadItem = mostPlayedSongs[index].toMediaMetadata(),
-                                                ),
-                                            )
-                                        }
-                                    },
-                                    onLongClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        menuState.show {
-                                            SongMenu(
-                                                originalSong = mostPlayedSongs[index],
-                                                navController = navController,
-                                                onDismiss = menuState::dismiss,
-                                            )
-                                        }
-                                    },
-                                ).animateItem(),
-                    )
-                }
+        val s = stats ?: return@LazyColumn
+        if (s.totalPlays == 0) {
+            item {
+                EmptyPlaceholder(
+                    icon = R.drawable.trending_up,
+                    text = stringResource(R.string.stats_empty),
+                )
             }
+            return@LazyColumn
         }
 
-        item(key = "mostPlayedArtists") {
-            NavigationTitle(
-                title = "${mostPlayedArtists.size} ${stringResource(id = R.string.artists)}",
-                modifier = Modifier.animateItem(),
-            )
-
-            LazyRow(
-                modifier = Modifier.animateItem(),
+        item(key = "total") {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                itemsIndexed(
-                    items = mostPlayedArtists,
-                    key = { _, artist -> artist.id },
-                ) { index, artist ->
-                    LocalItemsGrid(
-                        title = "${index + 1}. ${artist.artist.name}",
-                        subtitle =
-                            joinByBullet(
-                                pluralStringResource(R.plurals.n_time, artist.songCount, artist.songCount),
-                                makeTimeString(artist.timeListened?.toLong()),
-                            ),
-                        thumbnailUrl = artist.artist.thumbnailUrl,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = {
-                                        navController.navigate("artist/${artist.id}")
-                                    },
-                                    onLongClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        menuState.show {
-                                            ArtistMenu(
-                                                originalArtist = artist,
-                                                coroutineScope = coroutineScope,
-                                                onDismiss = menuState::dismiss,
-                                            )
-                                        }
-                                    },
-                                ).animateItem(),
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        text = stringResource(R.string.stats_total_listening),
+                        style = MaterialTheme.typography.titleSmall,
                     )
-                }
-            }
-        }
-
-        item(key = "mostPlayedAlbums") {
-            NavigationTitle(
-                title = "${mostPlayedAlbums.size} ${stringResource(id = R.string.albums)}",
-                modifier = Modifier.animateItem(),
-            )
-
-            if (mostPlayedAlbums.isNotEmpty()) {
-                LazyRow(
-                    modifier = Modifier.animateItem(),
-                ) {
-                    itemsIndexed(
-                        items = mostPlayedAlbums,
-                        key = { _, album -> album.id },
-                    ) { index, album ->
-                        LocalItemsGrid(
-                            title = "${index + 1}. ${album.album.title}",
-                            subtitle =
-                                joinByBullet(
-                                    pluralStringResource(R.plurals.n_time, album.songCountListened!!, album.songCountListened),
-                                    makeTimeString(album.timeListened?.toLong()),
-                                ),
-                            thumbnailUrl = album.album.thumbnailUrl,
-                            isActive = album.id == mediaMetadata?.album?.id,
-                            isPlaying = isPlaying,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .combinedClickable(
-                                        onClick = {
-                                            navController.navigate("album/${album.id}")
-                                        },
-                                        onLongClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            menuState.show {
-                                                AlbumMenu(
-                                                    originalAlbum = album,
-                                                    navController = navController,
-                                                    onDismiss = menuState::dismiss,
-                                                )
-                                            }
-                                        },
-                                    ).animateItem(),
+                    Text(
+                        text = stringResource(R.string.stats_hours, "%.1f".format(s.totalTimeMs / 3_600_000.0)),
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    s.firstListen?.let {
+                        Text(
+                            text = stringResource(R.string.stats_since, it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))),
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
             }
+        }
+
+        item(key = "tiles") {
+            StatTiles(s)
+        }
+
+        item(key = "topTitle") {
+            NavigationTitle(title = stringResource(R.string.stats_top_episodes))
+        }
+
+        itemsIndexed(
+            items = s.topEpisodes,
+            key = { _, episode -> episode.song.id },
+        ) { _, episode ->
+            SongListItem(
+                song = episode.song,
+                isActive = episode.song.id == mediaMetadata?.id,
+                isPlaying = isPlaying,
+                trailingContent = {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = formatListenTime(episode.timeMs),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Text(
+                            text = pluralStringResource(R.plurals.n_time, episode.plays, episode.plays),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = {
+                                if (episode.song.id == mediaMetadata?.id) {
+                                    playerConnection.player.togglePlayPause()
+                                }
+                            },
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                menuState.show {
+                                    SongMenu(
+                                        originalSong = episode.song,
+                                        navController = navController,
+                                        onDismiss = menuState::dismiss,
+                                    )
+                                }
+                            },
+                        ).animateItem(),
+            )
         }
     }
 
@@ -357,6 +180,75 @@ fun StatsScreen(
             }
         },
     )
+}
+
+@Composable
+private fun StatTiles(s: ListeningStats) {
+    val tiles =
+        listOf(
+            stringResource(R.string.stats_this_week) to formatListenTime(s.thisWeekMs),
+            stringResource(R.string.stats_this_month) to formatListenTime(s.thisMonthMs),
+            stringResource(R.string.stats_episodes_played) to s.episodesPlayed.toString(),
+            stringResource(R.string.stats_total_plays) to s.totalPlays.toString(),
+            stringResource(R.string.stats_days_listened) to s.daysListened.toString(),
+            stringResource(R.string.stats_daily_average) to formatListenTime(s.averagePerDayMs),
+            stringResource(R.string.stats_current_streak) to pluralStringResource(R.plurals.n_day, s.currentStreak, s.currentStreak),
+            stringResource(R.string.stats_longest_streak) to pluralStringResource(R.plurals.n_day, s.longestStreak, s.longestStreak),
+            stringResource(R.string.stats_longest_session) to formatListenTime(s.longestSessionMs),
+            stringResource(R.string.stats_favorite_day) to
+                (s.favoriteWeekday?.getDisplayName(TextStyle.FULL, Locale.getDefault()) ?: "-"),
+            stringResource(R.string.stats_favorite_time) to
+                (s.favoriteHour?.let { LocalTime.of(it, 0).format(DateTimeFormatter.ofPattern("h a")) } ?: "-"),
+        )
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        tiles.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                pair.forEach { (label, value) ->
+                    StatTile(label = label, value = value, modifier = Modifier.weight(1f))
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = modifier,
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+private fun formatListenTime(ms: Long): String {
+    val totalMinutes = ms / 60_000
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes}m"
+        totalMinutes > 0 -> "${minutes}m"
+        ms > 0 -> "<1m"
+        else -> "0m"
+    }
 }
 
 enum class OptionStats {

@@ -121,6 +121,18 @@ fun HomeScreen(
     TopAppBar(
         title = { Text(stringResource(R.string.home)) },
         actions = {
+            IconButton(onClick = { navController.navigate("stats") }) {
+                Icon(
+                    painter = painterResource(R.drawable.trending_up),
+                    contentDescription = stringResource(R.string.stats),
+                )
+            }
+            IconButton(onClick = { navController.navigate("history") }) {
+                Icon(
+                    painter = painterResource(R.drawable.history),
+                    contentDescription = stringResource(R.string.history),
+                )
+            }
             IconButton(onClick = { navController.navigate("settings") }) {
                 Icon(
                     painter = painterResource(R.drawable.settings),

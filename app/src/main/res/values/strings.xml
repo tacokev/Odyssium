@@ -15,6 +15,22 @@
     <!-- Home -->
     <string name="history">History</string>
     <string name="stats">Stats</string>
+    <string name="stats_empty">Play something and your listening stats will show up here</string>
+    <string name="stats_total_listening">Total listening</string>
+    <string name="stats_hours">%s hours</string>
+    <string name="stats_since">Since %s</string>
+    <string name="stats_this_week">This week</string>
+    <string name="stats_this_month">This month</string>
+    <string name="stats_episodes_played">Episodes played</string>
+    <string name="stats_total_plays">Total plays</string>
+    <string name="stats_days_listened">Days listened</string>
+    <string name="stats_daily_average">Daily average</string>
+    <string name="stats_current_streak">Current streak</string>
+    <string name="stats_longest_streak">Longest streak</string>
+    <string name="stats_longest_session">Longest session</string>
+    <string name="stats_favorite_day">Favorite day</string>
+    <string name="stats_favorite_time">Favorite time</string>
+    <string name="stats_top_episodes">Top episodes</string>
     <string name="mood_and_genres">Mood and Genres</string>
     <string name="account">Account</string>
     <string name="quick_picks">Quick picks</string>
@@ -177,6 +193,10 @@
         <item quantity="one">%d playlist</item>
         <item quantity="other">%d playlists</item>
     </plurals>
+    <plurals name="n_day">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
     <plurals name="n_week">
         <item quantity="one">%d week</item>
         <item quantity="other">%d weeks</item>
@@ -314,8 +334,10 @@
     <string name="auto_skip_next_on_error">Auto skip to next song when error occurs</string>
     <string name="auto_skip_next_on_error_desc">Ensure your continuous playback experience</string>
     <string name="stop_music_on_task_clear">Stop music on task clear</string>
-    <string name="seek_extra_thirty_seconds">30 second seek buttons</string>
-    <string name="seek_extra_thirty_seconds_desc">Seek back/forward 30 seconds instead of 10, on all player styles</string>
+    <string name="seek_buttons">Seek buttons</string>
+    <string name="seek_ten">10s back / 10s forward</string>
+    <string name="seek_thirty">30s back / 30s forward</string>
+    <string name="seek_back_ten_forward_thirty">10s back / 30s forward</string>
     <string name="equalizer">Equalizer</string>
 
     <string name="storage">Storage</string>
@@ -377,7 +399,6 @@
     <string name="past_month">Past month</string>
     <string name="past_year">Past year</string>
     <string name="top_length">My Top list length</string>
-    <string name="history_duration">History duration</string>
     <plurals name="seconds">
         <item quantity="one">1 second</item>
         <item quantity="other">%d seconds</item>

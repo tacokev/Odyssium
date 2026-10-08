@@ -38,7 +38,6 @@ import com.skintclub.odyssey.constants.ContentCountryKey
 import com.skintclub.odyssey.constants.ContentLanguageKey
 import com.skintclub.odyssey.constants.CountryCodeToName
 import com.skintclub.odyssey.constants.HideExplicitKey
-import com.skintclub.odyssey.constants.HistoryDuration
 import com.skintclub.odyssey.constants.InnerTubeCookieKey
 import com.skintclub.odyssey.constants.LanguageCodeToName
 import com.skintclub.odyssey.constants.LibraryFilter
@@ -55,7 +54,6 @@ import com.skintclub.odyssey.ui.component.IconButton
 import com.skintclub.odyssey.ui.component.ListPreference
 import com.skintclub.odyssey.ui.component.PreferenceEntry
 import com.skintclub.odyssey.ui.component.PreferenceGroupTitle
-import com.skintclub.odyssey.ui.component.SliderPreference
 import com.skintclub.odyssey.ui.component.SwitchPreference
 import com.skintclub.odyssey.ui.utils.backToMain
 import com.skintclub.odyssey.utils.rememberEnumPreference
@@ -84,7 +82,6 @@ fun ContentSettings(
     val (proxyType, onProxyTypeChange) = rememberEnumPreference(key = ProxyTypeKey, defaultValue = Proxy.Type.HTTP)
     val (proxyUrl, onProxyUrlChange) = rememberPreference(key = ProxyUrlKey, defaultValue = "host:port")
     val (lengthTop, onLengthTopChange) = rememberPreference(key = TopSize, defaultValue = "50")
-    val (historyDuration, onHistoryDurationChange) = rememberPreference(key = HistoryDuration, defaultValue = 30f)
     val (defaultChip, onDefaultChipChange) = rememberEnumPreference(key = ChipSortTypeKey, defaultValue = LibraryFilter.LIBRARY)
     val (quickPicks, onQuickPicksChange) = rememberEnumPreference(key = QuickPicksKey, defaultValue = QuickPicks.QUICK_PICKS)
     val (similarContentEnabled, similarContentEnabledChange) = rememberPreference(key = SimilarContent, defaultValue = true)
@@ -247,12 +244,6 @@ fun ContentSettings(
                 }
             },
             onValueSelected = onQuickPicksChange,
-        )
-
-        SliderPreference(
-            title = { Text(stringResource(R.string.history_duration)) },
-            value = historyDuration,
-            onValueChange = onHistoryDurationChange,
         )
 
         SwitchPreference(

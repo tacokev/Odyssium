@@ -328,21 +328,20 @@ fun BottomSheetPlayer(
 
     val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.DEFAULT)
 
-    val seekExtraThirtySeconds by rememberPreference(SeekExtraThirtySecondsKey, defaultValue = false)
-    val seekIncrementMs = if (seekExtraThirtySeconds) 30_000L else 10_000L
-    val seekBackIcon = if (seekExtraThirtySeconds) R.drawable.replay_30 else R.drawable.replay_10
-    val seekForwardIcon = if (seekExtraThirtySeconds) R.drawable.forward_30 else R.drawable.forward_10
+    val seekIncrement by rememberEnumPreference(SeekIncrementKey, defaultValue = SeekIncrement.TEN)
+    val seekBackIcon = if (seekIncrement.backMs == 30_000L) R.drawable.replay_30 else R.drawable.replay_10
+    val seekForwardIcon = if (seekIncrement.forwardMs == 30_000L) R.drawable.forward_30 else R.drawable.forward_10
     // ExoPlayer's own seekBack()/seekForward() use the increment fixed at player creation
     // time (MusicService), which can't be changed at runtime — so the amount is applied
     // here instead, replicating the same offset-and-clamp behavior Player.seekBack() does.
     val onSeekBack: () -> Unit = {
         val player = playerConnection.player
-        player.seekTo((player.currentPosition - seekIncrementMs).coerceAtLeast(0))
+        player.seekTo((player.currentPosition - seekIncrement.backMs).coerceAtLeast(0))
     }
     val onSeekForward: () -> Unit = {
         val player = playerConnection.player
         val duration = player.duration
-        var target = player.currentPosition + seekIncrementMs
+        var target = player.currentPosition + seekIncrement.forwardMs
         if (duration != C.TIME_UNSET) target = target.coerceAtMost(duration)
         player.seekTo(target)
     }
