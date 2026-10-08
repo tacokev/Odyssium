@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -102,6 +103,7 @@ fun Queue(
     onBackgroundColor: Color,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val menuState = LocalMenuState.current
 
     val playerConnection = LocalPlayerConnection.current ?: return
@@ -237,11 +239,11 @@ fun Queue(
                                             val snackbarResult =
                                                 snackbarHostState.showSnackbar(
                                                     message =
-                                                        context.getString(
+                                                        resources.getString(
                                                             R.string.removed_song_from_playlist,
                                                             currentItem.mediaItem.metadata?.title,
                                                         ),
-                                                    actionLabel = context.getString(R.string.undo),
+                                                    actionLabel = resources.getString(R.string.undo),
                                                     duration = SnackbarDuration.Short,
                                                 )
                                             if (snackbarResult == SnackbarResult.ActionPerformed) {

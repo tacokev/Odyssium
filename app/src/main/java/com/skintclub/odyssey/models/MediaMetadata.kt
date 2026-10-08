@@ -1,7 +1,6 @@
 package com.skintclub.odyssey.models
 
 import androidx.compose.runtime.Immutable
-import com.skintclub.innertube.models.SongItem
 import com.skintclub.odyssey.db.entities.Song
 import com.skintclub.odyssey.db.entities.SongEntity
 import com.skintclub.odyssey.ui.utils.resize
@@ -64,27 +63,4 @@ fun Song.toMediaMetadata() =
                     title = song.albumName.orEmpty(),
                 )
             },
-    )
-
-fun SongItem.toMediaMetadata() =
-    MediaMetadata(
-        id = id,
-        title = title,
-        artists =
-            artists.map {
-                MediaMetadata.Artist(
-                    id = it.id,
-                    name = it.name,
-                )
-            },
-        duration = duration ?: -1,
-        thumbnailUrl = thumbnail.resize(544, 544),
-        album =
-            album?.let {
-                MediaMetadata.Album(
-                    id = it.id,
-                    title = it.name,
-                )
-            },
-        explicit = explicit,
     )

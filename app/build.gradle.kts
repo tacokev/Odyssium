@@ -2,8 +2,6 @@
 
 import java.util.Properties
 
-val isFullBuild: Boolean by rootProject.extra
-
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
@@ -12,8 +10,6 @@ if (keystorePropertiesFile.exists()) {
 
 plugins {
     id("com.android.application")
-    kotlin("android")
-    kotlin("kapt")
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.compose.compiler)
@@ -21,7 +17,7 @@ plugins {
 
 android {
     namespace = "com.skintclub.odyssey"
-    compileSdk = 35
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.skintclub.odyssey"
         minSdk = 24
@@ -80,24 +76,23 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlin {
-        jvmToolchain(17)
-    }
-    kotlinOptions {
-        freeCompilerArgs = freeCompilerArgs + "-Xcontext-receivers"
-        jvmTarget = "17"
-    }
     testOptions {
         unitTests.isIncludeAndroidResources = true
         unitTests.isReturnDefaultValues = true
     }
     lint {
         disable += "MissingTranslation"
+        // Voice "play X" searches from Assistant aren't supported by the media session.
+        disable += "MissingIntentFilterForMediaSearch"
     }
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false
     }
+}
+
+kotlin {
+    jvmToolchain(17)
 }
 
 ksp {
@@ -107,7 +102,6 @@ ksp {
 dependencies {
     implementation(libs.guava)
     implementation(libs.coroutines.guava)
-    implementation(libs.concurrent.futures)
 
     implementation(libs.activity)
     implementation(libs.navigation)
@@ -130,8 +124,6 @@ dependencies {
     implementation(libs.palette)
     implementation(projects.materialColorUtilities)
 
-    implementation(libs.accompanist.swiperefresh)
-
     implementation(libs.coil)
 
     implementation(libs.shimmer)
@@ -151,13 +143,8 @@ dependencies {
     implementation(libs.gson)
 
     implementation(libs.hilt)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
 
-    implementation(projects.innertube)
-    implementation(projects.kugou)
-    implementation(projects.lrclib)
-
-    implementation(libs.ktor.client.core)
 
     coreLibraryDesugaring(libs.desugaring)
 

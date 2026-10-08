@@ -10,9 +10,6 @@ import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.Upsert
 import androidx.sqlite.db.SupportSQLiteQuery
-import com.skintclub.innertube.models.SongItem
-import com.skintclub.innertube.pages.AlbumPage
-import com.skintclub.innertube.pages.ArtistPage
 import com.skintclub.odyssey.constants.AlbumSortType
 import com.skintclub.odyssey.constants.ArtistSongSortType
 import com.skintclub.odyssey.constants.ArtistSortType
@@ -958,52 +955,6 @@ interface DatabaseDao {
     }
 
     @Transaction
-    fun insert(albumPage: AlbumPage) {
-        if (insert(
-                AlbumEntity(
-                    id = albumPage.album.browseId,
-                    title = albumPage.album.title,
-                    year = albumPage.album.year,
-                    thumbnailUrl = albumPage.album.thumbnail,
-                    songCount = albumPage.songs.size,
-                    duration = albumPage.songs.sumOf { it.duration ?: 0 },
-                ),
-            ) == -1L
-        ) {
-            return
-        }
-        albumPage.songs
-            .map(SongItem::toMediaMetadata)
-            .onEach(::insert)
-            .onEach {
-                val existingSong = getSongById(it.id)
-                if (existingSong != null) {
-                    update(existingSong, it)
-                }
-            }.mapIndexed { index, song ->
-                SongAlbumMap(
-                    songId = song.id,
-                    albumId = albumPage.album.browseId,
-                    index = index,
-                )
-            }.forEach(::upsert)
-        albumPage.album.artists
-            ?.map { artist ->
-                ArtistEntity(
-                    id = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId(),
-                    name = artist.name,
-                )
-            }?.onEach(::insert)
-            ?.mapIndexed { index, artist ->
-                AlbumArtistMap(
-                    albumId = albumPage.album.browseId,
-                    artistId = artist.id,
-                    order = index,
-                )
-            }?.forEach(::insert)
-    }
-
-    @Transaction
     fun update(
         song: Song,
         mediaMetadata: MediaMetadata,
@@ -1050,74 +1001,6 @@ interface DatabaseDao {
 
     @Update
     fun update(map: PlaylistSongMap)
-
-    fun update(
-        artist: ArtistEntity,
-        artistPage: ArtistPage,
-    ) {
-        update(
-            artist.copy(
-                name = artistPage.artist.title,
-                thumbnailUrl = artistPage.artist.thumbnail.resize(544, 544),
-                lastUpdateTime = LocalDateTime.now(),
-            ),
-        )
-    }
-
-    @Transaction
-    fun update(
-        album: AlbumEntity,
-        albumPage: AlbumPage,
-        artists: List<ArtistEntity>? = emptyList(),
-    ) {
-        update(
-            album.copy(
-                id = albumPage.album.browseId,
-                title = albumPage.album.title,
-                year = albumPage.album.year,
-                thumbnailUrl = albumPage.album.thumbnail,
-                songCount = albumPage.songs.size,
-                duration = albumPage.songs.sumOf { it.duration ?: 0 },
-            ),
-        )
-        if (artists?.size != albumPage.album.artists?.size) {
-            artists?.forEach(::delete)
-        }
-        albumPage.songs
-            .map(SongItem::toMediaMetadata)
-            .onEach(::insert)
-            .onEach {
-                val existingSong = getSongById(it.id)
-                if (existingSong != null) {
-                    update(existingSong, it)
-                }
-            }.mapIndexed { index, song ->
-                SongAlbumMap(
-                    songId = song.id,
-                    albumId = albumPage.album.browseId,
-                    index = index,
-                )
-            }.forEach(::upsert)
-
-        albumPage.album.artists?.let { artists ->
-            // Recreate album artists
-            albumArtistMaps(album.id).forEach(::delete)
-            artists
-                .map { artist ->
-                    ArtistEntity(
-                        id = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId(),
-                        name = artist.name,
-                    )
-                }.onEach(::insert)
-                .mapIndexed { index, artist ->
-                    AlbumArtistMap(
-                        albumId = albumPage.album.browseId,
-                        artistId = artist.id,
-                        order = index,
-                    )
-                }.forEach(::insert)
-        }
-    }
 
     @Upsert
     fun upsert(map: SongAlbumMap)

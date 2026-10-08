@@ -65,7 +65,6 @@ import com.skintclub.odyssey.extensions.currentMetadata
 import com.skintclub.odyssey.extensions.mediaItems
 import com.skintclub.odyssey.extensions.metadata
 import com.skintclub.odyssey.extensions.toMediaItem
-import com.skintclub.odyssey.lyrics.LyricsHelper
 import com.skintclub.odyssey.models.PersistQueue
 import com.skintclub.odyssey.playback.queues.EmptyQueue
 import com.skintclub.odyssey.playback.queues.ListQueue
@@ -113,9 +112,6 @@ class MusicService :
     PlaybackStatsListener.Callback {
     @Inject
     lateinit var database: MusicDatabase
-
-    @Inject
-    lateinit var lyricsHelper: LyricsHelper
 
     @Inject
     lateinit var mediaLibrarySessionCallback: MediaLibrarySessionCallback
@@ -563,6 +559,22 @@ class MusicService :
         ClubClient.invalidateSignedUrls()
         player.prepare()
         return true
+    }
+
+    /** Reloads the current item from a fresh stream URL, for when playback stalls or errors
+     * out: drops the cached signed cookie and content download URLs so [resolveOdysseyDataSpec]
+     * fetches new ones, then re-prepares at the same position with the same play/pause state. */
+    fun refetchCurrent() {
+        val index = player.currentMediaItemIndex
+        if (index == C.INDEX_UNSET || player.mediaItemCount == 0) return
+        val position = player.currentPosition
+        val playWhenReady = player.playWhenReady
+        signedCookieRetryMediaId = null
+        ClubClient.invalidateSignedUrls()
+        player.stop()
+        player.seekTo(index, position)
+        player.prepare()
+        player.playWhenReady = playWhenReady
     }
 
     override fun onPlayerError(error: PlaybackException) {

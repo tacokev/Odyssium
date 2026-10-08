@@ -91,3 +91,6 @@ lint/tmp/
 .kotlin
 app/foss
 output-metadata.json
+
+# Stray screenshots in the project root
+/*.png

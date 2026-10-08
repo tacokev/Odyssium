@@ -71,14 +71,11 @@
 -dontwarn org.slf4j.impl.StaticLoggerBinder
 -dontwarn com.google.firebase.perf.network.FirebasePerfOkHttpClient
 -dontwarn com.google.firebase.perf.network.FirebasePerfUrlConnection
-# opencc4j
--keep class com.github.houbb.opencc4j.** { *; }
--dontwarn com.huaban.analysis.jieba.JiebaSegmenter
-
-# Keep Data data classes
--keep class com.my.kizzy.remote.** { <fields>; }
-# Keep Gateway data classes
--keep class com.my.kizzy.gateway.entities.** { <fields>; }
+# Gson maps JSON keys to field names by reflection, and most club API/cache models rely on
+# their Kotlin property names rather than @SerializedName, so R8 mustn't rename or strip them.
+-keep class com.skintclub.odyssey.club.** { <fields>; <init>(...); }
+-keep class com.skintclub.odyssey.viewmodels.HomeCategory { <fields>; <init>(...); }
+-keep class com.skintclub.odyssey.ui.video.VideoItem { <fields>; <init>(...); }
 
 -dontwarn java.beans.BeanDescriptor
 -dontwarn java.beans.BeanInfo

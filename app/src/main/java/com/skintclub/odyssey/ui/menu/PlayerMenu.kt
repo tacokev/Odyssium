@@ -244,6 +244,13 @@ fun PlayerMenu(
         }
         if (isQueueTrigger != true) {
             GridMenuItem(
+                icon = R.drawable.sync,
+                title = R.string.refetch,
+            ) {
+                playerConnection.service.refetchCurrent()
+                onDismiss()
+            }
+            GridMenuItem(
                 icon = R.drawable.info,
                 title = R.string.details,
             ) {

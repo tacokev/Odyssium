@@ -1,11 +1,19 @@
 package com.skintclub.odyssey.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.navigation.NamedNavArgument
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.compose.composable
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
-import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.skintclub.odyssey.club.ODYSSEY_COMICS_ROUTE
 import com.skintclub.odyssey.club.ODYSSEY_COMIC_ROUTE
@@ -34,28 +42,28 @@ fun NavGraphBuilder.navigationBuilder(
     scrollBehavior: TopAppBarScrollBehavior,
     odysseyViewModel: OdysseyViewModel,
 ) {
-    composable(Screens.Home.route) {
+    screen(Screens.Home.route) {
         HomeScreen(navController, odysseyViewModel)
     }
-    composable(ODYSSEY_ALBUMS_ROUTE) {
+    screen(ODYSSEY_ALBUMS_ROUTE) {
         OdysseyAlbumsScreen(navController, odysseyViewModel)
     }
-    composable("odyssey_episodes") {
+    screen("odyssey_episodes") {
         OdysseyAllEpisodesScreen(navController, odysseyViewModel)
     }
-    composable("odyssey_series") {
+    screen("odyssey_series") {
         OdysseySeriesScreen(navController, odysseyViewModel)
     }
-    composable("odyssey_collections") {
+    screen("odyssey_collections") {
         OdysseyCollectionsScreen(navController, odysseyViewModel)
     }
-    composable("odyssey_podcasts") {
+    screen("odyssey_podcasts") {
         OdysseyPodcastsScreen(navController, odysseyViewModel)
     }
-    composable(ODYSSEY_COMICS_ROUTE) {
+    screen(ODYSSEY_COMICS_ROUTE) {
         OdysseyComicsScreen(navController, odysseyViewModel)
     }
-    composable(
+    screen(
         ODYSSEY_COMIC_SERIES_ROUTE,
         arguments = listOf(navArgument("groupingId") { type = NavType.StringType }),
     ) { backStackEntry ->
@@ -66,7 +74,7 @@ fun NavGraphBuilder.navigationBuilder(
             groupingId = groupingId,
         )
     }
-    composable(
+    screen(
         ODYSSEY_COMIC_ROUTE,
         arguments = listOf(
             navArgument("groupingId") { type = NavType.StringType },
@@ -80,10 +88,10 @@ fun NavGraphBuilder.navigationBuilder(
             contentId = backStackEntry.arguments?.getString("contentId").orEmpty(),
         )
     }
-    composable(ODYSSEY_VIDEOS_ROUTE) {
+    screen(ODYSSEY_VIDEOS_ROUTE) {
         OdysseyVideosScreen(navController, odysseyViewModel)
     }
-    composable(
+    screen(
         ODYSSEY_VIDEO_SHELF_ROUTE,
         arguments = listOf(navArgument("shelfId") { type = NavType.StringType }),
     ) { backStackEntry ->
@@ -93,7 +101,7 @@ fun NavGraphBuilder.navigationBuilder(
             shelfId = backStackEntry.arguments?.getString("shelfId").orEmpty(),
         )
     }
-    composable(
+    screen(
         ODYSSEY_GROUPING_ROUTE,
         arguments = listOf(navArgument("groupingId") { type = NavType.StringType }),
     ) { backStackEntry ->
@@ -104,19 +112,19 @@ fun NavGraphBuilder.navigationBuilder(
             groupingId = groupingId,
         )
     }
-    composable(Screens.Playlists.route) {
+    screen(Screens.Playlists.route) {
         OdysseyPlaylistsScreen(navController, odysseyViewModel)
     }
-    composable("odyssey_liked") {
+    screen("odyssey_liked") {
         OdysseyLikedScreen(navController, odysseyViewModel)
     }
-    composable("odyssey_downloaded") {
+    screen("odyssey_downloaded") {
         OdysseyDownloadedScreen(navController, odysseyViewModel)
     }
-    composable(SECRET_EPISODES_ROUTE) {
+    screen(SECRET_EPISODES_ROUTE) {
         OdysseySecretEpisodesScreen(navController, odysseyViewModel)
     }
-    composable(
+    screen(
         "odyssey_playlist/{playlistId}",
         arguments = listOf(navArgument("playlistId") { type = NavType.StringType }),
     ) { backStackEntry ->
@@ -127,7 +135,7 @@ fun NavGraphBuilder.navigationBuilder(
             playlistId = playlistId,
         )
     }
-    composable(
+    screen(
         "odyssey_playlist_edit/{playlistId}",
         arguments = listOf(navArgument("playlistId") { type = NavType.StringType }),
     ) { backStackEntry ->
@@ -138,7 +146,7 @@ fun NavGraphBuilder.navigationBuilder(
             playlistId = playlistId,
         )
     }
-    composable(
+    screen(
         "odyssey_album/{albumName}",
         arguments = listOf(navArgument("albumName") { type = NavType.StringType }),
     ) { backStackEntry ->
@@ -149,7 +157,7 @@ fun NavGraphBuilder.navigationBuilder(
             viewModel = odysseyViewModel,
         )
     }
-    composable(
+    screen(
         ODYSSEY_EPISODE_ROUTE,
         arguments = listOf(
             navArgument("albumName") { type = NavType.StringType },
@@ -165,46 +173,62 @@ fun NavGraphBuilder.navigationBuilder(
             episodeIndex = episodeIndex,
         )
     }
-    composable("history") {
+    screen("history") {
         HistoryScreen(navController)
     }
-    composable("stats") {
+    screen("stats") {
         StatsScreen(navController)
     }
-    composable("settings") {
+    screen("settings") {
         SettingsScreen(navController, scrollBehavior)
     }
-    composable("settings/appearance") {
+    screen("settings/appearance") {
         AppearanceSettings(navController, scrollBehavior)
     }
-    composable("settings/player") {
+    screen("settings/player") {
         PlayerSettings(navController, scrollBehavior)
     }
-    composable("settings/randomizer") {
+    screen("settings/randomizer") {
         RandomizerSettings(navController, scrollBehavior)
     }
-    composable("settings/content") {
+    screen("settings/content") {
         ClubContentSettings(navController, scrollBehavior)
     }
-    composable("settings/account") {
+    screen("settings/account") {
         AccountSettings(navController, scrollBehavior)
     }
-    composable("settings/storage") {
+    screen("settings/storage") {
         StorageSettings(navController, scrollBehavior)
     }
-    composable("settings/about") {
+    screen("settings/about") {
         AboutScreen(navController, scrollBehavior)
     }
-    composable("odyssey_login") {
+    screen("odyssey_login") {
         OdysseyLoginScreen(navController)
     }
-    composable("odyssey_logout") {
+    screen("odyssey_logout") {
         OdysseyLogoutScreen(navController)
     }
-    composable("odyssey_profile_select") {
+    screen("odyssey_profile_select") {
         OdysseyProfileSelectScreen(
             navController = navController,
             odysseyViewModel = odysseyViewModel,
         )
+    }
+}
+
+/** A destination with an opaque background, so screens sliding over each other during
+ * navigation (and the predictive back gesture) don't show through one another. */
+private fun NavGraphBuilder.screen(
+    route: String,
+    arguments: List<NamedNavArgument> = emptyList(),
+    content: @Composable (NavBackStackEntry) -> Unit,
+) = composable(route, arguments) { backStackEntry ->
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
+    ) {
+        content(backStackEntry)
     }
 }

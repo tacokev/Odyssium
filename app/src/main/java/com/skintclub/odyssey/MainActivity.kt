@@ -16,11 +16,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -131,6 +134,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private const val NAV_ANIM_MS = 300
+
+// Going back always cross-fades, whether between tabs or out of a sub-screen.
+private fun navPopEnter(): EnterTransition = fadeIn(tween(NAV_ANIM_MS))
+
+private fun navPopExit(): ExitTransition = fadeOut(tween(NAV_ANIM_MS))
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -563,38 +573,29 @@ class MainActivity : ComponentActivity() {
                         NavHost(
                             navController = navController,
                             startDestination = Screens.Home.route,
+                            // Top-level tabs cross-fade; anything else slides in fully over the
+                            // previous screen, which drifts back a little underneath it. Going back
+                            // cross-fades.
                             enterTransition = {
                                 if (initialState.destination.route in topLevelScreens && targetState.destination.route in topLevelScreens) {
-                                    fadeIn(tween(250))
+                                    fadeIn(tween(NAV_ANIM_MS))
                                 } else {
-                                    fadeIn(tween(250)) + slideInHorizontally { it / 2 }
+                                    slideInHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { it }
                                 }
                             },
                             exitTransition = {
                                 if (initialState.destination.route in topLevelScreens && targetState.destination.route in topLevelScreens) {
-                                    fadeOut(tween(200))
+                                    fadeOut(tween(NAV_ANIM_MS))
                                 } else {
-                                    fadeOut(tween(200)) + slideOutHorizontally { -it / 2 }
+                                    slideOutHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { -it / 4 }
                                 }
                             },
-                            popEnterTransition = {
-                                if (initialState.destination.route in topLevelScreens &&
-                                    targetState.destination.route in topLevelScreens
-                                ) {
-                                    fadeIn(tween(250))
-                                } else {
-                                    fadeIn(tween(250)) + slideInHorizontally { -it / 2 }
-                                }
-                            },
-                            popExitTransition = {
-                                if (initialState.destination.route in topLevelScreens &&
-                                    targetState.destination.route in topLevelScreens
-                                ) {
-                                    fadeOut(tween(200))
-                                } else {
-                                    fadeOut(tween(200)) + slideOutHorizontally { it / 2 }
-                                }
-                            },
+                            popEnterTransition = { navPopEnter() },
+                            popExitTransition = { navPopExit() },
+                            // The back gesture would otherwise use Navigation's default preview (the
+                            // screen shrinking), then jump to the pop transition on release.
+                            predictivePopEnterTransition = { navPopEnter() },
+                            predictivePopExitTransition = { navPopExit() },
                             modifier =
                                 Modifier.nestedScroll(
                                     if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
