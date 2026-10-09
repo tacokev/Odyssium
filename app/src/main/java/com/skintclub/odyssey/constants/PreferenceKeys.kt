@@ -329,6 +329,10 @@ val PlayVideosAsAudioKey = booleanPreferencesKey("playVideosAsAudio")
  * without touching them on the club. */
 val SyncPlaylistsKey = booleanPreferencesKey("syncPlaylists")
 
+/** Whether the playing episode's listening progress is saved to the club (see
+ * EpisodeProgressSync). On by default. */
+val SyncEpisodeProgressKey = booleanPreferencesKey("syncEpisodeProgress")
+
 /** ISO date (YYYY-MM-DD) from the club's own "membership_expires" field, cached from the
  * last /viewer fetch so it can be checked on app open without a network round trip. */
 val ClubMembershipExpiresKey = stringPreferencesKey("clubMembershipExpires")

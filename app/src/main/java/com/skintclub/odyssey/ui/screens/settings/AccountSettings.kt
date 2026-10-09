@@ -40,6 +40,7 @@ import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.CLUB_WEB_HOST
 import com.skintclub.odyssey.club.ClubClient
+import com.skintclub.odyssey.constants.SyncEpisodeProgressKey
 import com.skintclub.odyssey.constants.SyncPlaylistsKey
 import com.skintclub.odyssey.ui.component.IconButton
 import com.skintclub.odyssey.ui.component.PreferenceEntry
@@ -57,6 +58,7 @@ fun AccountSettings(
     val clubClient = remember { ClubClient(context) }
     val isLoggedIntoClub by clubClient.isLoggedInFlow().collectAsState(initial = false)
     var syncPlaylists by rememberPreference(SyncPlaylistsKey, defaultValue = true)
+    var syncEpisodeProgress by rememberPreference(SyncEpisodeProgressKey, defaultValue = true)
 
     Column(
         Modifier
@@ -99,6 +101,14 @@ fun AccountSettings(
                 icon = { Icon(painterResource(R.drawable.sync), null) },
                 checked = syncPlaylists,
                 onCheckedChange = { syncPlaylists = it },
+            )
+
+            SwitchPreference(
+                title = { Text("Sync episode progress") },
+                description = "Save how far you've listened to the club every 30 seconds, on pause, and when an episode finishes.",
+                icon = { Icon(painterResource(R.drawable.history), null) },
+                checked = syncEpisodeProgress,
+                onCheckedChange = { syncEpisodeProgress = it },
             )
         }
     }

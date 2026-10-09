@@ -144,6 +144,8 @@ class MusicService :
 
     lateinit var sleepTimer: SleepTimer
 
+    private lateinit var episodeProgressSync: EpisodeProgressSync
+
     @Inject
     @PlayerCache
     lateinit var playerCache: SimpleCache
@@ -196,6 +198,7 @@ class MusicService :
                     addListener(sleepTimer)
                     addAnalyticsListener(PlaybackStatsListener(false, this@MusicService))
                 }
+        episodeProgressSync = EpisodeProgressSync(this, player, clubClient) { scope }
         mediaLibrarySessionCallback.apply {
             toggleLike = ::toggleLike
             toggleLibrary = ::toggleLibrary
