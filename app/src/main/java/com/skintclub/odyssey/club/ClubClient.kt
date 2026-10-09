@@ -38,6 +38,9 @@ import okhttp3.Response
 import java.io.IOException
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
@@ -203,6 +206,11 @@ fun isPlayableContent(content: ClubContent, playVideosAsAudio: Boolean): Boolean
 
 /** A signed CDN credential (cookie query string or pre-signed URL) and when it stops working. */
 private class CachedSigned(val value: String, val expiresAtMillis: Long)
+
+/** A progress update's `timestamp`, as the website sends it: UTC with milliseconds always
+ * present ("2026-10-09T21:37:54.956Z"). Instant.toString() would drop ".000". */
+private val progressTimestampFormat =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 
 /** Runs this call like `execute()`, but cancellably: cancelling the calling coroutine cancels
  * the HTTP request instead of waiting it out (e.g. leaving an episode page mid-load). */
@@ -535,6 +543,38 @@ class ClubClient(private val context: Context) {
                 .header("x-viewer-id", vid ?: "")
                 .header("x-pin", p)
                 .delete()
+                .build()
+        }.close()
+    }
+
+    /** Saves the current profile's progress on [contentId], like the website's player: a PUT
+     * to `content` with [positionMs] as `current_progress` (milliseconds) and/or [status]
+     * ("New", "In Progress" or "Completed"). Only what's given is sent, plus [timestamp] (when
+     * the progress was taken), which the club stores as `content_activity_time_stamp`. */
+    suspend fun updateContentProgress(
+        contentId: String,
+        positionMs: Long?,
+        status: String?,
+        timestamp: Instant = Instant.now(),
+    ) {
+        val vid = getViewerId()
+        val p = getPin()
+        val payload = buildMap {
+            put("content_id", contentId)
+            if (!status.isNullOrBlank()) put("status", status)
+            if (positionMs != null) put("current_progress", positionMs)
+            put("timestamp", progressTimestampFormat.format(timestamp))
+        }
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val requestBody = gson.toJson(payload).toRequestBody(mediaType)
+        authorizedCall("updateContentProgress") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/content")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .put(requestBody)
                 .build()
         }.close()
     }
