@@ -465,11 +465,11 @@ fun OdysseySecretEpisodesScreen(
     OdysseyEpisodeListScreen(navController, viewModel, SECRET_EPISODES_TITLE, secretEpisodes)
 }
 
-/** A grouping's description as a capsule: clamped to [COLLAPSED_DESCRIPTION_LINES] with a
+/** A description (a grouping's, or an episode's devotional) as a capsule: clamped to [collapsedLines] with a
  * chevron, tapping it expands to the full text (and back). A description that already fits
  * gets neither the chevron nor the tap target. */
 @Composable
-private fun ExpandableDescription(description: String) {
+fun ExpandableDescription(description: String, collapsedLines: Int = COLLAPSED_DESCRIPTION_LINES) {
     var expanded by rememberSaveable(description) { mutableStateOf(false) }
     // Latched from the collapsed layout: once expanded the text no longer overflows, but it
     // still needs the chevron to collapse again.
@@ -489,7 +489,7 @@ private fun ExpandableDescription(description: String) {
             text = description,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = if (expanded) Int.MAX_VALUE else COLLAPSED_DESCRIPTION_LINES,
+            maxLines = if (expanded) Int.MAX_VALUE else collapsedLines,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { result ->
                 if (!expanded && result.hasVisualOverflow) canExpand = true
