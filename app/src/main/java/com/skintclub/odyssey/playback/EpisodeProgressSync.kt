@@ -91,7 +91,9 @@ class EpisodeProgressSync(
             try {
                 val enabled = context.dataStore.data.first()[SyncEpisodeProgressKey] ?: true
                 if (!enabled || !clubClient.isLoggedIn()) return@launch
-                clubClient.updateContentProgress(contentId, positionMs, status, timestamp)
+                clubClient.updateContentProgress(contentId, positionMs, status, timestamp)?.let { reason ->
+                    Timber.w("Club skipped progress for $contentId ($status at $positionMs ms): $reason")
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

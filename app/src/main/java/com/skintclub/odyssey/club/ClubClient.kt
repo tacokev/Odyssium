@@ -165,6 +165,12 @@ private data class ClubArticleBody(
     @SerializedName("content_body_html") val contentBodyHtml: String? = null,
 )
 
+/** The reply to a progress update: status "Success", or "Error" with why it was skipped. */
+private data class ClubProgressUpdateResponse(
+    val status: String? = null,
+    val error: String? = null,
+)
+
 private data class ClubGroupingsPageMetadata(val totalPageCount: Int = 1)
 
 /** One page of a `content/search` - the endpoint behind the club site's own content-type pages
@@ -550,13 +556,17 @@ class ClubClient(private val context: Context) {
     /** Saves the current profile's progress on [contentId], like the website's player: a PUT
      * to `content` with [positionMs] as `current_progress` (milliseconds) and/or [status]
      * ("New", "In Progress" or "Completed"). Only what's given is sent, plus [timestamp] (when
-     * the progress was taken), which the club stores as `content_activity_time_stamp`. */
+     * the progress was taken), which the club stores as `content_activity_time_stamp`.
+     *
+     * The club may skip an update (one older than the last saved, or for something already
+     * Completed) and still answer HTTP 200 with status "Error". Returns why when that happens,
+     * or null when it was saved. */
     suspend fun updateContentProgress(
         contentId: String,
         positionMs: Long?,
         status: String?,
         timestamp: Instant = Instant.now(),
-    ) {
+    ): String? {
         val vid = getViewerId()
         val p = getPin()
         val payload = buildMap {
@@ -567,7 +577,7 @@ class ClubClient(private val context: Context) {
         }
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val requestBody = gson.toJson(payload).toRequestBody(mediaType)
-        authorizedCall("updateContentProgress") { token ->
+        val response = authorizedCall("updateContentProgress") { token ->
             Request.Builder()
                 .url(apiBase + "apexrest/v1/content")
                 .header("Authorization", "Bearer $token")
@@ -576,7 +586,14 @@ class ClubClient(private val context: Context) {
                 .header("x-pin", p)
                 .put(requestBody)
                 .build()
-        }.close()
+        }
+        val body = withContext(Dispatchers.IO) { response.use { it.body?.string() } }
+        val result = runCatching { gson.fromJson(body, ClubProgressUpdateResponse::class.java) }.getOrNull()
+        return if (result == null || result.status.equals("Success", ignoreCase = true)) {
+            null
+        } else {
+            result.error?.takeIf { it.isNotBlank() } ?: "status ${result.status}"
+        }
     }
 
     /** Overwrites a playlist's name/cover/content list in one PUT - what [addContentToPlaylist],
