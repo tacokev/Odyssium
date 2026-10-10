@@ -1,10 +1,12 @@
 package com.skintclub.odyssey
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Build
@@ -217,6 +219,15 @@ class MainActivity : ComponentActivity() {
         // Only a fresh launch: after a rotation, savedInstanceState is set and the link that
         // opened the app has already been handled.
         if (savedInstanceState == null) takeClubLink(intent)
+        // Android 13+ starts apps with notifications off. Without them there's no playback
+        // notification, so no lock screen controls and the system freezes the app soon after
+        // it leaves the screen, stopping the episode.
+        if (savedInstanceState == null &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
+        }
 
         lifecycleScope.launch {
             dataStore.data

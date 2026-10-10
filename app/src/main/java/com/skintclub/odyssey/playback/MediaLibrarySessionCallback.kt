@@ -9,6 +9,8 @@ import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.offline.Download
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
@@ -49,20 +51,26 @@ class MediaLibrarySessionCallback
         var toggleLike: () -> Unit = {}
         var toggleLibrary: () -> Unit = {}
 
-        override fun onConnect(
+        // Media3 1.11's deprecated onConnect default grants no commands at all, which left the
+        // notification controller unable to see the queue: no notification, no lock screen
+        // controls, and no foreground service to keep playback alive in the background.
+        @OptIn(UnstableApi::class)
+        override fun onConnectAsync(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
-        ): MediaSession.ConnectionResult {
-            val connectionResult = super.onConnect(session, controller)
-            return MediaSession.ConnectionResult.accept(
-                connectionResult.availableSessionCommands
-                    .buildUpon()
-                    .add(MediaSessionConstants.CommandToggleLibrary)
-                    .add(MediaSessionConstants.CommandToggleLike)
-                    .add(MediaSessionConstants.CommandToggleShuffle)
-                    .add(MediaSessionConstants.CommandToggleRepeatMode)
-                    .build(),
-                connectionResult.availablePlayerCommands,
+        ): ListenableFuture<MediaSession.ConnectionResult> {
+            val connectionResult = MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller).build()
+            return Futures.immediateFuture(
+                MediaSession.ConnectionResult.accept(
+                    connectionResult.availableSessionCommands
+                        .buildUpon()
+                        .add(MediaSessionConstants.CommandToggleLibrary)
+                        .add(MediaSessionConstants.CommandToggleLike)
+                        .add(MediaSessionConstants.CommandToggleShuffle)
+                        .add(MediaSessionConstants.CommandToggleRepeatMode)
+                        .build(),
+                    connectionResult.availablePlayerCommands,
+                ),
             )
         }
 
