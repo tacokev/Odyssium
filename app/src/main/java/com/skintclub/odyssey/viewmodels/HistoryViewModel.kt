@@ -1,9 +1,12 @@
 package com.skintclub.odyssey.viewmodels
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.skintclub.odyssey.db.MusicDatabase
+import com.skintclub.odyssey.db.eventsForCurrentProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -16,6 +19,7 @@ import javax.inject.Inject
 class HistoryViewModel
     @Inject
     constructor(
+        @ApplicationContext context: Context,
         val database: MusicDatabase,
     ) : ViewModel() {
         private val today = LocalDate.now()
@@ -24,7 +28,7 @@ class HistoryViewModel
 
         val events =
             database
-                .events()
+                .eventsForCurrentProfile(context)
                 .map { events ->
                     events
                         .groupBy {

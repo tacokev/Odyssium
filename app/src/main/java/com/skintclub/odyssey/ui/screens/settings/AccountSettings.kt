@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -22,12 +23,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -36,10 +39,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.CLUB_WEB_HOST
 import com.skintclub.odyssey.club.ClubClient
+import com.skintclub.odyssey.constants.ClubProfileNameKey
+import com.skintclub.odyssey.constants.ClubProfilePictureKey
 import com.skintclub.odyssey.constants.SyncEpisodeProgressKey
 import com.skintclub.odyssey.constants.SyncPlaylistsKey
 import com.skintclub.odyssey.ui.component.IconButton
@@ -47,6 +53,7 @@ import com.skintclub.odyssey.ui.component.PreferenceEntry
 import com.skintclub.odyssey.ui.component.SwitchPreference
 import com.skintclub.odyssey.ui.utils.backToMain
 import com.skintclub.odyssey.utils.rememberPreference
+import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +66,21 @@ fun AccountSettings(
     val isLoggedIntoClub by clubClient.isLoggedInFlow().collectAsState(initial = false)
     var syncPlaylists by rememberPreference(SyncPlaylistsKey, defaultValue = true)
     var syncEpisodeProgress by rememberPreference(SyncEpisodeProgressKey, defaultValue = true)
+    val profileName by rememberPreference(ClubProfileNameKey, defaultValue = "")
+    val profilePicture by rememberPreference(ClubProfilePictureKey, defaultValue = "")
+
+    // Picks up the name and picture for a profile selected before they were kept, or changed
+    // on the website since.
+    LaunchedEffect(isLoggedIntoClub) {
+        if (!isLoggedIntoClub) return@LaunchedEffect
+        try {
+            clubClient.refreshSelectedProfile()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     Column(
         Modifier
@@ -89,7 +111,21 @@ fun AccountSettings(
         if (isLoggedIntoClub) {
             PreferenceEntry(
                 title = { Text("Switch profile") },
-                icon = { Icon(painterResource(R.drawable.person), null) },
+                description = profileName.takeIf { it.isNotBlank() }?.let { "Current profile: $it" },
+                icon = {
+                    if (profilePicture.isBlank()) {
+                        Icon(painterResource(R.drawable.person), null)
+                    } else {
+                        AsyncImage(
+                            model = profilePicture,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape),
+                        )
+                    }
+                },
                 onClick = { navController.navigate("odyssey_profile_select") },
             )
 
