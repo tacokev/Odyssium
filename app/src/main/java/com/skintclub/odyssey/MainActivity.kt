@@ -23,6 +23,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import kotlin.math.abs
+import androidx.navigation.NavBackStackEntry
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -581,6 +588,26 @@ class MainActivity : ComponentActivity() {
                         LocalShimmerTheme provides ShimmerTheme,
                         LocalTopBarColor provides navigationBarColor,
                     ) {
+                        val randomizerHistory by odysseyViewModel.randomizerHistory.collectAsState()
+                        // Swiping only steps through the history on the random episode page it
+                        // belongs to, not on an episode page reached some other way (e.g. a
+                        // recommendation).
+                        val onRandomizerPage = navBackStackEntry?.destination?.route == ODYSSEY_EPISODE_ROUTE &&
+                            randomizerHistory.current == navBackStackEntry?.arguments?.let {
+                                it.getString("albumName") to it.getInt("episodeIndex")
+                            }
+                        // Whether the latest randomizer page change went back, so it slides in
+                        // from the left like the swipe that triggered it.
+                        var randomizerSteppedBack by remember { mutableStateOf(false) }
+                        val openRandomizerPick: (Pair<String, Int>, Boolean) -> Unit = { (albumName, episodeIndex), back ->
+                            randomizerSteppedBack = back
+                            navController.navigate("odyssey_episode/${Uri.encode(albumName)}/$episodeIndex") {
+                                popUpTo(ODYSSEY_EPISODE_ROUTE) { inclusive = true }
+                            }
+                        }
+                        val gestureInsets = WindowInsets.systemGestures
+                        val layoutDirection = LocalLayoutDirection.current
+
                         NavHost(
                             navController = navController,
                             startDestination = Screens.Home.route,
@@ -590,6 +617,8 @@ class MainActivity : ComponentActivity() {
                             enterTransition = {
                                 if (initialState.destination.route in topLevelScreens && targetState.destination.route in topLevelScreens) {
                                     fadeIn(tween(NAV_ANIM_MS))
+                                } else if (randomizerSteppedBack && isRandomizerStep()) {
+                                    slideInHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { -it }
                                 } else {
                                     slideInHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { it }
                                 }
@@ -597,6 +626,8 @@ class MainActivity : ComponentActivity() {
                             exitTransition = {
                                 if (initialState.destination.route in topLevelScreens && targetState.destination.route in topLevelScreens) {
                                     fadeOut(tween(NAV_ANIM_MS))
+                                } else if (randomizerSteppedBack && isRandomizerStep()) {
+                                    slideOutHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { it / 4 }
                                 } else {
                                     slideOutHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { -it / 4 }
                                 }
@@ -608,13 +639,24 @@ class MainActivity : ComponentActivity() {
                             predictivePopEnterTransition = { navPopEnter() },
                             predictivePopExitTransition = { navPopExit() },
                             modifier =
-                                Modifier.nestedScroll(
-                                    if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
-                                        searchBarScrollBehavior.nestedScrollConnection
-                                    } else {
-                                        topAppBarScrollBehavior.nestedScrollConnection
-                                    },
-                                ),
+                                Modifier
+                                    .nestedScroll(
+                                        if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
+                                            searchBarScrollBehavior.nestedScrollConnection
+                                        } else {
+                                            topAppBarScrollBehavior.nestedScrollConnection
+                                        },
+                                    )
+                                    .then(
+                                        if (onRandomizerPage) {
+                                            Modifier.randomizerHistorySwipe(gestureInsets, layoutDirection) { steps ->
+                                                odysseyViewModel.stepRandomizerHistory(steps)
+                                                    ?.let { openRandomizerPick(it, steps < 0) }
+                                            }
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
                         ) {
                             navigationBuilder(navController, topAppBarScrollBehavior, odysseyViewModel)
                         }
@@ -663,9 +705,8 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     } else {
-                                        navController.navigate("odyssey_episode/${Uri.encode(albumName)}/$episodeIndex") {
-                                            popUpTo(ODYSSEY_EPISODE_ROUTE) { inclusive = true }
-                                        }
+                                        odysseyViewModel.recordRandomPick(albumName, episodeIndex)
+                                        openRandomizerPick(albumName to episodeIndex, false)
                                     }
                                 },
                                 modifier = Modifier
@@ -955,3 +996,49 @@ val LocalDownloadUtil = staticCompositionLocalOf<DownloadUtil> { error("No Downl
 /** The status-bar strip's color (black in pure-black mode, otherwise the navigation bar's
  * container color), so screen top bars that slide up behind it can match it exactly. */
 val LocalTopBarColor = compositionLocalOf { Color.Unspecified }
+
+/** Whether this transition is the randomizer moving from one episode page to another. */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.isRandomizerStep() =
+    initialState.destination.route == ODYSSEY_EPISODE_ROUTE && targetState.destination.route == ODYSSEY_EPISODE_ROUTE
+
+/** How far a swipe has to travel to step through the randomizer history. */
+private val RandomizerSwipeDistance = 96.dp
+
+/** Minimum distance from either screen edge a swipe has to start at, on top of the system's own
+ * edge-gesture zone, so it never competes with Android's back gesture. */
+private val RandomizerSwipeEdgeMargin = 24.dp
+
+/**
+ * Swiping across a random episode page steps through the randomizer history: left to right goes
+ * back ([onSwipe] with -1), right to left goes forward (1). Swipes that start in the system's
+ * edge-gesture zones are ignored, so Android's back gesture still works there. Horizontally
+ * scrolling rows on the page (characters, recommendations) handle their own swipes first, and a
+ * mostly vertical drag scrolls the page as usual.
+ */
+private fun Modifier.randomizerHistorySwipe(
+    gestureInsets: WindowInsets,
+    layoutDirection: LayoutDirection,
+    onSwipe: (steps: Int) -> Unit,
+): Modifier = pointerInput(Unit) {
+    var tracking = false
+    var distance = 0f
+    detectHorizontalDragGestures(
+        onDragStart = { start ->
+            val margin = RandomizerSwipeEdgeMargin.toPx()
+            val left = gestureInsets.getLeft(this, layoutDirection) + margin
+            val right = size.width - gestureInsets.getRight(this, layoutDirection) - margin
+            tracking = start.x in left..right
+            distance = 0f
+        },
+        onDragEnd = {
+            if (tracking && abs(distance) >= RandomizerSwipeDistance.toPx()) onSwipe(if (distance > 0) -1 else 1)
+            tracking = false
+        },
+        onDragCancel = { tracking = false },
+    ) { change, dragAmount ->
+        if (tracking) {
+            distance += dragAmount
+            change.consume()
+        }
+    }
+}

@@ -55,6 +55,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
+/** How many random episode pages the randomizer's previous/next buttons remember. */
+private const val RANDOMIZER_HISTORY_LIMIT = 100
+
 @HiltViewModel
 class OdysseyViewModel @Inject constructor(
     application: Application,
@@ -377,6 +380,42 @@ class OdysseyViewModel @Inject constructor(
         if (nonRepeatingBag.isEmpty()) return null
         val (album, index) = nonRepeatingBag.removeAt(nonRepeatingBag.lastIndex)
         return album.name to index
+    }
+
+    /** The random episode pages opened this session (album name, episode index), oldest
+     * first, and which one is showing - like a browser's history, but only for the
+     * randomizer, so the system back button still leaves the details page in one press. */
+    data class RandomizerHistory(
+        val picks: List<Pair<String, Int>> = emptyList(),
+        val position: Int = -1,
+    ) {
+        val current: Pair<String, Int>? get() = picks.getOrNull(position)
+        val canGoBack: Boolean get() = position > 0
+        val canGoForward: Boolean get() = position < picks.lastIndex
+    }
+
+    private val _randomizerHistory = MutableStateFlow(RandomizerHistory())
+    val randomizerHistory = _randomizerHistory.asStateFlow()
+
+    /** Records a fresh randomizer pick as the current page. Anything that was ahead of the
+     * current page (after going back) is dropped, and only the newest
+     * [RANDOMIZER_HISTORY_LIMIT] picks are kept. */
+    fun recordRandomPick(albumName: String, episodeIndex: Int) {
+        val history = _randomizerHistory.value
+        val picks = (history.picks.take(history.position + 1) + (albumName to episodeIndex))
+            .takeLast(RANDOMIZER_HISTORY_LIMIT)
+        _randomizerHistory.value = RandomizerHistory(picks, picks.lastIndex)
+    }
+
+    /** Moves [steps] through the randomizer history (-1 = previous, 1 = next) and returns
+     * the pick to show, or null at either end. Doesn't touch the non-repeating bag: going
+     * back to an episode doesn't make it eligible again. */
+    fun stepRandomizerHistory(steps: Int): Pair<String, Int>? {
+        val history = _randomizerHistory.value
+        val position = history.position + steps
+        val pick = history.picks.getOrNull(position) ?: return null
+        _randomizerHistory.value = history.copy(position = position)
+        return pick
     }
 
     /** Likes/unlikes an episode with the club, then updates local state to match so every
