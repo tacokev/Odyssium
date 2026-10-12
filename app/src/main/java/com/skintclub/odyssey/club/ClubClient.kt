@@ -9,6 +9,7 @@ import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 import com.skintclub.odyssey.constants.ClubAccessTokenKey
 import com.skintclub.odyssey.constants.ClubContentGroupingsCacheKey
+import com.skintclub.odyssey.constants.ClubContentGroupingsViewerKey
 import com.skintclub.odyssey.constants.ClubMembershipExpiresKey
 import com.skintclub.odyssey.constants.ClubPinKey
 import com.skintclub.odyssey.constants.ClubRefreshTokenKey
@@ -68,9 +69,12 @@ data class ClubTag(
     val name: String? = null,
 )
 
+/** The selected profile's progress on a content item: [status] "New", "In Progress" or
+ * "Complete", [current] in milliseconds, and [timestamp] (ISO, UTC) when it was last saved. */
 data class ClubProgress(
     val status: String? = null,
     @SerializedName("current_progress") val current: Long = 0,
+    @SerializedName("content_activity_time_stamp") val timestamp: String? = null,
 )
 
 data class ClubContent(
@@ -745,8 +749,9 @@ class ClubClient(private val context: Context) {
     /** Fetches and caches every content grouping. Callers derive whatever view they need
      * (albums via [albumEpisodesFrom], playlists via [playlistsFrom]) from the result. */
     suspend fun fetchAllGroupings(): List<ClubGrouping> = withContext(Dispatchers.IO) {
+        val viewerId = getViewerId()
         val groupings = fetchAllContentGroupings()
-        setCachedContentGroupings(groupings)
+        setCachedContentGroupings(groupings, viewerId)
         groupings
     }
 
@@ -1165,9 +1170,18 @@ class ClubClient(private val context: Context) {
         }.getOrNull()
     }
 
-    private suspend fun setCachedContentGroupings(groupings: List<ClubGrouping>) = withContext(Dispatchers.IO) {
-        context.dataStore.edit { it[ClubContentGroupingsCacheKey] = gson.toJson(groupings) }
-    }
+    private suspend fun setCachedContentGroupings(groupings: List<ClubGrouping>, viewerId: String?) =
+        withContext(Dispatchers.IO) {
+            context.dataStore.edit {
+                it[ClubContentGroupingsCacheKey] = gson.toJson(groupings)
+                if (viewerId != null) it[ClubContentGroupingsViewerKey] = viewerId else it.remove(ClubContentGroupingsViewerKey)
+            }
+        }
+
+    /** The profile the cached groupings (and so their progress) were fetched for; null for a
+     * cache saved before this was kept. */
+    suspend fun getCachedGroupingsViewerId(): String? =
+        context.dataStore.data.first()[ClubContentGroupingsViewerKey]
 
     /** So the album/playlist state can render instantly on launch instead of waiting on
      * [fetchAllGroupings]; the view model shows this immediately, then refreshes from the
@@ -1185,6 +1199,7 @@ class ClubClient(private val context: Context) {
             it.remove(ClubProfileNameKey)
             it.remove(ClubProfilePictureKey)
             it.remove(ClubContentGroupingsCacheKey)
+            it.remove(ClubContentGroupingsViewerKey)
             it[ClubPinKey] = "0000"
         }
     }

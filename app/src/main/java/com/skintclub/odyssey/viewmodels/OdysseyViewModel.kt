@@ -29,6 +29,7 @@ import com.skintclub.odyssey.club.parseSecretEpisodePath
 import com.skintclub.odyssey.club.secretEpisodeMap
 import com.skintclub.odyssey.club.toGrouping
 import com.skintclub.odyssey.club.tryLoginSilently
+import com.skintclub.odyssey.constants.ClubViewerIdKey
 import com.skintclub.odyssey.constants.OdysseySortReversedKey
 import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.constants.RandomizerListMode
@@ -126,6 +127,21 @@ class OdysseyViewModel @Inject constructor(
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, OdysseySearchIndex.EMPTY)
 
+    /** The profile [_groupings] were fetched for. Their progress is that profile's, so
+     * [clubHistory] stays empty while another one is selected (between switching profiles
+     * and the refresh that follows finishing, or for good if that refresh fails). */
+    private val groupingsViewerId = MutableStateFlow<String?>(null)
+
+    /** The selected profile's listening on the club, for History. */
+    val clubHistory = combine(
+        searchIndex,
+        groupingsViewerId,
+        application.dataStore.data.map { it[ClubViewerIdKey] }.distinctUntilChanged(),
+    ) { index, fetchedFor, selected ->
+        if (fetchedFor == null || fetchedFor != selected) ClubHistory.EMPTY else buildClubHistory(_groupings.value, index)
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ClubHistory.EMPTY)
+
     /** Every comic series from the club's arc index (see [fetchIndexedComicSeries]), as last
      * fetched - seeded from [ComicSeriesSnapshot] and refreshed after each grouping refresh. */
     private val indexedComicSeries = MutableStateFlow(ComicSeriesSnapshot.load(application))
@@ -180,6 +196,7 @@ class OdysseyViewModel @Inject constructor(
             checkMembershipExpiry()
             val cached = clubClient.getCachedGroupings()
             if (cached.isNotEmpty()) {
+                groupingsViewerId.value = clubClient.getCachedGroupingsViewerId()
                 applyGroupings(cached)
             }
             performRefresh(silent = cached.isNotEmpty())
@@ -249,11 +266,13 @@ class OdysseyViewModel @Inject constructor(
                         clubClient.selectProfile(profiles[0])
                     }
                 }
+                val viewerId = clubClient.getViewerId()
                 val fetchedGroupings = clubClient.fetchAllGroupings()
                 // Warms the shared cookie cache (see ClubClient.getSignedCookie) so the first
                 // episode played doesn't have to wait on this round trip.
                 clubClient.getSignedCookie(forceRefresh = true)
 
+                groupingsViewerId.value = viewerId
                 applyGroupings(fetchedGroupings)
                 viewModelScope.launch { refreshComicSeries() }
                 viewModelScope.launch { refreshVideoShelves() }

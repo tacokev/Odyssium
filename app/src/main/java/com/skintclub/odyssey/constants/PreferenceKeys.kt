@@ -307,6 +307,10 @@ val CollectionsSortReversedKey = booleanPreferencesKey("collectionsSortReversed"
 val PodcastsSortReversedKey = booleanPreferencesKey("podcastsSortReversed")
 val ClubContentGroupingsCacheKey = stringPreferencesKey("clubContentGroupingsCache")
 
+/** The profile [ClubContentGroupingsCacheKey] was fetched for. Its listening progress is that
+ * profile's, so it's only shown while that profile is selected. */
+val ClubContentGroupingsViewerKey = stringPreferencesKey("clubContentGroupingsViewer")
+
 /** JSON-encoded [com.skintclub.odyssey.club.SecretEpisodesState]: the locally-added "Secret
  * Episodes", their local like state, and their local playlist memberships. */
 val SecretEpisodesKey = stringPreferencesKey("secretEpisodes")
@@ -340,6 +344,14 @@ val SyncPlaylistsKey = booleanPreferencesKey("syncPlaylists")
 /** Whether the playing episode's listening progress is saved to the club (see
  * EpisodeProgressSync). On by default. */
 val SyncEpisodeProgressKey = booleanPreferencesKey("syncEpisodeProgress")
+
+/** Whether History also lists what the profile listened to on the club (from each episode's
+ * club progress). On by default. */
+val ShowClubHistoryKey = booleanPreferencesKey("showClubHistory")
+
+/** Whether tapping an unfinished episode in History starts it from the club's saved position
+ * rather than the beginning. On by default. */
+val ResumeFromHistoryKey = booleanPreferencesKey("resumeFromHistory")
 
 /** ISO date (YYYY-MM-DD) from the club's own "membership_expires" field, cached from the
  * last /viewer fetch so it can be checked on app open without a network round trip. */

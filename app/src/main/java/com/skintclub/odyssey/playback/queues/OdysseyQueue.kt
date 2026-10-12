@@ -19,12 +19,15 @@ class OdysseyQueue(
     val episodes: List<Map<String, Any>>,
     val startIndex: Int,
     override val preloadItem: MediaMetadata? = null,
+    /** Where in the starting episode to begin, in milliseconds. */
+    val startPositionMs: Long = 0L,
 ) : Queue {
     override suspend fun getInitialStatus(): Queue.Status =
         Queue.Status(
             title = episodes.getOrNull(startIndex)?.get("album_name") as? String,
             items = episodes.map { odysseyEpisodeToMediaItem(context, it) },
             mediaItemIndex = startIndex,
+            position = startPositionMs,
         )
 
     override fun hasNextPage(): Boolean = false
