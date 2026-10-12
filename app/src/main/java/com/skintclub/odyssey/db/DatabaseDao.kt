@@ -832,8 +832,12 @@ interface DatabaseDao {
     ): Flow<List<Playlist>>
 
     @Transaction
-    @Query("SELECT * FROM event ORDER BY rowId DESC")
-    fun events(): Flow<List<EventWithSong>>
+    @Query("SELECT * FROM event WHERE viewerId IS :viewerId ORDER BY rowId DESC")
+    fun events(viewerId: String?): Flow<List<EventWithSong>>
+
+    /** Gives every event that has no profile to [viewerId]. */
+    @Query("UPDATE event SET viewerId = :viewerId WHERE viewerId IS NULL")
+    fun assignUnownedEvents(viewerId: String)
 
     @Transaction
     @Query("SELECT * FROM event ORDER BY rowId ASC LIMIT 1")

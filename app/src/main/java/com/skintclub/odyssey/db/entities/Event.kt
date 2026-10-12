@@ -24,4 +24,7 @@ data class Event(
     @ColumnInfo(index = true) val songId: String,
     val timestamp: LocalDateTime,
     val playTime: Long,
+    /** The club profile that was selected when this was played, so each profile has its own
+     * history and stats. Null when no profile was selected. */
+    @ColumnInfo(index = true) val viewerId: String? = null,
 )

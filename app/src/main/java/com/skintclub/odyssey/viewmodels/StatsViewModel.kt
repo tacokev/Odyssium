@@ -1,11 +1,14 @@
 package com.skintclub.odyssey.viewmodels
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.skintclub.odyssey.db.MusicDatabase
 import com.skintclub.odyssey.db.entities.EventWithSong
 import com.skintclub.odyssey.db.entities.Song
+import com.skintclub.odyssey.db.eventsForCurrentProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flowOn
@@ -43,11 +46,12 @@ data class ListeningStats(
 class StatsViewModel
     @Inject
     constructor(
+        @ApplicationContext context: Context,
         database: MusicDatabase,
     ) : ViewModel() {
         val stats =
             database
-                .events()
+                .eventsForCurrentProfile(context)
                 .map(::computeStats)
                 .flowOn(Dispatchers.Default)
                 .stateIn(viewModelScope, SharingStarted.Lazily, null)

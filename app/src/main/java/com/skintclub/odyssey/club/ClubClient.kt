@@ -12,6 +12,8 @@ import com.skintclub.odyssey.constants.ClubContentGroupingsCacheKey
 import com.skintclub.odyssey.constants.ClubMembershipExpiresKey
 import com.skintclub.odyssey.constants.ClubPinKey
 import com.skintclub.odyssey.constants.ClubRefreshTokenKey
+import com.skintclub.odyssey.constants.ClubProfileNameKey
+import com.skintclub.odyssey.constants.ClubProfilePictureKey
 import com.skintclub.odyssey.constants.ClubViewerIdKey
 import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.playback.ODYSSEY_MEDIA_HOST
@@ -274,6 +276,20 @@ class ClubClient(private val context: Context) {
 
     private suspend fun getPin(): String = context.dataStore.data.first()[ClubPinKey] ?: "0000"
     private suspend fun setPin(value: String) = context.dataStore.edit { it[ClubPinKey] = value }
+
+    /** Keeps [profile]'s name and picture for showing which profile is selected. */
+    private suspend fun rememberProfile(profile: ClubProfile) = context.dataStore.edit {
+        it[ClubProfileNameKey] = profile.username
+        val picture = profile.profilePictureUrl
+        if (picture.isNullOrBlank()) it.remove(ClubProfilePictureKey) else it[ClubProfilePictureKey] = picture
+    }
+
+    /** Re-fetches the selected profile's name and picture, for a profile picked before they
+     * were kept, or renamed since. */
+    suspend fun refreshSelectedProfile() {
+        val viewerId = getViewerId() ?: return
+        fetchProfiles().find { it.viewerId == viewerId }?.let { rememberProfile(it) }
+    }
 
     private val clientId = "3MVG9l2zHsylwlpTFc1ZB3ryOQlpLYIqNo0UV4d0lBRjkbb6TXbw9UNhdcJfom2nnbB.AbNpkRbGoTfruF0gB"
     private val clientSecret = "B25FC7FE3E4C155E77C73EA2AC72D410E0762C897798816FC257F0C8FA3618AD"
@@ -662,6 +678,7 @@ class ClubClient(private val context: Context) {
 
     suspend fun selectProfile(profile: ClubProfile, enteredPin: String? = null) {
         setViewerId(profile.viewerId)
+        rememberProfile(profile)
         if (enteredPin != null) {
             setPin(enteredPin)
         }
@@ -1149,6 +1166,8 @@ class ClubClient(private val context: Context) {
             it.remove(ClubAccessTokenKey)
             it.remove(ClubRefreshTokenKey)
             it.remove(ClubViewerIdKey)
+            it.remove(ClubProfileNameKey)
+            it.remove(ClubProfilePictureKey)
             it.remove(ClubContentGroupingsCacheKey)
             it[ClubPinKey] = "0000"
         }

@@ -508,6 +508,7 @@ class MusicService :
         if (historyRecordedFor == metadata.id) return
         historyRecordedFor = metadata.id
         if (dataStore.get(PauseListenHistoryKey, false)) return
+        val viewerId = dataStore[ClubViewerIdKey]
         database.query {
             // Events reference the song table, so the item has to exist there first.
             insert(metadata)
@@ -517,6 +518,7 @@ class MusicService :
                         songId = metadata.id,
                         timestamp = LocalDateTime.now(),
                         playTime = 0,
+                        viewerId = viewerId,
                     ),
                 )
             } catch (_: SQLException) {

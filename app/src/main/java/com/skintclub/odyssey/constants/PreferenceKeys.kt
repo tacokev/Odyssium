@@ -292,6 +292,14 @@ val ClubAccessTokenKey = stringPreferencesKey("odysseyAccessToken")
 val ClubRefreshTokenKey = stringPreferencesKey("odysseyRefreshToken")
 val ClubViewerIdKey = stringPreferencesKey("odysseyViewerId")
 val ClubPinKey = stringPreferencesKey("odysseyPin")
+
+/** The selected profile's name and picture, shown in Settings > Account. */
+val ClubProfileNameKey = stringPreferencesKey("odysseyProfileName")
+val ClubProfilePictureKey = stringPreferencesKey("odysseyProfilePicture")
+
+/** Whether listen history from before it was kept per profile has been given to a profile
+ * (see eventsForCurrentProfile). */
+val ListenHistoryAssignedKey = booleanPreferencesKey("listenHistoryAssignedToProfile")
 val OdysseySortReversedKey = booleanPreferencesKey("odysseySortReversed")
 val EpisodesSortReversedKey = booleanPreferencesKey("episodesSortReversed")
 val SeriesSortReversedKey = booleanPreferencesKey("seriesSortReversed")
