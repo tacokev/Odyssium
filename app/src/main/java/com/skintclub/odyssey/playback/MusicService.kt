@@ -473,7 +473,7 @@ class MusicService :
     override fun onPlaybackStateChanged(
         @Player.State playbackState: Int,
     ) {
-        if (playbackState == Player.STATE_READY) signedCookieRetryMediaId = null
+        if (playbackState == Player.STATE_READY) streamRetry = null
         if (playbackState == STATE_IDLE) {
             currentQueue = EmptyQueue
             player.shuffleModeEnabled = false
@@ -547,24 +547,79 @@ class MusicService :
         }
     }
 
-    /** The media item a fresh-cookie retry was already spent on, so a genuinely forbidden
-     * episode falls through to normal error handling instead of retrying forever. Cleared once
-     * anything plays, so a cookie that expires again much later still gets its retry. */
-    private var signedCookieRetryMediaId: String? = null
+    /** The media item that's been retried after failing to load, and how many times, so a
+     * genuinely broken episode falls through to normal error handling instead of retrying
+     * forever. Cleared once anything plays, so a cookie that expires again much later still
+     * gets its retries. */
+    private var streamRetry: Pair<String, Int>? = null
+    private var streamRetryJob: Job? = null
 
-    /** A CDN 403 means a cached signed cookie or content-request URL stopped working before its
-     * policy said it would (or was revoked); drop them and re-prepare once, which sends the
-     * request back through [resolveOdysseyDataSpec] to fetch new ones. */
-    private fun retryWithFreshSignedCookie(error: PlaybackException): Boolean {
-        val cause = error.cause as? HttpDataSource.InvalidResponseCodeException ?: return false
-        if (cause.responseCode != 403 || cause.dataSpec.uri.host != ODYSSEY_MEDIA_HOST) return false
+    /**
+     * Reloads the current episode with fresh stream URLs when it failed to load for a reason a
+     * retry can fix, up to [MAX_STREAM_RETRIES] times: once right away, then once more after
+     * [STREAM_RETRY_DELAY_MS]. Re-preparing sends the request back through
+     * [resolveOdysseyDataSpec], which fetches a new signed cookie or content-request URL.
+     *
+     * Retried: the CDN's 403 (an expired or revoked cookie, or none at all because fetching one
+     * failed - see withSignedCookie), a 401, a failure to resolve a content-request URL, and
+     * connection failures or timeouts.
+     */
+    private fun retryStream(error: PlaybackException): Boolean {
+        if (!isRetryableStreamError(error)) return false
         val mediaId = player.currentMediaItem?.mediaId ?: return false
-        if (signedCookieRetryMediaId == mediaId) return false
-        signedCookieRetryMediaId = mediaId
+        val attempts = streamRetry?.takeIf { it.first == mediaId }?.second ?: 0
+        if (attempts >= MAX_STREAM_RETRIES) {
+            Timber.w("MusicService: giving up on $mediaId after $attempts retries")
+            return false
+        }
+        streamRetry = mediaId to attempts + 1
         ClubClient.invalidateSignedUrls()
-        player.prepare()
+        val delayMs = if (attempts == 0) 0L else STREAM_RETRY_DELAY_MS
+        Timber.i("MusicService: retrying $mediaId (attempt ${attempts + 1}) in ${delayMs}ms with fresh stream URLs")
+        streamRetryJob?.cancel()
+        streamRetryJob = scope.launch {
+            delay(delayMs)
+            // Unless the user has moved on or restarted it themselves in the meantime.
+            if (player.currentMediaItem?.mediaId == mediaId && player.playbackState == STATE_IDLE) {
+                player.prepare()
+            }
+        }
         return true
     }
+
+    private fun isRetryableStreamError(error: PlaybackException): Boolean {
+        val httpError = error.causes().filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()
+        if (httpError != null) {
+            return httpError.responseCode in setOf(401, 403) && httpError.dataSpec.uri.host == ODYSSEY_MEDIA_HOST
+        }
+        return error.errorCode in setOf(
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            // What resolveOdysseyDataSpec's own IOException (e.g. "Couldn't resolve a download
+            // URL") becomes.
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+        )
+    }
+
+    /** Logs why playback failed, with the HTTP status and the URL (minus the signed cookie's
+     * query, which is a credential) when there is one, so a "won't load" report comes with
+     * something to go on. */
+    private fun logPlaybackError(error: PlaybackException) {
+        val httpError = error.causes().filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()
+        val detail = if (httpError != null) {
+            val uri = httpError.dataSpec.uri
+            " - HTTP ${httpError.responseCode} from ${uri.host}${uri.path}"
+        } else {
+            ""
+        }
+        Timber.e(
+            "MusicService: playback error ${error.errorCodeName} for ${player.currentMediaItem?.mediaId}$detail; " +
+                "causes: ${error.causes().drop(1).joinToString(" <- ") { it.javaClass.simpleName + ": " + it.message?.substringBefore('?') }}",
+        )
+    }
+
+    /** This exception and everything it was caused by, outermost first. */
+    private fun Throwable.causes(): List<Throwable> = generateSequence(this) { it.cause }.take(10).toList()
 
     /** Reloads the current item from a fresh stream URL, for when playback stalls or errors
      * out: drops the cached signed cookie and content download URLs so [resolveOdysseyDataSpec]
@@ -574,7 +629,8 @@ class MusicService :
         if (index == C.INDEX_UNSET || player.mediaItemCount == 0) return
         val position = player.currentPosition
         val playWhenReady = player.playWhenReady
-        signedCookieRetryMediaId = null
+        streamRetry = null
+        streamRetryJob?.cancel()
         ClubClient.invalidateSignedUrls()
         player.stop()
         player.seekTo(index, position)
@@ -583,7 +639,8 @@ class MusicService :
     }
 
     override fun onPlayerError(error: PlaybackException) {
-        if (retryWithFreshSignedCookie(error)) return
+        logPlaybackError(error)
+        if (retryStream(error)) return
         if (dataStore.get(AutoSkipNextOnErrorKey, false) && player.hasNextMediaItem()) {
             player.seekToNext()
             player.prepare()
@@ -725,6 +782,10 @@ class MusicService :
     }
 
     companion object {
+        /** See [retryStream]. */
+        private const val MAX_STREAM_RETRIES = 2
+        private const val STREAM_RETRY_DELAY_MS = 2_000L
+
         const val ROOT = "root"
         const val SONG = "song"
         const val ARTIST = "artist"
