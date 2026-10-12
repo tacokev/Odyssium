@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.offline.DownloadService
 import coil.imageLoader
+import com.skintclub.odyssey.club.ClubAuthException
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubGrouping
 import com.skintclub.odyssey.club.ClubContent
@@ -27,6 +28,7 @@ import com.skintclub.odyssey.club.mergeComicSeries
 import com.skintclub.odyssey.club.parseSecretEpisodePath
 import com.skintclub.odyssey.club.secretEpisodeMap
 import com.skintclub.odyssey.club.toGrouping
+import com.skintclub.odyssey.club.tryLoginSilently
 import com.skintclub.odyssey.constants.ClubViewerIdKey
 import com.skintclub.odyssey.constants.OdysseySortReversedKey
 import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
@@ -55,6 +57,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.CancellationException
 
 /** How many random episode pages the randomizer's previous/next buttons remember. */
 private const val RANDOMIZER_HISTORY_LIMIT = 100
@@ -251,8 +254,9 @@ class OdysseyViewModel @Inject constructor(
     }
 
     /** [silent] skips the refresh indicator for the automatic startup refresh that runs
-     * behind an already-displayed cache, so it doesn't look like the list is reloading. */
-    private suspend fun performRefresh(silent: Boolean) {
+     * behind an already-displayed cache, so it doesn't look like the list is reloading.
+     * [allowSilentLogin] is false for the retry after a silent login, so it can't loop. */
+    private suspend fun performRefresh(silent: Boolean, allowSilentLogin: Boolean = true) {
         if (!silent) _isRefreshing.value = true
         try {
             if (clubClient.isLoggedIn()) {
@@ -273,10 +277,22 @@ class OdysseyViewModel @Inject constructor(
                 viewModelScope.launch { refreshComicSeries() }
                 viewModelScope.launch { refreshVideoShelves() }
             }
-        } catch (e: Exception) {
+        } catch (e: ClubAuthException) {
             e.printStackTrace()
+            // The club's website session often outlives the refresh token; if it's still
+            // alive, this logs back in without asking (and keeps the selected profile).
+            if (allowSilentLogin && clubClient.tryLoginSilently(getApplication())) {
+                performRefresh(silent, allowSilentLogin = false)
+                return
+            }
             clubClient.logout()
             _needsRelogin.value = true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // No connection, the club being down, a response that didn't parse... The login
+            // is fine, so stay logged in with what's already loaded and try again next time.
+            e.printStackTrace()
         }
         _isRefreshing.value = false
     }
