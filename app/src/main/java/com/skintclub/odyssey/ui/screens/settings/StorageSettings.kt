@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -49,6 +51,7 @@ import com.skintclub.odyssey.ui.component.PreferenceGroupTitle
 import com.skintclub.odyssey.ui.utils.backToMain
 import com.skintclub.odyssey.ui.utils.formatFileSize
 import com.skintclub.odyssey.utils.rememberPreference
+import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -62,6 +65,7 @@ import java.time.format.FormatStyle
 fun StorageSettings(
     navController: NavController,
     scrollBehavior: TopAppBarScrollBehavior,
+    odysseyViewModel: OdysseyViewModel,
 ) {
     val context = LocalContext.current
     val imageDiskCache = context.imageLoader.diskCache ?: return
@@ -71,6 +75,10 @@ fun StorageSettings(
     val clubClient = remember { ClubClient(context) }
 
     val coroutineScope = rememberCoroutineScope()
+
+    /** The clear button waiting on its confirmation: what to ask, and what it does. */
+    var confirmClear by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+    fun confirm(message: String, action: () -> Unit): () -> Unit = { confirmClear = message to action }
     var membershipExpiry by remember { mutableStateOf<LocalDate?>(null) }
     LaunchedEffect(Unit) {
         membershipExpiry = clubClient.getMembershipExpiry()?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
@@ -137,6 +145,8 @@ fun StorageSettings(
             title = "Downloaded episodes",
         )
 
+        BulkDownloadPreference(odysseyViewModel)
+
         Text(
             text = stringResource(R.string.size_used, formatFileSize(downloadCacheSize)),
             style = MaterialTheme.typography.bodyMedium,
@@ -145,7 +155,7 @@ fun StorageSettings(
 
         PreferenceEntry(
             title = { Text(stringResource(R.string.clear_all_downloads)) },
-            onClick = {
+            onClick = confirm("Delete all downloaded episodes (${formatFileSize(downloadCacheSize)})?") {
                 // Going through DownloadService (same call every individual delete button
                 // uses) rather than clearing downloadCache directly - the cache is just where
                 // the bytes live, but DownloadManager keeps its own separate index of what's
@@ -202,7 +212,7 @@ fun StorageSettings(
 
         PreferenceEntry(
             title = { Text("Clear episode cache") },
-            onClick = {
+            onClick = confirm("Clear the episode cache? Episodes in it will have to stream again.") {
                 coroutineScope.launch(Dispatchers.IO) {
                     playerCache.keys.forEach { key ->
                         playerCache.removeResource(key)
@@ -239,10 +249,28 @@ fun StorageSettings(
 
         PreferenceEntry(
             title = { Text(stringResource(R.string.clear_image_cache)) },
-            onClick = {
+            onClick = confirm("Clear the image cache? Covers will load from the internet again.") {
                 coroutineScope.launch(Dispatchers.IO) {
                     imageDiskCache.clear()
                 }
+            },
+        )
+    }
+
+    confirmClear?.let { (message, action) ->
+        AlertDialog(
+            onDismissRequest = { confirmClear = null },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClear = null
+                        action()
+                    },
+                ) { Text("Clear") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = null }) { Text("Cancel") }
             },
         )
     }
