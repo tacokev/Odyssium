@@ -212,6 +212,10 @@ private data class ClubGroupingsPageResponse(
 fun isPlayableContent(content: ClubContent, playVideosAsAudio: Boolean): Boolean =
     content.type == "Audio" || (playVideosAsAudio && content.type == "Video")
 
+/** The club no longer accepts the stored login: the user has to log in again (or
+ * [tryLoginSilently] has to). Unlike a plain [IOException], retrying won't help. */
+class ClubAuthException(message: String) : IOException(message)
+
 /** A signed CDN credential (cookie query string or pre-signed URL) and when it stops working. */
 private class CachedSigned(val value: String, val expiresAtMillis: Long)
 
@@ -384,7 +388,14 @@ class ClubClient(private val context: Context) {
         }
     }
 
-    fun generateLoginUrl(): String {
+    /** Whether [url] is where the club sends the login page once it's done, with the
+     * authorization `code` (or an `error`). */
+    fun isLoginCallback(url: String): Boolean = url.startsWith(redirectUrl)
+
+    /** The club's login page, for a WebView. [immediate] asks the club not to show a login
+     * form at all: it goes straight to the callback, with a code when the website session is
+     * still alive, or an error when it isn't. */
+    fun generateLoginUrl(immediate: Boolean = false): String {
         val sr = SecureRandom()
         val code = ByteArray(32)
         sr.nextBytes(code)
@@ -400,7 +411,8 @@ class ClubClient(private val context: Context) {
                 "redirect_uri=$redirectUrl&" +
                 "code_challenge=$codeChallenge&" +
                 "code_challenge_method=S256&" +
-                "scope=api web refresh_token"
+                "scope=api web refresh_token" +
+                if (immediate) "&immediate=true" else ""
     }
 
     suspend fun exchangeCodeForToken(code: String): Boolean = withContext(Dispatchers.IO) {
@@ -435,7 +447,9 @@ class ClubClient(private val context: Context) {
 
     /** Exchanges the stored refresh token for a new access token (and possibly a rotated
      * refresh token). Used by [authorizedCall] to transparently recover from an expired
-     * access token instead of forcing a full re-login on every request that outlives it. */
+     * access token instead of forcing a full re-login on every request that outlives it.
+     * False when the club turns the refresh token down; a connection failure throws instead,
+     * since it says nothing about whether the login still works. */
     private suspend fun refreshAccessToken(): Boolean = withContext(Dispatchers.IO) {
         val refreshToken = getRefreshToken() ?: return@withContext false
         val formBody = FormBody.Builder()
@@ -445,35 +459,37 @@ class ClubClient(private val context: Context) {
             .add("client_secret", clientSecret)
             .build()
         val request = Request.Builder().url(apiBase + "oauth2/token").post(formBody).build()
-        try {
-            val response = client.newCall(request).execute()
-            response.use {
-                if (!it.isSuccessful) return@withContext false
-                val body = it.body?.string()
-                val map: Map<String, Any> = gson.fromJson(body, object : TypeToken<Map<String, Any>>() {}.type)
-                val newAccessToken = map["access_token"] as? String ?: return@withContext false
-                setAccessToken(newAccessToken)
-                (map["refresh_token"] as? String)?.let { setRefreshToken(it) }
-                true
-            }
-        } catch (e: IOException) {
-            false
+        client.newCall(request).await().use {
+            if (!it.isSuccessful) return@withContext false
+            val body = it.body?.string()
+            val map: Map<String, Any> = gson.fromJson(body, object : TypeToken<Map<String, Any>>() {}.type)
+            val newAccessToken = map["access_token"] as? String ?: return@withContext false
+            setAccessToken(newAccessToken)
+            (map["refresh_token"] as? String)?.let { setRefreshToken(it) }
+            true
         }
     }
 
     /** Runs an authenticated request built from the current access token. On a 401, refreshes
      * the access token once and retries before giving up, so a merely-expired token doesn't
      * force the caller to treat the whole session as invalid. The caller owns the returned
-     * [Response] and must close it. */
+     * [Response] and must close it.
+     *
+     * Throws [ClubAuthException] when the login itself no longer works (no token, or still a
+     * 401 after the refresh token was turned down); any other failure, like no connection, is
+     * a plain [IOException]. */
     private suspend fun authorizedCall(label: String, build: (accessToken: String) -> Request): Response =
         withContext(Dispatchers.IO) {
-            val token = getAccessToken() ?: throw IOException("$label failed: not logged in")
+            val token = getAccessToken() ?: throw ClubAuthException("$label failed: not logged in")
             var response = client.newCall(build(token)).await()
             if (response.code == 401) {
                 response.close()
-                val refreshedToken = if (refreshAccessToken()) getAccessToken() else null
-                if (refreshedToken != null) {
-                    response = client.newCall(build(refreshedToken)).await()
+                val refreshedToken = (if (refreshAccessToken()) getAccessToken() else null)
+                    ?: throw ClubAuthException("$label failed: refresh token rejected")
+                response = client.newCall(build(refreshedToken)).await()
+                if (response.code == 401) {
+                    response.close()
+                    throw ClubAuthException("$label failed: HTTP 401 after refreshing")
                 }
             }
             if (!response.isSuccessful) {
