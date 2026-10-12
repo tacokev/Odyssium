@@ -353,6 +353,10 @@ val ShowClubHistoryKey = booleanPreferencesKey("showClubHistory")
  * rather than the beginning. On by default. */
 val ResumeFromHistoryKey = booleanPreferencesKey("resumeFromHistory")
 
+/** The episode ids of the running bulk download (Settings > Storage > Bulk Download), comma
+ * separated, so its progress survives the app being closed. Removed once it's done. */
+val BulkDownloadIdsKey = stringPreferencesKey("bulkDownloadIds")
+
 /** ISO date (YYYY-MM-DD) from the club's own "membership_expires" field, cached from the
  * last /viewer fetch so it can be checked on app open without a network round trip. */
 val ClubMembershipExpiresKey = stringPreferencesKey("clubMembershipExpires")

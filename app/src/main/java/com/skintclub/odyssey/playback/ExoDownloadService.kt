@@ -1,7 +1,9 @@
 package com.skintclub.odyssey.playback
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.content.Context
+import androidx.core.app.NotificationCompat
 import androidx.media3.common.util.NotificationUtil
 import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.offline.Download
@@ -34,6 +36,7 @@ class ExoDownloadService :
         downloads: MutableList<Download>,
         notMetRequirements: Int,
     ): Notification =
+        downloadUtil.bulkDownload.value?.let { bulkNotification(it, notMetRequirements) } ?:
         downloadUtil.downloadNotificationHelper.buildProgressNotification(
             this,
             R.drawable.download,
@@ -46,6 +49,30 @@ class ExoDownloadService :
             downloads,
             notMetRequirements,
         )
+
+    /** While a bulk download runs: how many of its episodes are done, which one is downloading,
+     * and a bar for the whole thing. Tapping it opens the app. */
+    private fun bulkNotification(bulk: BulkDownloadProgress, notMetRequirements: Int): Notification {
+        val openApp = packageManager.getLaunchIntentForPackage(packageName)?.let {
+            PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        }
+        val text = when {
+            notMetRequirements != 0 -> "Waiting for a connection"
+            bulk.currentEpisode != null -> bulk.currentEpisode
+            else -> "Starting..."
+        }
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.download)
+            .setContentTitle("Downloading ${bulk.finished} of ${bulk.total}")
+            .setContentText(text)
+            .setProgress(BULK_PROGRESS_MAX, (bulk.fraction * BULK_PROGRESS_MAX).toInt(), false)
+            .setContentIntent(openApp)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+    }
 
     /**
      * This helper will outlive the lifespan of a single instance of [ExoDownloadService]
@@ -77,5 +104,6 @@ class ExoDownloadService :
         const val CHANNEL_ID = "download"
         const val NOTIFICATION_ID = 1
         const val JOB_ID = 1
+        private const val BULK_PROGRESS_MAX = 1000
     }
 }

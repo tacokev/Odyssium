@@ -56,7 +56,7 @@ class EpisodeProgressSync(
         tickJob?.cancel()
         // isPlaying also drops while buffering; only an actual pause is worth a report.
         if (!player.playWhenReady && player.playbackState == Player.STATE_READY) {
-            send(currentId, player.currentPosition, STATUS_IN_PROGRESS)
+            send(currentId, player.currentPosition, STATUS_IN_PROGRESS, player.duration)
         }
     }
 
@@ -76,18 +76,32 @@ class EpisodeProgressSync(
         tickJob = scope().launch {
             while (isActive) {
                 delay(PROGRESS_SYNC_INTERVAL_MS)
-                if (player.isPlaying) send(currentId, player.currentPosition, STATUS_IN_PROGRESS)
+                if (player.isPlaying) send(currentId, player.currentPosition, STATUS_IN_PROGRESS, player.duration)
             }
         }
     }
 
-    /** Sends one update in the background, if the setting is on and there's a club session.
-     * Never throws: the service's scope has no SupervisorJob, so a failure here must not
-     * escape and cancel everything else running in it. */
-    private fun send(contentId: String?, positionMs: Long?, status: String) {
+    /** Saves one update on the device (see [LocalEpisodeProgress]) and, if the setting is on
+     * and there's a club session, sends it to the club, in the background. [durationMs] is the
+     * episode's length when known. Never throws: the service's scope has no SupervisorJob, so
+     * a failure here must not escape and cancel everything else running in it. */
+    private fun send(contentId: String?, positionMs: Long?, status: String, durationMs: Long? = null) {
         if (contentId == null || !clubContentIdRegex.matches(contentId)) return
         val timestamp = Instant.now()
         scope().launch {
+            try {
+                LocalEpisodeProgress.save(
+                    context,
+                    contentId,
+                    positionMs,
+                    durationMs?.takeIf { it > 0 },
+                    completed = status == STATUS_COMPLETED,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "Couldn't save progress for $contentId")
+            }
             try {
                 val enabled = context.dataStore.data.first()[SyncEpisodeProgressKey] ?: true
                 if (!enabled || !clubClient.isLoggedIn()) return@launch

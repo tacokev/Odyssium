@@ -30,9 +30,14 @@ import com.skintclub.odyssey.club.secretEpisodeMap
 import com.skintclub.odyssey.club.toGrouping
 import com.skintclub.odyssey.club.tryLoginSilently
 import com.skintclub.odyssey.constants.ClubViewerIdKey
+import com.skintclub.odyssey.constants.ExcludeBonusEpisodesKey
+import com.skintclub.odyssey.constants.ExcludeSubsequentPartsKey
 import com.skintclub.odyssey.constants.OdysseySortReversedKey
 import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.constants.RandomizerListMode
+import com.skintclub.odyssey.constants.RandomizerListModeKey
+import com.skintclub.odyssey.constants.RandomizerPlaylistIdKey
+import com.skintclub.odyssey.extensions.toEnum
 import com.skintclub.odyssey.di.PlayerCache
 import com.skintclub.odyssey.playback.DownloadUtil
 import com.skintclub.odyssey.playback.ExoDownloadService
@@ -415,6 +420,28 @@ class OdysseyViewModel @Inject constructor(
         if (nonRepeatingBag.isEmpty()) return null
         val (album, index) = nonRepeatingBag.removeAt(nonRepeatingBag.lastIndex)
         return album.name to index
+    }
+
+    /** Every album episode except bonus content (like the randomizer leaves out), in album
+     * order, for Settings > Storage > Bulk Download. */
+    fun everyEpisode(): List<Map<String, Any>> =
+        baseAlbums.flatMap { album -> album.episodes.filterNot(::isBonusEpisode) }
+
+    /** Every episode the randomizer can pick with its current settings, in album order. */
+    fun randomizerEpisodes(): List<Map<String, Any>> {
+        val dataStore = getApplication<Application>().dataStore
+        val excludeBonusEpisodes = dataStore.get(ExcludeBonusEpisodesKey, true)
+        val excludeSubsequentParts = dataStore.get(ExcludeSubsequentPartsKey, true)
+        val listMode = dataStore.get(RandomizerListModeKey).toEnum(RandomizerListMode.OFF)
+        val playlistId = dataStore.get(RandomizerPlaylistIdKey, "")
+        val listEpisodeIds = if (listMode != RandomizerListMode.OFF && playlistId.isNotBlank()) {
+            clubClient.playlistEpisodeIds(groupings.value, playlistId)
+        } else {
+            null
+        }
+        return baseAlbums.flatMap { it.episodes }.filter {
+            isEligibleEpisode(it, excludeBonusEpisodes, excludeSubsequentParts, listMode, listEpisodeIds)
+        }
     }
 
     /** The random episode pages opened this session (album name, episode index), oldest

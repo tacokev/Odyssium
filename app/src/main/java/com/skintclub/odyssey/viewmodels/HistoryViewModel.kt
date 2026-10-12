@@ -7,6 +7,7 @@ import com.skintclub.odyssey.constants.ShowClubHistoryKey
 import com.skintclub.odyssey.db.MusicDatabase
 import com.skintclub.odyssey.db.entities.EventWithSong
 import com.skintclub.odyssey.db.eventsForCurrentProfile
+import com.skintclub.odyssey.playback.LocalEpisodeProgress
 import com.skintclub.odyssey.utils.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -49,7 +50,12 @@ class HistoryViewModel
                 .distinctUntilChanged()
 
         val history =
-            combine(database.eventsForCurrentProfile(context), clubHistory, showClubHistory) { events, club, showClub ->
+            combine(
+                database.eventsForCurrentProfile(context),
+                clubHistory,
+                showClubHistory,
+                LocalEpisodeProgress.forCurrentProfile(context),
+            ) { events, club, showClub, localProgress ->
                 val played = events.groupBy { dateAgoOf(it.event.timestamp.toLocalDate()) }
                     .mapValues { (_, events) -> events.distinctBy { it.song.id }.map(HistoryItem::Played) }
                 val fromClub = if (showClub) {
@@ -68,7 +74,7 @@ class HistoryViewModel
                         (playedHere + fromClub[dateAgo].orEmpty().filter { it.id !in playedIds })
                             .sortedWith(compareBy(nullsLast(reverseOrder())) { it.time })
                     }.toSortedMap(compareBy(::sortKeyOf))
-                HistoryState(groups, club.progress)
+                HistoryState(groups, mergeProgress(club.progress, localProgress))
             }.flowOn(Dispatchers.Default)
                 .stateIn(viewModelScope, SharingStarted.Lazily, HistoryState.EMPTY)
 
@@ -111,7 +117,8 @@ sealed interface HistoryItem {
     }
 }
 
-/** History's sections, newest first, and the club's progress on each episode for their rows. */
+/** History's sections, newest first, and the progress on each episode for their rows (the
+ * club's or the app's own, whichever is newer). */
 data class HistoryState(
     val groups: Map<DateAgo, List<HistoryItem>>,
     val progress: Map<String, EpisodeProgress>,

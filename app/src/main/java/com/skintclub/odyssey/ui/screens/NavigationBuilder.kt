@@ -198,7 +198,7 @@ fun NavGraphBuilder.navigationBuilder(
         AccountSettings(navController, scrollBehavior)
     }
     screen("settings/storage") {
-        StorageSettings(navController, scrollBehavior)
+        StorageSettings(navController, scrollBehavior, odysseyViewModel)
     }
     screen("settings/about") {
         AboutScreen(navController, scrollBehavior)

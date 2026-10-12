@@ -5,11 +5,13 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-/** How far the selected profile got into an episode, from the club's progress on it. */
+/** How far the selected profile got into an episode, from the club's progress on it or the
+ * app's own (LocalEpisodeProgress), and when that was saved (null if unknown). */
 data class EpisodeProgress(
     val completed: Boolean,
     val positionMs: Long,
     val lengthMs: Long,
+    val updatedAt: Instant? = null,
 ) {
     /** How much of the episode was listened to, 0 to 1. */
     val fraction: Float
@@ -52,14 +54,33 @@ fun buildClubHistory(groupings: List<ClubGrouping>, searchIndex: OdysseySearchIn
             val completed = clubProgress.status?.startsWith("Complete", ignoreCase = true) == true
             // "New", or started and left at the very beginning: nothing listened to.
             if (!completed && clubProgress.current <= 0) continue
-            progress[content.id] = EpisodeProgress(completed, clubProgress.current, content.mediaLength)
+            val updatedAt = clubProgress.timestamp?.toInstant()
+            progress[content.id] = EpisodeProgress(completed, clubProgress.current, content.mediaLength, updatedAt)
             val episode = episodeById[content.id] ?: continue
-            entries += ClubHistoryEntry(episode, clubProgress.timestamp?.toLocalDateTime())
+            entries += ClubHistoryEntry(episode, updatedAt?.let { LocalDateTime.ofInstant(it, ZoneId.systemDefault()) })
         }
     }
     entries.sortWith(compareBy(nullsLast(reverseOrder())) { it.time })
     return ClubHistory(entries, progress)
 }
 
-private fun String.toLocalDateTime(): LocalDateTime? =
-    runCatching { LocalDateTime.ofInstant(Instant.parse(this), ZoneId.systemDefault()) }.getOrNull()
+private fun String.toInstant(): Instant? = runCatching { Instant.parse(this) }.getOrNull()
+
+/** [club] and [local] progress per content id, the newer of the two where both have one.
+ * Local progress without a length takes the club's (the app doesn't always know it). */
+fun mergeProgress(
+    club: Map<String, EpisodeProgress>,
+    local: Map<String, EpisodeProgress>,
+): Map<String, EpisodeProgress> {
+    if (local.isEmpty()) return club
+    val merged = HashMap(club)
+    local.forEach { (id, mine) ->
+        val theirs = club[id]
+        val clubTime = theirs?.updatedAt
+        val localTime = mine.updatedAt
+        if (theirs == null || clubTime == null || (localTime != null && localTime > clubTime)) {
+            merged[id] = if (mine.lengthMs <= 0 && theirs != null) mine.copy(lengthMs = theirs.lengthMs) else mine
+        }
+    }
+    return merged
+}
