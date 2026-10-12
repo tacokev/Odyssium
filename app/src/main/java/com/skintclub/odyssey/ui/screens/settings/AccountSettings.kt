@@ -46,6 +46,8 @@ import com.skintclub.odyssey.club.CLUB_WEB_HOST
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.constants.ClubProfileNameKey
 import com.skintclub.odyssey.constants.ClubProfilePictureKey
+import com.skintclub.odyssey.constants.ResumeFromHistoryKey
+import com.skintclub.odyssey.constants.ShowClubHistoryKey
 import com.skintclub.odyssey.constants.SyncEpisodeProgressKey
 import com.skintclub.odyssey.constants.SyncPlaylistsKey
 import com.skintclub.odyssey.ui.component.IconButton
@@ -66,6 +68,8 @@ fun AccountSettings(
     val isLoggedIntoClub by clubClient.isLoggedInFlow().collectAsState(initial = false)
     var syncPlaylists by rememberPreference(SyncPlaylistsKey, defaultValue = true)
     var syncEpisodeProgress by rememberPreference(SyncEpisodeProgressKey, defaultValue = true)
+    var showClubHistory by rememberPreference(ShowClubHistoryKey, defaultValue = true)
+    var resumeFromHistory by rememberPreference(ResumeFromHistoryKey, defaultValue = true)
     val profileName by rememberPreference(ClubProfileNameKey, defaultValue = "")
     val profilePicture by rememberPreference(ClubProfilePictureKey, defaultValue = "")
 
@@ -145,6 +149,22 @@ fun AccountSettings(
                 icon = { Icon(painterResource(R.drawable.history), null) },
                 checked = syncEpisodeProgress,
                 onCheckedChange = { syncEpisodeProgress = it },
+            )
+
+            SwitchPreference(
+                title = { Text("Show Club listening history") },
+                description = "List the episodes you've listened to on the club in History, alongside the ones played in the app.",
+                icon = { Icon(painterResource(R.drawable.history), null) },
+                checked = showClubHistory,
+                onCheckedChange = { showClubHistory = it },
+            )
+
+            SwitchPreference(
+                title = { Text("Resume from History") },
+                description = "Tapping an episode you didn't finish in History starts it where you left off.",
+                icon = { Icon(painterResource(R.drawable.play), null) },
+                checked = resumeFromHistory,
+                onCheckedChange = { resumeFromHistory = it },
             )
         }
     }

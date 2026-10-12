@@ -14,6 +14,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
@@ -352,11 +353,15 @@ fun SongListItem(
     },
     isActive: Boolean = false,
     isPlaying: Boolean = false,
+    /** Replaces the usual artists and length. */
+    subtitle: String? = null,
+    /** Drawn over the thumbnail, under the playing indicator. */
+    thumbnailOverlay: @Composable BoxScope.() -> Unit = {},
     trailingContent: @Composable RowScope.() -> Unit = {},
 ) = ListItem(
     title = song.song.title,
     subtitle =
-        joinByBullet(
+        subtitle ?: joinByBullet(
             song.artists.joinToString { it.name },
             makeTimeString(song.song.duration * 1000L),
         ),
@@ -411,6 +416,8 @@ fun SongListItem(
                             .clip(RoundedCornerShape(ThumbnailCornerRadius)),
                 )
             }
+
+            thumbnailOverlay()
 
             PlayingIndicatorBox(
                 isActive = isActive,
@@ -1074,11 +1081,15 @@ fun MediaMetadataListItem(
     isSelected: Boolean = false,
     isActive: Boolean = false,
     isPlaying: Boolean = false,
+    /** Replaces the usual artists and length. */
+    subtitle: String? = null,
+    /** Drawn over the thumbnail, under the playing indicator. */
+    thumbnailOverlay: @Composable BoxScope.() -> Unit = {},
     trailingContent: @Composable RowScope.() -> Unit = {},
 ) = ListItem(
     title = mediaMetadata.title,
     subtitle =
-        joinByBullet(
+        subtitle ?: joinByBullet(
             mediaMetadata.artists.joinToString { it.name },
             makeTimeString(mediaMetadata.duration * 1000L),
         ),
@@ -1112,6 +1123,8 @@ fun MediaMetadataListItem(
                         .fillMaxSize()
                         .clip(RoundedCornerShape(ThumbnailCornerRadius)),
             )
+
+            thumbnailOverlay()
 
             PlayingIndicatorBox(
                 isActive = isActive,
