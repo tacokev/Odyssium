@@ -3,7 +3,9 @@ package com.skintclub.odyssey.playback
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.media3.common.C
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.ResolvingDataSource
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.playback.queues.ODYSSEY_CONTENT_URI_SCHEME
 import kotlinx.coroutines.runBlocking
@@ -30,9 +32,9 @@ fun isSignedCookieUri(uri: Uri): Boolean = uri.host == ODYSSEY_MEDIA_HOST && isS
  *   resumed download never goes out with an expired cookie;
  * - a bare content id (a queue restored after a restart - see
  *   [com.skintclub.odyssey.extensions.toMediaItem]) is resolved like a content request.
- * Then the CDN's Range/Sec-Fetch-Dest header workaround is applied. Runs on a background
- * loader thread in both cases, so the blocking network calls here are intentional - that's
- * what [androidx.media3.datasource.ResolvingDataSource] is for.
+ * Then the CDN's Sec-Fetch-Dest header is added (its Range workaround is
+ * [odysseyNetworkDataSource]'s). Runs on a background loader thread in both cases, so the
+ * blocking network calls here are intentional - that's what [ResolvingDataSource] is for.
  */
 fun resolveOdysseyDataSpec(clubClient: ClubClient, dataSpec: DataSpec): DataSpec {
     val uri = dataSpec.uri
@@ -57,24 +59,33 @@ fun resolveOdysseyDataSpec(clubClient: ClubClient, dataSpec: DataSpec): DataSpec
         else -> dataSpec
     }
 
+    // The CDN authorizes requests via the signed cookie query string (or the pre-signed
+    // content-request URL), not via the Salesforce API bearer token.
     return if (withRealUri.uri.host == ODYSSEY_MEDIA_HOST) {
-        // The CDN authorizes requests via the signed cookie query string (or the pre-signed
-        // content-request URL), not via the Salesforce API bearer token. It does, however,
-        // reject requests with no Range header at all, so for a from-the-start request (no
-        // seek in play, or a download starting fresh) one is forced. On a seek, or a download
-        // resuming mid-file, the upstream OkHttpDataSource already appends its own Range
-        // header computed from dataSpec.position/length; forcing one here too would send two
-        // Range headers on the same request and break scrubbing/resuming.
-        val headers = if (withRealUri.position == 0L && withRealUri.length == C.LENGTH_UNSET.toLong()) {
-            mapOf("Sec-Fetch-Dest" to "audio", "Range" to "bytes=0-")
-        } else {
-            mapOf("Sec-Fetch-Dest" to "audio")
-        }
-        withRealUri.withRequestHeaders(headers)
+        withRealUri.withRequestHeaders(mapOf("Sec-Fetch-Dest" to "audio"))
     } else {
         withRealUri
     }
 }
+
+/**
+ * [upstream] (the network) with the CDN's Range workaround: it rejects requests with no Range
+ * header at all, so a from-the-start request gets `bytes=0-`.
+ *
+ * This has to sit below the cache, on each request that actually goes to the network. Above it
+ * (in [resolveOdysseyDataSpec]), a read from the start would carry `bytes=0-` onto the cache's
+ * own request for the first part it doesn't have, alongside OkHttpDataSource's real Range
+ * header. With two, the CDN serves the file from the start, and those bytes were taken (and
+ * cached) as the ones at that position: garbled or silent audio from there on.
+ */
+fun odysseyNetworkDataSource(upstream: DataSource.Factory): DataSource.Factory =
+    ResolvingDataSource.Factory(upstream) { spec ->
+        if (spec.uri.host == ODYSSEY_MEDIA_HOST && spec.position == 0L && spec.length == C.LENGTH_UNSET.toLong()) {
+            spec.withAdditionalHeaders(mapOf("Range" to "bytes=0-"))
+        } else {
+            spec
+        }
+    }
 
 /** [uri] with its query replaced by the current signed cookie. Any existing query is a stale
  * cookie baked in by an older build (e.g. a download queued before this change), so it's always
