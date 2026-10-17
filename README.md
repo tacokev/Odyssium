@@ -1,4 +1,4 @@
-# Skint Player
+# Odyssium
 
 Stream your favorite Adventures in Odyssey club episodes simply by logging in to the official website.
 
