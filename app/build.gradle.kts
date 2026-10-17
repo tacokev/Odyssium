@@ -28,8 +28,14 @@ android {
     }
     signingConfigs {
         getByName("debug") {
-            if (System.getenv("MUSIC_DEBUG_SIGNING_STORE_PASSWORD") != null) {
-                storeFile = file(System.getenv("MUSIC_DEBUG_KEYSTORE_FILE"))
+            // CI's custom debug keystore, when its secrets are configured. An unset GitHub
+            // secret still arrives as an empty string (not null), so check for that too and
+            // otherwise fall back to the standard auto-generated debug keystore.
+            val debugKeystoreFile = System.getenv("MUSIC_DEBUG_KEYSTORE_FILE")?.let { file(it) }
+            if (!System.getenv("MUSIC_DEBUG_SIGNING_STORE_PASSWORD").isNullOrEmpty() &&
+                debugKeystoreFile?.let { it.exists() && it.length() > 0 } == true
+            ) {
+                storeFile = debugKeystoreFile
                 storePassword = System.getenv("MUSIC_DEBUG_SIGNING_STORE_PASSWORD")
                 keyAlias = "debug"
                 keyPassword = System.getenv("MUSIC_DEBUG_SIGNING_KEY_PASSWORD")
