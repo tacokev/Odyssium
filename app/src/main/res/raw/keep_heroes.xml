@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Club's section hero banners are bundled for screens that don't use them all yet, so
+     resource shrinking mustn't strip the unused ones from release builds. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/hero_*" />

@@ -1,6 +1,11 @@
 package com.skintclub.odyssey.ui.screens
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,19 +84,35 @@ fun OdysseyEpisodeExtraDetails(
         loading = false
     }
 
-    val loaded = details
-    if (loaded == null) {
-        if (loading) {
-            CircularProgressIndicator(
-                strokeWidth = 2.dp,
-                modifier = Modifier
-                    .padding(vertical = 8.dp)
-                    .size(24.dp),
-            )
-        }
-        return
+    if (details == null && loading) {
+        CircularProgressIndicator(
+            strokeWidth = 2.dp,
+            modifier = Modifier
+                .padding(vertical = 8.dp)
+                .size(24.dp),
+        )
     }
 
+    // Already-cached details show straight away; fetched ones fade and slide up into place.
+    val visibleState = remember(contentId) { MutableTransitionState(details != null) }
+    visibleState.targetState = details != null
+    val slideOffset = with(LocalDensity.current) { 24.dp.roundToPx() }
+    AnimatedVisibility(
+        visibleState = visibleState,
+        enter = fadeIn(tween(350)) + slideInVertically(tween(350)) { slideOffset },
+    ) {
+        val loaded = details ?: return@AnimatedVisibility
+        ExtraDetailsContent(navController, contentId, albums, loaded)
+    }
+}
+
+@Composable
+private fun ExtraDetailsContent(
+    navController: NavController,
+    contentId: String,
+    albums: List<OdysseyAlbum>,
+    loaded: ClubContentDetails,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         // A regular episode's air_date isn't its real air date, so it's only shown for
         // everything else (podcasts, specials, ...).

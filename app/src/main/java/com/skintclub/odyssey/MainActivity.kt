@@ -19,7 +19,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -47,6 +50,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -95,6 +99,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.rememberNavController
 import coil.imageLoader
 import coil.request.ImageRequest
+import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubLink
 import com.skintclub.odyssey.club.parseClubLink
 import com.skintclub.odyssey.constants.*
@@ -146,10 +151,27 @@ import kotlinx.coroutines.withContext
 
 private const val NAV_ANIM_MS = 300
 
-// Going back always cross-fades, whether between tabs or out of a sub-screen.
-private fun navPopEnter(): EnterTransition = fadeIn(tween(NAV_ANIM_MS))
+/* Every screen opened from another (albums, episodes, playlists, stats, history, settings...)
+ * shares one transition: it slides in a short way from the right while fading in, and going back
+ * slides it out to the right while fading out. The screen underneath drifts the opposite way and
+ * fades, so the two hand off. Switching tabs and stepping through the randomizer are the
+ * exceptions, handled where the NavHost picks its transitions. */
+private const val NAV_FADE_OUT_MS = NAV_ANIM_MS * 2 / 5
 
-private fun navPopExit(): ExitTransition = fadeOut(tween(NAV_ANIM_MS))
+private fun navSlide() = tween<IntOffset>(NAV_ANIM_MS, easing = FastOutSlowInEasing)
+
+private fun navFadeIn(): EnterTransition =
+    fadeIn(tween(NAV_ANIM_MS - NAV_FADE_OUT_MS, delayMillis = NAV_FADE_OUT_MS, easing = LinearOutSlowInEasing))
+
+private fun navFadeOut(): ExitTransition = fadeOut(tween(NAV_FADE_OUT_MS, easing = FastOutLinearInEasing))
+
+private fun navEnter(): EnterTransition = slideInHorizontally(navSlide()) { it / 4 } + navFadeIn()
+
+private fun navExit(): ExitTransition = slideOutHorizontally(navSlide()) { -it / 8 } + navFadeOut()
+
+private fun navPopEnter(): EnterTransition = slideInHorizontally(navSlide()) { -it / 8 } + navFadeIn()
+
+private fun navPopExit(): ExitTransition = slideOutHorizontally(navSlide()) { it / 4 } + navFadeOut()
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -330,7 +352,6 @@ class MainActivity : ComponentActivity() {
                         listOf(
                             Screens.Home.route,
                             Screens.Playlists.route,
-                            "settings",
                         )
 
                     val (query, onQueryChange) =
@@ -356,6 +377,20 @@ class MainActivity : ComponentActivity() {
                             navBackStackEntry?.destination?.route == null ||
                                 (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route } && !active)
                         }
+
+                    // The status bar strip (and the top bars that match it) take the bottom bar's
+                    // tint on its tabs, so those screens' top and bottom match; everywhere else,
+                    // the screens' own background, so the top reads as one surface with the page.
+                    val onBottomBarTab = navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }
+                    val topBarColor by animateColorAsState(
+                        when {
+                            useBlackBars -> Color.Black
+                            onBottomBarTab -> navigationBarColor
+                            else -> MaterialTheme.colorScheme.surface
+                        },
+                        tween(NAV_ANIM_MS),
+                        label = "topBarColor",
+                    )
                     val fullNavigationBarHeight = if (compactNavigationBar) CompactNavigationBarHeight else NavigationBarHeight
                     val navigationBarHeight by animateDpAsState(
                         targetValue = if (shouldShowNavigationBar) fullNavigationBarHeight else 0.dp,
@@ -586,7 +621,7 @@ class MainActivity : ComponentActivity() {
                         LocalPlayerAwareWindowInsets provides playerAwareWindowInsets,
                         LocalDownloadUtil provides downloadUtil,
                         LocalShimmerTheme provides ShimmerTheme,
-                        LocalTopBarColor provides navigationBarColor,
+                        LocalTopBarColor provides topBarColor,
                     ) {
                         val randomizerHistory by odysseyViewModel.randomizerHistory.collectAsState()
                         // Swiping only steps through the history on the random episode page it
@@ -615,29 +650,41 @@ class MainActivity : ComponentActivity() {
                             // previous screen, which drifts back a little underneath it. Going back
                             // cross-fades.
                             enterTransition = {
-                                if (initialState.destination.route in topLevelScreens && targetState.destination.route in topLevelScreens) {
+                                if (isTabSwitch(topLevelScreens)) {
                                     fadeIn(tween(NAV_ANIM_MS))
-                                } else if (randomizerSteppedBack && isRandomizerStep()) {
-                                    slideInHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { -it }
+                                } else if (isRandomizerStep()) {
+                                    slideInHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) {
+                                        if (randomizerSteppedBack) -it else it
+                                    }
                                 } else {
-                                    slideInHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { it }
+                                    navEnter()
                                 }
                             },
                             exitTransition = {
-                                if (initialState.destination.route in topLevelScreens && targetState.destination.route in topLevelScreens) {
+                                if (isTabSwitch(topLevelScreens)) {
                                     fadeOut(tween(NAV_ANIM_MS))
-                                } else if (randomizerSteppedBack && isRandomizerStep()) {
-                                    slideOutHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { it / 4 }
+                                } else if (isRandomizerStep()) {
+                                    slideOutHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) {
+                                        if (randomizerSteppedBack) it / 4 else -it / 4
+                                    }
                                 } else {
-                                    slideOutHorizontally(tween(NAV_ANIM_MS, easing = FastOutSlowInEasing)) { -it / 4 }
+                                    navExit()
                                 }
                             },
-                            popEnterTransition = { navPopEnter() },
-                            popExitTransition = { navPopExit() },
+                            popEnterTransition = {
+                                if (isTabSwitch(topLevelScreens)) fadeIn(tween(NAV_ANIM_MS)) else navPopEnter()
+                            },
+                            popExitTransition = {
+                                if (isTabSwitch(topLevelScreens)) fadeOut(tween(NAV_ANIM_MS)) else navPopExit()
+                            },
                             // The back gesture would otherwise use Navigation's default preview (the
                             // screen shrinking), then jump to the pop transition on release.
-                            predictivePopEnterTransition = { navPopEnter() },
-                            predictivePopExitTransition = { navPopExit() },
+                            predictivePopEnterTransition = {
+                                if (isTabSwitch(topLevelScreens)) fadeIn(tween(NAV_ANIM_MS)) else navPopEnter()
+                            },
+                            predictivePopExitTransition = {
+                                if (isTabSwitch(topLevelScreens)) fadeOut(tween(NAV_ANIM_MS)) else navPopExit()
+                            },
                             modifier =
                                 Modifier
                                     .nestedScroll(
@@ -723,16 +770,18 @@ class MainActivity : ComponentActivity() {
                         // Scrim behind the status bar so its icons stay legible over whatever
                         // scrolls up underneath, instead of the transparent edge-to-edge status
                         // bar showing busy content straight through. Skipped on the episode
-                        // details page so its cover art reads as a clean, unbroken poster.
+                        // details page so its cover art reads as a clean, unbroken poster, and on
+                        // About so its night-sky backdrop runs right up under the status bar.
                         AnimatedVisibility(
-                            visible = navBackStackEntry?.destination?.route != ODYSSEY_EPISODE_ROUTE,
+                            visible = navBackStackEntry?.destination?.route.let {
+                                it != ODYSSEY_EPISODE_ROUTE && it != "settings/about"
+                            },
                             enter = fadeIn(),
                             exit = fadeOut(),
                             modifier = Modifier.align(Alignment.TopCenter),
                         ) {
                             Surface(
-                                color = navigationBarColor,
-                                tonalElevation = navigationBarTonalElevation,
+                                color = topBarColor,
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
@@ -767,6 +816,14 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 focusRequester = searchBarFocusRequester,
+                                // Pure black only blacks out surface/background, not the search
+                                // bar's raised container, so it needs the same override as the bars.
+                                colors = if (useBlackBars) {
+                                    SearchBarDefaults.colors(containerColor = Color.Black)
+                                } else {
+                                    SearchBarDefaults.colors()
+                                },
+                                tonalElevation = if (useBlackBars) 0.dp else SearchBarDefaults.TonalElevation,
                                 modifier = Modifier.align(Alignment.TopCenter),
                             ) {
                                 OdysseySearchResultsList(
@@ -928,6 +985,16 @@ class MainActivity : ComponentActivity() {
                             state = LocalMenuState.current,
                             modifier = Modifier.align(Alignment.BottomCenter),
                         )
+
+                        // Covers everything while logged out, except the login flow it leads to.
+                        // Null until the stored login is read, so logged-in launches don't flash it.
+                        val isLoggedIntoClub by remember { ClubClient(this@MainActivity).isLoggedInFlow() }
+                            .collectAsState(initial = null)
+                        val inLoginFlow = navBackStackEntry?.destination?.route in
+                            setOf("odyssey_login", "odyssey_profile_select")
+                        if (isLoggedIntoClub == false && !inLoginFlow) {
+                            OdysseyWelcomeScreen(onLogin = { navController.navigate("odyssey_login") })
+                        }
                     }
                 }
             }
@@ -950,7 +1017,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /** Icon-only bottom nav button for [CompactNavigationBarKey]. Unlike [NavigationBarItem] its
- * whole footprint is a centered 48dp circle, so it stays vertically centered no matter how
+ * whole footprint is a centered 64x36dp capsule, so it stays vertically centered no matter how
  * short the bar is — [NavigationBarItem] instead assumes room for a label under the icon and
  * top-aligns within whatever height it's given, which looks off once that height is compact. */
 @Composable
@@ -963,7 +1030,7 @@ private fun CompactNavigationBarButton(
         contentAlignment = Alignment.Center,
         modifier =
             Modifier
-                .size(48.dp)
+                .size(width = 64.dp, height = 36.dp)
                 .clip(CircleShape)
                 .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
                 .clickable(onClick = onClick),
@@ -993,9 +1060,14 @@ val LocalPlayerConnection = staticCompositionLocalOf<PlayerConnection?> { error(
 val LocalPlayerAwareWindowInsets = compositionLocalOf<WindowInsets> { error("No WindowInsets provided") }
 val LocalDownloadUtil = staticCompositionLocalOf<DownloadUtil> { error("No DownloadUtil provided") }
 
-/** The status-bar strip's color (black in pure-black mode, otherwise the navigation bar's
- * container color), so screen top bars that slide up behind it can match it exactly. */
+/** The status-bar strip's color (black in pure-black mode; on the bottom bar's tabs the bottom
+ * bar's own tint, so the top and bottom of those screens match; elsewhere the screens' surface
+ * color), so screen top bars that slide up behind it can match it exactly. */
 val LocalTopBarColor = compositionLocalOf { Color.Unspecified }
+
+/** Whether this transition is between two of the bottom bar's tabs, which cross-fade. */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.isTabSwitch(topLevelScreens: Collection<String>) =
+    initialState.destination.route in topLevelScreens && targetState.destination.route in topLevelScreens
 
 /** Whether this transition is the randomizer moving from one episode page to another. */
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.isRandomizerStep() =

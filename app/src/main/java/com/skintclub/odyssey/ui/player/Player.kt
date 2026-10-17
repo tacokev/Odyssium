@@ -1346,6 +1346,7 @@ fun BottomSheetPlayer(
                         modifier =
                             Modifier
                                 .size(80.dp)
+                                .clip(CircleShape)
                                 .clickable {
                                     if (playbackState == STATE_ENDED) {
                                         playerConnection.player.seekTo(0, 0)

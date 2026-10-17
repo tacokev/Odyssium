@@ -1,6 +1,17 @@
 package com.skintclub.odyssey.ui.screens.settings
 
 import androidx.compose.foundation.Image
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import com.skintclub.odyssey.ui.screens.OdysseyNightBackdrop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -51,67 +62,86 @@ fun AboutScreen(
 ) {
     val uriHandler = LocalUriHandler.current
 
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
-                .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)))
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val contentAlpha by animateFloatAsState(if (shown) 1f else 0f, tween(600), label = "contentAlpha")
 
-        Spacer(Modifier.height(4.dp))
-
-        Image(
-            painter = painterResource(R.drawable.launcher_monochrome),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground, BlendMode.SrcIn),
+    OdysseyNightBackdrop {
+        Column(
             modifier =
                 Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .clickable { },
-        )
+                    .fillMaxWidth()
+                    .graphicsLayer { alpha = contentAlpha }
+                    .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+                    .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)))
 
-        Text(
-            text = "Skint Player",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-        )
+            Spacer(Modifier.height(4.dp))
 
-        Text(
-            text = stringResource(R.string.developed_by),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        FilledTonalButton(onClick = { uriHandler.openUri(GITHUB_URL) }) {
-            Icon(
-                painter = painterResource(R.drawable.github),
+            Image(
+                painter = painterResource(R.mipmap.ic_launcher_monochrome),
                 contentDescription = null,
-                modifier = Modifier.size(ButtonDefaults.IconSize),
+                colorFilter = ColorFilter.tint(Color.White, BlendMode.SrcIn),
+                modifier =
+                    Modifier
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.1f))
+                        .clickable { },
             )
-            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-            Text(stringResource(R.string.view_on_github))
-        }
-    }
 
-    TopAppBar(
-        title = { Text(stringResource(R.string.about)) },
-        navigationIcon = {
-            IconButton(
-                onClick = navController::navigateUp,
-                onLongClick = navController::backToMain,
+            Text(
+                text = "Odyssium",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+            )
+
+            Text(
+                text = stringResource(R.string.developed_by),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.75f),
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            FilledTonalButton(
+                onClick = { uriHandler.openUri(GITHUB_URL) },
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = Color.White.copy(alpha = 0.12f),
+                    contentColor = Color.White,
+                ),
             ) {
                 Icon(
-                    painterResource(R.drawable.arrow_back),
+                    painter = painterResource(R.drawable.github),
                     contentDescription = null,
+                    modifier = Modifier.size(ButtonDefaults.IconSize),
                 )
+                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                Text(stringResource(R.string.view_on_github))
             }
-        },
-    )
+        }
+
+        TopAppBar(
+            title = { Text(stringResource(R.string.about)) },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                titleContentColor = Color.White,
+                navigationIconContentColor = Color.White,
+            ),
+            navigationIcon = {
+                IconButton(
+                    onClick = navController::navigateUp,
+                    onLongClick = navController::backToMain,
+                ) {
+                    Icon(
+                        painterResource(R.drawable.arrow_back),
+                        contentDescription = null,
+                    )
+                }
+            },
+        )
+    }
 }

@@ -1,5 +1,6 @@
 package com.skintclub.odyssey.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -58,6 +60,8 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
+import com.skintclub.odyssey.club.ODYSSEY_COMICS_ROUTE
+import com.skintclub.odyssey.club.ODYSSEY_VIDEOS_ROUTE
 import com.skintclub.odyssey.constants.AppBarHeight
 import com.skintclub.odyssey.constants.ThumbnailCornerRadius
 import com.skintclub.odyssey.ui.theme.capsuleColor
@@ -145,6 +149,18 @@ fun HomeScreen(
     )
 }
 
+/** Tiles that show one bundled scene (the Club's own artwork for that section) instead of a
+ * collage of covers. */
+private val CategoryBackgrounds = mapOf(
+    "odyssey_albums" to R.drawable.hero_albums,
+    "odyssey_episodes" to R.drawable.hero_episodes,
+    "odyssey_series" to R.drawable.hero_series,
+    "odyssey_collections" to R.drawable.hero_books,
+    "odyssey_podcasts" to R.drawable.hero_radio,
+    ODYSSEY_COMICS_ROUTE to R.drawable.hero_themes,
+    ODYSSEY_VIDEOS_ROUTE to R.drawable.hero_badges,
+)
+
 private const val COLLAGE_COLUMNS = 3
 private const val COLLAGE_ROWS = 2
 
@@ -170,24 +186,49 @@ private fun CategoryTile(
             .background(tileColor)
             .clickable(onClick = onClick),
     ) {
-        if (category.imageUrls.isNotEmpty()) {
+        val background = CategoryBackgrounds[category.route]
+        if (background != null) {
+            Image(
+                painter = painterResource(background),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (category.imageUrls.isNotEmpty()) {
             CoverCollage(
                 imageUrls = category.imageUrls,
                 modifier = Modifier.fillMaxSize(),
             )
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        0f to tileColor,
-                        0.3f to tileColor,
-                        0.75f to tileColor.copy(alpha = 0f),
+        // A scene runs right under the text (white, with a shadow to lift it off the art), darkened
+        // toward the left so the text stands out; a collage instead fades out into a solid panel.
+        if (background != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.horizontalGradient(
+                            0f to Color.Black.copy(alpha = 0.85f),
+                            0.35f to Color.Black.copy(alpha = 0.7f),
+                            0.75f to Color.Transparent,
+                        ),
                     ),
-                ),
-        )
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.horizontalGradient(
+                            0f to tileColor,
+                            0.3f to tileColor,
+                            0.75f to tileColor.copy(alpha = 0f),
+                        ),
+                    ),
+            )
+        }
+        val textShadow = if (background != null) Shadow(Color.Black.copy(alpha = 0.6f), blurRadius = 12f) else null
 
         Column(
             verticalArrangement = Arrangement.Center,
@@ -200,16 +241,16 @@ private fun CategoryTile(
         ) {
             Text(
                 text = category.title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineSmall.copy(shadow = textShadow),
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (background != null) Color.White else MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = category.subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium.copy(shadow = textShadow),
+                color = if (background != null) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
