@@ -11,8 +11,12 @@ import kotlinx.coroutines.flow.map
 import java.util.UUID
 
 /*
- * Local playlists: made in the app and kept only on this device - the club never hears about
- * them, so they work whatever the membership allows and whether or not "Sync playlists" is on.
+ * Local playlists: made in the app and kept on this device, so they work whatever the
+ * membership allows. Like a club playlist, each belongs to the profile it was made in
+ * ([LocalPlaylist.viewerId]) and only shows while that profile is selected. "Sync playlists"
+ * (or a playlist's "Sync to club") also keeps a copy on the club for that profile;
+ * [LocalPlaylist.clubLinks] remembers it, and the copy is hidden in the app, where the local
+ * playlist already shows.
  *
  * Each one is presented to the rest of the app as an ordinary user "Playlist" grouping (see
  * [toGrouping]), so the playlist screen, its menu, the edit screen and the randomizer's
@@ -32,6 +36,20 @@ data class LocalPlaylist(
     val id: String,
     val name: String,
     val contentIds: List<String> = emptyList(),
+    /** The club profile (viewer) it belongs to. Null only for one made before playlists had
+     * one, until [LocalPlaylistStore.claimUnowned] gives it the selected profile. */
+    val viewerId: String? = null,
+    /** Club profile (viewer) id -> the copy of this playlist on the club for that profile. */
+    val clubLinks: Map<String, ClubPlaylistLink> = emptyMap(),
+) {
+    /** What a club copy is checked against, to tell whether it's behind. */
+    val syncKey: String get() = name + "\n" + contentIds.joinToString(",")
+}
+
+/** A local playlist's copy on the club: its [clubId], and the [syncKey] it was last saved with. */
+data class ClubPlaylistLink(
+    val clubId: String,
+    val syncKey: String,
 )
 
 /** [playlist] as a user "Playlist" grouping, its content resolved from [contentById] (the
@@ -61,6 +79,13 @@ class LocalPlaylistStore(private val context: Context) {
         @SerializedName("id") val id: String?,
         @SerializedName("name") val name: String?,
         @SerializedName("contentIds") val contentIds: List<String>?,
+        @SerializedName("viewerId") val viewerId: String?,
+        @SerializedName("clubLinks") val clubLinks: Map<String, PersistedLink>?,
+    )
+
+    private class PersistedLink(
+        @SerializedName("clubId") val clubId: String?,
+        @SerializedName("syncKey") val syncKey: String?,
     )
 
     val playlists: Flow<List<LocalPlaylist>> = context.dataStore.data.map { decode(it[LocalPlaylistsKey]) }
@@ -68,15 +93,30 @@ class LocalPlaylistStore(private val context: Context) {
     private suspend fun update(transform: (List<LocalPlaylist>) -> List<LocalPlaylist>) {
         context.dataStore.edit { prefs ->
             val updated = transform(decode(prefs[LocalPlaylistsKey]))
-            prefs[LocalPlaylistsKey] = gson.toJson(updated.map { PersistedPlaylist(it.id, it.name, it.contentIds) })
+            prefs[LocalPlaylistsKey] = gson.toJson(
+                updated.map { playlist ->
+                    PersistedPlaylist(
+                        playlist.id,
+                        playlist.name,
+                        playlist.contentIds,
+                        playlist.viewerId,
+                        playlist.clubLinks.mapValues { (_, link) -> PersistedLink(link.clubId, link.syncKey) },
+                    )
+                },
+            )
         }
     }
 
-    /** Creates an empty playlist named [name] and returns its id. */
-    suspend fun create(name: String): String {
+    /** Creates an empty playlist named [name] for the profile [viewerId] and returns its id. */
+    suspend fun create(name: String, viewerId: String?): String {
         val id = LOCAL_PLAYLIST_ID_PREFIX + UUID.randomUUID()
-        update { it + LocalPlaylist(id, name) }
+        update { it + LocalPlaylist(id, name, viewerId = viewerId) }
         return id
+    }
+
+    /** Gives every playlist that has no profile yet (made before they had one) to [viewerId]. */
+    suspend fun claimUnowned(viewerId: String) = update { playlists ->
+        playlists.map { if (it.viewerId == null) it.copy(viewerId = viewerId) else it }
     }
 
     /** Appends [contentIds] to a playlist, skipping any already in it. */
@@ -95,12 +135,23 @@ class LocalPlaylistStore(private val context: Context) {
 
     suspend fun delete(playlistId: String) = update { playlists -> playlists.filterNot { it.id == playlistId } }
 
+    /** Records [link] as the playlist's copy on the club for [viewerId]. */
+    suspend fun setClubLink(playlistId: String, viewerId: String, link: ClubPlaylistLink) = update { playlists ->
+        playlists.map { playlist ->
+            if (playlist.id != playlistId) playlist else playlist.copy(clubLinks = playlist.clubLinks + (viewerId to link))
+        }
+    }
+
     private fun decode(json: String?): List<LocalPlaylist> {
         val persisted = json?.let { runCatching { gson.fromJson(it, Array<PersistedPlaylist>::class.java) }.getOrNull() }
             ?: return emptyList()
         return persisted.mapNotNull { playlist ->
             val id = playlist?.id ?: return@mapNotNull null
-            LocalPlaylist(id, playlist.name.orEmpty(), playlist.contentIds.orEmpty())
+            val links = playlist.clubLinks.orEmpty().mapNotNull { (viewerId, link) ->
+                val clubId = link?.clubId ?: return@mapNotNull null
+                viewerId to ClubPlaylistLink(clubId, link.syncKey.orEmpty())
+            }.toMap()
+            LocalPlaylist(id, playlist.name.orEmpty(), playlist.contentIds.orEmpty(), playlist.viewerId, links)
         }
     }
 }

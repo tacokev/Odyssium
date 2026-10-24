@@ -48,8 +48,9 @@ import com.skintclub.odyssey.constants.ClubProfileNameKey
 import com.skintclub.odyssey.constants.ClubProfilePictureKey
 import com.skintclub.odyssey.constants.ResumeFromHistoryKey
 import com.skintclub.odyssey.constants.ShowClubHistoryKey
+import com.skintclub.odyssey.constants.ShowClubPlaylistsKey
 import com.skintclub.odyssey.constants.SyncEpisodeProgressKey
-import com.skintclub.odyssey.constants.SyncPlaylistsKey
+import com.skintclub.odyssey.constants.SyncPlaylistsToClubKey
 import com.skintclub.odyssey.ui.component.IconButton
 import com.skintclub.odyssey.ui.component.PreferenceEntry
 import com.skintclub.odyssey.ui.component.SwitchPreference
@@ -66,7 +67,8 @@ fun AccountSettings(
     val context = LocalContext.current
     val clubClient = remember { ClubClient(context) }
     val isLoggedIntoClub by clubClient.isLoggedInFlow().collectAsState(initial = false)
-    var syncPlaylists by rememberPreference(SyncPlaylistsKey, defaultValue = true)
+    var showClubPlaylists by rememberPreference(ShowClubPlaylistsKey, defaultValue = true)
+    var syncPlaylistsToClub by rememberPreference(SyncPlaylistsToClubKey, defaultValue = false)
     var syncEpisodeProgress by rememberPreference(SyncEpisodeProgressKey, defaultValue = true)
     var showClubHistory by rememberPreference(ShowClubHistoryKey, defaultValue = true)
     var resumeFromHistory by rememberPreference(ResumeFromHistoryKey, defaultValue = true)
@@ -136,11 +138,19 @@ fun AccountSettings(
             ClubLinksPreference()
 
             SwitchPreference(
-                title = { Text("Sync playlists") },
+                title = { Text("Show club playlists in library") },
                 description = "Show your club playlists in the library and \"Add to playlist\". Playlists made in the app always show.",
+                icon = { Icon(painterResource(R.drawable.queue_music), null) },
+                checked = showClubPlaylists,
+                onCheckedChange = { showClubPlaylists = it },
+            )
+
+            SwitchPreference(
+                title = { Text("Sync playlists") },
+                description = "Keep a copy of each playlist made in the app on the club, for this profile.",
                 icon = { Icon(painterResource(R.drawable.sync), null) },
-                checked = syncPlaylists,
-                onCheckedChange = { syncPlaylists = it },
+                checked = syncPlaylistsToClub,
+                onCheckedChange = { syncPlaylistsToClub = it },
             )
 
             SwitchPreference(

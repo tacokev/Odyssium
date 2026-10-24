@@ -2,6 +2,7 @@ package com.skintclub.odyssey.ui.menu
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -27,6 +28,8 @@ import androidx.navigation.NavController
 import com.skintclub.odyssey.LocalDownloadUtil
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.ClubGrouping
+import com.skintclub.odyssey.club.PlaylistSyncResult
+import com.skintclub.odyssey.club.isLocalPlaylistId
 import com.skintclub.odyssey.playback.ExoDownloadService
 import com.skintclub.odyssey.playback.queues.odysseyEpisodeToMediaItem
 import com.skintclub.odyssey.ui.component.DefaultDialog
@@ -49,6 +52,7 @@ fun OdysseyGroupingMenu(
     var showPlaylistPicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val isUserPlaylist = !grouping.viewerId.isNullOrBlank()
+    val syncPlaylistsToClub by viewModel.syncPlaylistsToClub.collectAsState()
     val downloads by downloadUtil.downloads.collectAsState()
     val allDownloaded = remember(episodes, downloads) {
         episodes.isNotEmpty() &&
@@ -120,6 +124,26 @@ fun OdysseyGroupingMenu(
             title = R.string.add_to_playlist,
         ) {
             showPlaylistPicker = true
+        }
+        if (isLocalPlaylistId(grouping.id) && !syncPlaylistsToClub) {
+            // With "Sync playlists" off, a playlist made in the app can still be copied to the
+            // club by hand; pressing it again updates that copy.
+            GridMenuItem(
+                icon = R.drawable.sync,
+                title = R.string.sync_to_club,
+            ) {
+                onDismiss()
+                viewModel.syncPlaylistToClub(grouping.id) { result ->
+                    val message = when (result) {
+                        PlaylistSyncResult.Synced -> "Synced \"${grouping.name}\" to the club"
+                        PlaylistSyncResult.UpToDate -> "\"${grouping.name}\" is already up to date on the club"
+                        PlaylistSyncResult.HasSecretEpisodes -> "Playlists with a secret episode can't be synced to the club"
+                        PlaylistSyncResult.NotLoggedIn -> "Log in to the club to sync playlists"
+                        is PlaylistSyncResult.Failed -> "Couldn't sync to the club: ${result.message}"
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                }
+            }
         }
         if (isUserPlaylist) {
             GridMenuItem(

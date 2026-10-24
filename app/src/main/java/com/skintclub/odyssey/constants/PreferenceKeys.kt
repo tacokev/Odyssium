@@ -337,9 +337,14 @@ val ShowEpisodeNumberKey = booleanPreferencesKey("showEpisodeNumber")
  * audio episodes. On by default. */
 val PlayVideosAsAudioKey = booleanPreferencesKey("playVideosAsAudio")
 
-/** Whether your club playlists show in the library. On by default; off hides them there
- * without touching them on the club. */
-val SyncPlaylistsKey = booleanPreferencesKey("syncPlaylists")
+/** "Show club playlists in library": whether your club playlists show in the library and
+ * "Add to playlist". On by default; off hides them there without touching them on the club.
+ * (Stored under its old name, from when the setting was called "Sync playlists".) */
+val ShowClubPlaylistsKey = booleanPreferencesKey("syncPlaylists")
+
+/** "Sync playlists": whether playlists made in the app are kept in step with a copy on the
+ * club, for the selected profile (see OdysseyViewModel.syncPlaylistToClub). Off by default. */
+val SyncPlaylistsToClubKey = booleanPreferencesKey("syncPlaylistsToClub")
 
 /** Whether the playing episode's listening progress is saved to the club (see
  * EpisodeProgressSync). On by default. */

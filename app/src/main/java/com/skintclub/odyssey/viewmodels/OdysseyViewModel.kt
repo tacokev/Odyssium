@@ -14,6 +14,8 @@ import com.skintclub.odyssey.club.ClubContent
 import com.skintclub.odyssey.club.ClubLink
 import com.skintclub.odyssey.club.ComicSeriesSnapshot
 import com.skintclub.odyssey.club.LocalPlaylistStore
+import com.skintclub.odyssey.club.PlaylistClubSync
+import com.skintclub.odyssey.club.PlaylistSyncResult
 import com.skintclub.odyssey.club.SecretEpisode
 import com.skintclub.odyssey.club.SecretEpisodesState
 import com.skintclub.odyssey.club.SecretEpisodesStore
@@ -37,6 +39,7 @@ import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.constants.RandomizerListMode
 import com.skintclub.odyssey.constants.RandomizerListModeKey
 import com.skintclub.odyssey.constants.RandomizerPlaylistIdKey
+import com.skintclub.odyssey.constants.SyncPlaylistsToClubKey
 import com.skintclub.odyssey.extensions.toEnum
 import com.skintclub.odyssey.di.PlayerCache
 import com.skintclub.odyssey.playback.DownloadUtil
@@ -49,12 +52,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -87,20 +93,51 @@ class OdysseyViewModel @Inject constructor(
     private val localPlaylists = localPlaylistStore.playlists
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    private val playlistClubSync = PlaylistClubSync(application, clubClient, localPlaylistStore, secretEpisodesStore)
+
+    /** Account > "Sync playlists": keep every local playlist's club copy up to date (so a
+     * playlist's own "Sync to club" isn't needed). */
+    val syncPlaylistsToClub = application.dataStore.data
+        .map { it[SyncPlaylistsToClubKey] ?: false }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, application.dataStore.get(SyncPlaylistsToClubKey, false))
+
+    /** The selected club profile (viewer). */
+    private val selectedViewerId = application.dataStore.data
+        .map { it[ClubViewerIdKey] }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, application.dataStore[ClubViewerIdKey])
+
     /** The club's groupings plus the local playlists (see [LocalPlaylistStore]) as "Playlist"
      * groupings of their own. Besides letting [pickRandomEpisode] look up a selected
      * playlist's episode membership without a separate DataStore round-trip on every button
      * press, this is also what a playlist detail screen derives its episode list from (via
-     * [ClubClient.playlistEpisodesFrom]). */
-    val groupings = combine(_groupings, localPlaylists) { club, local ->
-        if (local.isEmpty()) {
-            club
+     * [ClubClient.playlistEpisodesFrom]).
+     *
+     * A playlist someone made (on the club, with its viewer_id, or in the app) only shows for
+     * the profile it belongs to. A local playlist's copy on the club (see [PlaylistClubSync])
+     * is left out too, since the local playlist itself already shows. */
+    val groupings = combine(_groupings, localPlaylists, selectedViewerId) { club, local, viewerId ->
+        val clubCopies = local.flatMap { playlist -> playlist.clubLinks.values.map { it.clubId } }.toSet()
+        val clubShown = club.filterNot { grouping ->
+            grouping.type == "Playlist" &&
+                (grouping.id in clubCopies || (viewerId != null && !grouping.viewerId.isNullOrBlank() && grouping.viewerId != viewerId))
+        }
+        val localShown = local.filter { viewerId == null || it.viewerId == null || it.viewerId == viewerId }
+        if (localShown.isEmpty()) {
+            clubShown
         } else {
-            val contentById = HashMap<String, ClubContent>()
-            club.forEach { grouping -> grouping.contentList.forEach { contentById.putIfAbsent(it.id, it) } }
-            club + local.map { it.toGrouping(contentById) }
+            val contentById = contentById(club)
+            clubShown + localShown.map { it.toGrouping(contentById) }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Every piece of content in [groupings], by id. */
+    private fun contentById(groupings: List<ClubGrouping> = _groupings.value): Map<String, ClubContent> {
+        val contentById = HashMap<String, ClubContent>()
+        groupings.forEach { grouping -> grouping.contentList.forEach { contentById.putIfAbsent(it.id, it) } }
+        return contentById
+    }
 
     /** Every playlist - the club's (official and the user's own) and the local ones. */
     val playlists = groupings
@@ -212,6 +249,36 @@ class OdysseyViewModel @Inject constructor(
             playVideosAsAudio.drop(1).collect {
                 if (_groupings.value.isNotEmpty()) applyGroupings(_groupings.value)
             }
+        }
+        viewModelScope.launch {
+            // Local playlists made before they belonged to a profile go to the one selected.
+            combine(selectedViewerId.filterNotNull(), localPlaylists) { viewerId, playlists ->
+                viewerId.takeIf { playlists.any { it.viewerId == null } }
+            }.filterNotNull().collect { localPlaylistStore.claimUnowned(it) }
+        }
+        syncPlaylistsWhileOn()
+    }
+
+    /** While "Sync playlists" is on, a local playlist's club copy follows it a moment after each
+     * change (and every one catches up when it's turned on). Only the selected profile's
+     * playlists, to that profile. One at a time and to the end, so a copy is never left half
+     * made. */
+    @OptIn(FlowPreview::class)
+    private fun syncPlaylistsWhileOn() {
+        viewModelScope.launch {
+            combine(
+                syncPlaylistsToClub,
+                localPlaylists,
+                selectedViewerId,
+                secretEpisodesState,
+            ) { sync, playlists, viewerId, _ ->
+                if (!sync || viewerId == null) {
+                    emptyList()
+                } else {
+                    playlists.filter { it.viewerId == viewerId && it.clubLinks[viewerId]?.syncKey != it.syncKey }
+                }
+            }.debounce(1_500)
+                .collect { behind -> behind.forEach { playlistClubSync.sync(it.id, contentById()) } }
         }
     }
 
@@ -555,8 +622,16 @@ class OdysseyViewModel @Inject constructor(
      * may be empty, for one made from the library to fill later. */
     fun createPlaylist(name: String, ids: List<String> = emptyList()) {
         viewModelScope.launch {
-            val playlistId = localPlaylistStore.create(name)
+            val playlistId = localPlaylistStore.create(name, selectedViewerId.value)
             if (ids.isNotEmpty()) addEpisodesToPlaylist(playlistId, ids)
+        }
+    }
+
+    /** A playlist's "Sync to club": copies the local playlist [playlistId] to the club once
+     * (updating the copy made last time, if there is one), then reports how it went. */
+    fun syncPlaylistToClub(playlistId: String, onResult: (PlaylistSyncResult) -> Unit) {
+        viewModelScope.launch {
+            onResult(playlistClubSync.sync(playlistId, contentById()))
         }
     }
 
@@ -591,6 +666,10 @@ class OdysseyViewModel @Inject constructor(
     fun deletePlaylist(playlistId: String) {
         if (isLocalPlaylistId(playlistId)) {
             viewModelScope.launch {
+                // With "Sync playlists" on, its club copy goes too. One made with "Sync to club"
+                // stays, and shows as an ordinary club playlist from then on.
+                val playlist = localPlaylists.value.firstOrNull { it.id == playlistId }
+                if (playlist != null && syncPlaylistsToClub.value) playlistClubSync.deleteClubCopy(playlist)
                 localPlaylistStore.delete(playlistId)
                 secretEpisodesStore.forgetPlaylist(playlistId)
             }
