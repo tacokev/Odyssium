@@ -88,6 +88,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAny
 import androidx.core.view.WindowCompat
+import androidx.datastore.preferences.core.edit
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
@@ -106,6 +107,8 @@ import com.skintclub.odyssey.constants.*
 import com.skintclub.odyssey.db.MusicDatabase
 import com.skintclub.odyssey.extensions.*
 import com.skintclub.odyssey.models.MediaMetadata
+import com.skintclub.odyssey.club.FreeRadio
+import com.skintclub.odyssey.constants.WelcomeSeenKey
 import com.skintclub.odyssey.playback.DownloadUtil
 import com.skintclub.odyssey.playback.MusicService
 import com.skintclub.odyssey.playback.MusicService.MusicBinder
@@ -180,6 +183,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var downloadUtil: DownloadUtil
+
+    @Inject
+    lateinit var freeRadio: FreeRadio
 
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
 
@@ -620,6 +626,7 @@ class MainActivity : ComponentActivity() {
                         LocalPlayerConnection provides playerConnection,
                         LocalPlayerAwareWindowInsets provides playerAwareWindowInsets,
                         LocalDownloadUtil provides downloadUtil,
+                        LocalFreeRadio provides freeRadio,
                         LocalShimmerTheme provides ShimmerTheme,
                         LocalTopBarColor provides topBarColor,
                     ) {
@@ -720,11 +727,16 @@ class MainActivity : ComponentActivity() {
                         val randomizerPlayOnPress by rememberPreference(RandomizerPlayOnPressKey, defaultValue = false)
                         val randomizerNonRepeating by rememberPreference(RandomizerNonRepeatingKey, defaultValue = true)
                         var randomizerDiceFace by remember { mutableStateOf((1..6).random()) }
+                        // Logged out there's nothing for it to pick from (Home is the free radio).
+                        val canRandomize by remember { ClubClient(this@MainActivity).isLoggedInFlow() }
+                            .collectAsState(initial = true)
 
                         AnimatedVisibility(
-                            visible = navBackStackEntry?.destination?.route == Screens.Home.route ||
-                                navBackStackEntry?.destination?.route == ODYSSEY_ALBUMS_ROUTE ||
-                                navBackStackEntry?.destination?.route == ODYSSEY_EPISODE_ROUTE,
+                            visible = canRandomize && (
+                                navBackStackEntry?.destination?.route == Screens.Home.route ||
+                                    navBackStackEntry?.destination?.route == ODYSSEY_ALBUMS_ROUTE ||
+                                    navBackStackEntry?.destination?.route == ODYSSEY_EPISODE_ROUTE
+                                ),
                             enter = fadeIn(),
                             exit = fadeOut(),
                             modifier = Modifier.align(Alignment.BottomEnd),
@@ -986,14 +998,25 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.align(Alignment.BottomCenter),
                         )
 
-                        // Covers everything while logged out, except the login flow it leads to.
-                        // Null until the stored login is read, so logged-in launches don't flash it.
+                        // Covers everything the first time the app opens logged out, except the
+                        // login flow it leads to. Only ever once: logging in or skipping marks it
+                        // seen, and logged out after that (skipped, logged out, or a session that
+                        // expired) the app works without an account. Null until the stored login
+                        // and the flag are read, so launches that don't need it don't flash it.
                         val isLoggedIntoClub by remember { ClubClient(this@MainActivity).isLoggedInFlow() }
                             .collectAsState(initial = null)
+                        val welcomeSeen by remember { dataStore.data.map { it[WelcomeSeenKey] ?: false } }
+                            .collectAsState(initial = null)
+                        LaunchedEffect(isLoggedIntoClub) {
+                            if (isLoggedIntoClub == true) dataStore.edit { it[WelcomeSeenKey] = true }
+                        }
                         val inLoginFlow = navBackStackEntry?.destination?.route in
                             setOf("odyssey_login", "odyssey_profile_select")
-                        if (isLoggedIntoClub == false && !inLoginFlow) {
-                            OdysseyWelcomeScreen(onLogin = { navController.navigate("odyssey_login") })
+                        if (isLoggedIntoClub == false && welcomeSeen == false && !inLoginFlow) {
+                            OdysseyWelcomeScreen(
+                                onLogin = { navController.navigate("odyssey_login") },
+                                onSkip = { coroutineScope.launch { dataStore.edit { it[WelcomeSeenKey] = true } } },
+                            )
                         }
                     }
                 }
@@ -1059,6 +1082,7 @@ val LocalDatabase = staticCompositionLocalOf<MusicDatabase> { error("No database
 val LocalPlayerConnection = staticCompositionLocalOf<PlayerConnection?> { error("No PlayerConnection provided") }
 val LocalPlayerAwareWindowInsets = compositionLocalOf<WindowInsets> { error("No WindowInsets provided") }
 val LocalDownloadUtil = staticCompositionLocalOf<DownloadUtil> { error("No DownloadUtil provided") }
+val LocalFreeRadio = staticCompositionLocalOf<FreeRadio> { error("No FreeRadio provided") }
 
 /** The status-bar strip's color (black in pure-black mode; on the bottom bar's tabs the bottom
  * bar's own tint, so the top and bottom of those screens match; elsewhere the screens' surface

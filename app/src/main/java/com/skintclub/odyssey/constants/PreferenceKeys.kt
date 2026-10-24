@@ -341,6 +341,21 @@ val PlayVideosAsAudioKey = booleanPreferencesKey("playVideosAsAudio")
  * without touching them on the club. */
 val SyncPlaylistsKey = booleanPreferencesKey("syncPlaylists")
 
+/** Whether the welcome screen has been seen (and left, by logging in or skipping). It's only
+ * shown once: logged out after that, the app is used without an account (see FreeRadio). */
+val WelcomeSeenKey = booleanPreferencesKey("welcomeSeen")
+
+/** Whether the free Home's "Have a Club membership?" card was closed, for good. Logging in is
+ * still in Settings > Account. */
+val ClubMembershipCardDismissedKey = booleanPreferencesKey("clubMembershipCardDismissed")
+
+/** The free radio episodes as last fetched (JSON, see FreeRadio), so they show offline. */
+val FreeRadioEpisodesKey = stringPreferencesKey("freeRadioEpisodes")
+
+/** Free radio episodes downloaded without an account, as JSON: content id -> when the download
+ * was started (epoch ms). Each is deleted a week after (see FreeRadio). */
+val FreeRadioDownloadsKey = stringPreferencesKey("freeRadioDownloads")
+
 /** Whether the playing episode's listening progress is saved to the club (see
  * EpisodeProgressSync). On by default. */
 val SyncEpisodeProgressKey = booleanPreferencesKey("syncEpisodeProgress")

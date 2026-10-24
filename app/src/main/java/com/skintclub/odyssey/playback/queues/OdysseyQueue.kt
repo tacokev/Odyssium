@@ -132,6 +132,15 @@ fun odysseyEpisodeThumbnailUrl(episode: Map<String, Any>): String? =
  * per-episode round trip only happens for episodes actually played, not the whole queue. */
 const val ODYSSEY_CONTENT_URI_SCHEME = "odyssey-content"
 
+/** Scheme for a placeholder URI that stands in for a free radio episode's audio (see
+ * [com.skintclub.odyssey.club.FreeRadio]). It's resolved the same way as
+ * [ODYSSEY_CONTENT_URI_SCHEME], but without logging in, through
+ * [com.skintclub.odyssey.club.AIOClient.fetchRadioDownloadUrl]. */
+const val ODYSSEY_RADIO_URI_SCHEME = "odyssey-radio"
+
+/** Set (to true) on the episode map of a free radio episode, which plays without logging in. */
+const val FREE_RADIO_EPISODE_KEY = "free_radio"
+
 /** In "Signed cookie" mode the URI is the bare CDN URL - [resolveOdysseyDataSpec] attaches the
  * current cookie at request time, so a queue built now doesn't carry a cookie that's expired by
  * the time it plays. Content the cookie doesn't cover (see [isSignedCookiePath]) always uses a
@@ -148,7 +157,9 @@ fun odysseyEpisodeToMediaItem(
     // always streamed with the signed cookie, whatever the load mode.
     val isSecret = episode["secret"] == true
     val url =
-        if (useContentRequest && !isSecret && !contentId.isNullOrBlank()) {
+        if (episode[FREE_RADIO_EPISODE_KEY] == true && !contentId.isNullOrBlank()) {
+            "$ODYSSEY_RADIO_URI_SCHEME://$contentId"
+        } else if (useContentRequest && !isSecret && !contentId.isNullOrBlank()) {
             "$ODYSSEY_CONTENT_URI_SCHEME://$contentId"
         } else {
             "https://$ODYSSEY_MEDIA_HOST/${downloadUrl.trimStart('/')}"
