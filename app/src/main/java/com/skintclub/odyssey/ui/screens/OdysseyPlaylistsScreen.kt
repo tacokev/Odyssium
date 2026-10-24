@@ -35,7 +35,7 @@ import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.SECRET_EPISODES_ROUTE
 import com.skintclub.odyssey.club.SECRET_EPISODES_TITLE
-import com.skintclub.odyssey.constants.SyncPlaylistsKey
+import com.skintclub.odyssey.constants.ShowClubPlaylistsKey
 import com.skintclub.odyssey.ui.menu.CreatePlaylistDialog
 import com.skintclub.odyssey.ui.utils.appBarScrollBehavior
 import com.skintclub.odyssey.ui.utils.collapsingTopAppBarColors
@@ -56,10 +56,10 @@ fun OdysseyPlaylistsScreen(
 ) {
     val haptic = LocalHapticFeedback.current
     val playlists by viewModel.playlists.collectAsState()
-    val syncPlaylists by rememberPreference(SyncPlaylistsKey, defaultValue = true)
-    // Club playlists hide while "Sync playlists" is off; ones made in the app always show.
-    val userPlaylists = remember(playlists, syncPlaylists) {
-        playlists.filter { it.isUserCreated && (syncPlaylists || it.isLocal) }
+    val showClubPlaylists by rememberPreference(ShowClubPlaylistsKey, defaultValue = true)
+    // Club playlists hide while "Show club playlists in library" is off; ones made in the app always show.
+    val userPlaylists = remember(playlists, showClubPlaylists) {
+        playlists.filter { it.isUserCreated && (showClubPlaylists || it.isLocal) }
     }
     var showCreateDialog by remember { mutableStateOf(false) }
 

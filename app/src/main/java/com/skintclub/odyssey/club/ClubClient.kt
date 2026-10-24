@@ -220,6 +220,9 @@ fun isPlayableContent(content: ClubContent, playVideosAsAudio: Boolean): Boolean
  * [tryLoginSilently] has to). Unlike a plain [IOException], retrying won't help. */
 class ClubAuthException(message: String) : IOException(message)
 
+/** The club answered a request with an error status ([code]) other than 401. */
+class ClubHttpException(val code: Int, message: String) : IOException(message)
+
 /** A signed CDN credential (cookie query string or pre-signed URL) and when it stops working. */
 private class CachedSigned(val value: String, val expiresAtMillis: Long)
 
@@ -480,8 +483,8 @@ class ClubClient(private val context: Context) {
      * [Response] and must close it.
      *
      * Throws [ClubAuthException] when the login itself no longer works (no token, or still a
-     * 401 after the refresh token was turned down); any other failure, like no connection, is
-     * a plain [IOException]. */
+     * 401 after the refresh token was turned down), and [ClubHttpException] for any other error
+     * status; any other failure, like no connection, is a plain [IOException]. */
     private suspend fun authorizedCall(label: String, build: (accessToken: String) -> Request): Response =
         withContext(Dispatchers.IO) {
             val token = getAccessToken() ?: throw ClubAuthException("$label failed: not logged in")
@@ -499,7 +502,7 @@ class ClubClient(private val context: Context) {
             if (!response.isSuccessful) {
                 val code = response.code
                 response.close()
-                throw IOException("$label failed: HTTP $code")
+                throw ClubHttpException(code, "$label failed: HTTP $code")
             }
             response
         }
@@ -679,6 +682,46 @@ class ClubClient(private val context: Context) {
         putPlaylist(playlistId, name, playlist.imageUrl, orderedContentIds)
         return true
     }
+
+    /** Creates a playlist for the current profile, like the website's "New playlist": a POST
+     * to `contentgrouping` with the whole playlist. Returns the new playlist's id. */
+    suspend fun createPlaylist(name: String, imageUrl: String?, contentIds: List<String>): String {
+        val vid = getViewerId()
+        val p = getPin()
+        val payload = mapOf(
+            "contentGroupings" to listOf(
+                mapOf(
+                    "name" to name,
+                    "imageURL" to (imageUrl ?: ""),
+                    "contentList" to contentIds.map { mapOf("id" to it) },
+                ),
+            ),
+        )
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val requestBody = gson.toJson(payload).toRequestBody(mediaType)
+        val response = authorizedCall("createPlaylist") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/contentgrouping")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .post(requestBody)
+                .build()
+        }
+        val body = withContext(Dispatchers.IO) { response.use { it.body?.string() } }
+        val id = runCatching {
+            gson.fromJson(body, JsonElement::class.java).asJsonObject
+                .getAsJsonArray("contentGroupings")[0].asJsonObject
+                .get("id").asString
+        }.getOrNull()
+        return id?.takeIf { it.isNotBlank() } ?: throw IOException("createPlaylist: no playlist id in the response")
+    }
+
+    /** Replaces a playlist's name, cover and content on the club, whatever the cached
+     * groupings say about it (see [putPlaylist]). */
+    suspend fun replacePlaylist(playlistId: String, name: String, imageUrl: String?, contentIds: List<String>) =
+        putPlaylist(playlistId, name, imageUrl, contentIds)
 
     /** Deletes a user-created playlist. */
     suspend fun deletePlaylist(playlistId: String) {

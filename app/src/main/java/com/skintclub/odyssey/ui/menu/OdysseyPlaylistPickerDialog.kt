@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.skintclub.odyssey.R
-import com.skintclub.odyssey.constants.SyncPlaylistsKey
+import com.skintclub.odyssey.constants.ShowClubPlaylistsKey
 import com.skintclub.odyssey.ui.component.ListDialog
 import com.skintclub.odyssey.ui.component.TextFieldDialog
 import com.skintclub.odyssey.utils.rememberPreference
@@ -29,7 +29,8 @@ import com.skintclub.odyssey.viewmodels.OdysseyViewModel
  * [com.skintclub.odyssey.club.LocalPlaylistStore]), then a plain list of the user's own
  * playlists (official/non-user groupings can't be added to), matching how the randomizer's
  * blacklist/whitelist playlist picker looks and behaves. Club playlists are left out while
- * "Sync playlists" is off. Adds [episodeIds] to whichever is picked, then calls [onDone]. */
+ * "Show club playlists in library" is off. Adds [episodeIds] to whichever is picked, then
+ * calls [onDone]. */
 @Composable
 fun OdysseyPlaylistPickerDialog(
     viewModel: OdysseyViewModel,
@@ -38,9 +39,9 @@ fun OdysseyPlaylistPickerDialog(
     onDone: () -> Unit,
 ) {
     val playlists by viewModel.playlists.collectAsState()
-    val syncPlaylists by rememberPreference(SyncPlaylistsKey, defaultValue = true)
-    val userPlaylists = remember(playlists, syncPlaylists) {
-        playlists.filter { it.isUserCreated && (syncPlaylists || it.isLocal) }
+    val showClubPlaylists by rememberPreference(ShowClubPlaylistsKey, defaultValue = true)
+    val userPlaylists = remember(playlists, showClubPlaylists) {
+        playlists.filter { it.isUserCreated && (showClubPlaylists || it.isLocal) }
     }
     var showCreateDialog by remember { mutableStateOf(false) }
 
