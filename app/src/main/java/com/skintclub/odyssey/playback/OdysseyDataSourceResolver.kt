@@ -6,8 +6,10 @@ import androidx.media3.common.C
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.ResolvingDataSource
+import com.skintclub.odyssey.club.AIOClient
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.playback.queues.ODYSSEY_CONTENT_URI_SCHEME
+import com.skintclub.odyssey.playback.queues.ODYSSEY_RADIO_URI_SCHEME
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.IOException
@@ -46,6 +48,13 @@ fun resolveOdysseyDataSpec(clubClient: ClubClient, dataSpec: DataSpec): DataSpec
             val downloadUrl = if (contentId.isNullOrBlank()) null else runBlocking { clubClient.getContentDownloadUrl(contentId) }
             if (downloadUrl.isNullOrBlank()) throw IOException("Couldn't resolve a download URL for content $contentId")
             dataSpec.withUri(downloadUrl.toUri())
+        }
+        // A free radio episode, which needs no login. Throws once it's no longer free, but a
+        // downloaded one is read from the download cache before this is ever reached.
+        uri.scheme == ODYSSEY_RADIO_URI_SCHEME -> {
+            val contentId = uri.authority?.takeIf { it.isNotBlank() }
+                ?: throw IOException("No content id in $uri")
+            dataSpec.withUri(runBlocking { AIOClient.fetchRadioDownloadUrl(contentId) }.toUri())
         }
         // Unlike the placeholder, a failure here falls back to the bare id, so a downloaded or
         // fully cached episode in a restored queue still plays from cache while offline.

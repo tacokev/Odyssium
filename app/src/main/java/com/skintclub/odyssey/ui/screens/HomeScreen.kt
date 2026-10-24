@@ -58,8 +58,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.skintclub.odyssey.LocalFreeRadio
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
+import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ODYSSEY_COMICS_ROUTE
 import com.skintclub.odyssey.club.ODYSSEY_VIDEOS_ROUTE
 import com.skintclub.odyssey.constants.AppBarHeight
@@ -77,14 +79,21 @@ fun HomeScreen(
     navController: NavController,
     viewModel: OdysseyViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
+    val freeRadio = LocalFreeRadio.current
+    // Logged out, Home is the free radio episodes instead of the club's categories. Null until
+    // the stored login is read, so a logged-in launch doesn't flash them.
+    val isLoggedIn by remember { ClubClient(context).isLoggedInFlow() }.collectAsState(initial = null)
     val categories by viewModel.homeCategories.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val isClubRefreshing by viewModel.isRefreshing.collectAsState()
+    val isRadioRefreshing by freeRadio.isRefreshing.collectAsState()
+    val isRefreshing = if (isLoggedIn == false) isRadioRefreshing else isClubRefreshing
     val pullRefreshState = rememberPullToRefreshState()
     val scrollBehavior = appBarScrollBehavior()
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
-        onRefresh = viewModel::refresh,
+        onRefresh = { if (isLoggedIn == false) freeRadio.refresh() else viewModel.refresh() },
         state = pullRefreshState,
         indicator = {
             PullToRefreshDefaults.Indicator(
@@ -98,7 +107,15 @@ fun HomeScreen(
         },
         modifier = Modifier.fillMaxSize(),
     ) {
-        LazyColumn(
+        if (isLoggedIn == false) {
+            FreeRadioHome(
+                navController = navController,
+                contentPadding = LocalPlayerAwareWindowInsets.current
+                    .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top + WindowInsetsSides.Bottom)
+                    .asPaddingValues(),
+                modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            )
+        } else LazyColumn(
             // Each tile pads itself 8dp top and bottom (16dp between tiles), so the extra 8dp
             // here gives the first and last tiles the same 16dp from the bars.
             contentPadding = LocalPlayerAwareWindowInsets.current

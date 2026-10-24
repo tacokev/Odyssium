@@ -1,6 +1,7 @@
 package com.skintclub.odyssey.ui.screens
 
 import android.app.Activity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -57,10 +59,14 @@ private val WelcomeNight = Color(0xFF070D1A)
 private val WelcomeNavy = Color(0xFF0C1A38)
 private val WelcomeDeepBlue = Color(0xFF0E2F6E)
 
-/** Shown over the whole app while logged out of the Club, with the one thing to do: log in.
- * Always uses its own dark night-to-blue palette, so it looks the same in light and dark theme. */
+/** Shown over the whole app the first time it opens logged out of the Club: log in, or skip and
+ * use the app without an account (the free radio episodes). Always uses its own dark
+ * night-to-blue palette, so it looks the same in light and dark theme. */
 @Composable
-fun OdysseyWelcomeScreen(onLogin: () -> Unit) {
+fun OdysseyWelcomeScreen(
+    onLogin: () -> Unit,
+    onSkip: () -> Unit,
+) {
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
     val headerAlpha by animateFloatAsState(if (shown) 1f else 0f, tween(600), label = "headerAlpha")
@@ -134,12 +140,38 @@ fun OdysseyWelcomeScreen(onLogin: () -> Unit) {
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
+                // The other way in, the same size as "Log in" but quieter: an outline over a faint
+                // wash of white, so it reads as a button on the night sky without competing.
+                OutlinedButton(
+                    onClick = onSkip,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White.copy(alpha = 0.08f),
+                        contentColor = Color.White,
+                    ),
+                    border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.55f)),
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .widthIn(max = 420.dp)
+                        .fillMaxWidth()
+                        .height(56.dp),
+                ) {
+                    Text(
+                        text = "Listen for free",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
                 Text(
-                    text = "Requires an Adventures in Odyssey Club membership",
+                    text = "Log in with your Adventures in Odyssey Club membership, " +
+                        "or listen to this week's radio episodes for free.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f),
+                    lineHeight = 18.sp,
+                    color = Color.White.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier
+                        .widthIn(max = 360.dp)
+                        .padding(top = 16.dp),
                 )
             }
         }
