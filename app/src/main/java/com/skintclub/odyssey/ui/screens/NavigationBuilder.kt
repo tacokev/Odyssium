@@ -34,7 +34,11 @@ import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 /** Route pattern for [OdysseyEpisodeDetailsScreen], shared with its `popUpTo` callers so
  * repeated shuffles replace the current episode screen instead of stacking a new one each
  * time — back should return to wherever the shuffle chain started, not step through it. */
-const val ODYSSEY_EPISODE_ROUTE = "odyssey_episode/{albumName}/{episodeIndex}"
+const val ODYSSEY_EPISODE_ROUTE = "odyssey_episode/{albumName}/{episodeIndex}?randomizer={randomizer}"
+
+/** Whether [entry] is the randomizer's episode page, which swipes through its picks. */
+fun isRandomizerEntry(entry: NavBackStackEntry?): Boolean =
+    entry?.destination?.route == ODYSSEY_EPISODE_ROUTE && entry.arguments?.getBoolean("randomizer") == true
 
 @OptIn(ExperimentalMaterial3Api::class)
 fun NavGraphBuilder.navigationBuilder(
@@ -162,10 +166,18 @@ fun NavGraphBuilder.navigationBuilder(
         arguments = listOf(
             navArgument("albumName") { type = NavType.StringType },
             navArgument("episodeIndex") { type = NavType.IntType },
+            navArgument("randomizer") {
+                type = NavType.BoolType
+                defaultValue = false
+            },
         ),
     ) { backStackEntry ->
         val albumName = backStackEntry.arguments?.getString("albumName").orEmpty()
         val episodeIndex = backStackEntry.arguments?.getInt("episodeIndex") ?: 0
+        if (isRandomizerEntry(backStackEntry)) {
+            RandomizerPager(navController, odysseyViewModel)
+            return@screen
+        }
         OdysseyEpisodeDetailsScreen(
             navController = navController,
             viewModel = odysseyViewModel,

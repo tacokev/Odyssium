@@ -536,15 +536,14 @@ class OdysseyViewModel @Inject constructor(
         _randomizerHistory.value = RandomizerHistory(picks, picks.lastIndex)
     }
 
-    /** Moves [steps] through the randomizer history (-1 = previous, 1 = next) and returns
-     * the pick to show, or null at either end. Doesn't touch the non-repeating bag: going
-     * back to an episode doesn't make it eligible again. */
-    fun stepRandomizerHistory(steps: Int): Pair<String, Int>? {
+    /** Makes the pick at [position] the current page, as the randomizer pager settles on it.
+     * Doesn't touch the non-repeating bag: going back to an episode doesn't make it eligible
+     * again. */
+    fun setRandomizerPosition(position: Int) {
         val history = _randomizerHistory.value
-        val position = history.position + steps
-        val pick = history.picks.getOrNull(position) ?: return null
-        _randomizerHistory.value = history.copy(position = position)
-        return pick
+        if (position in history.picks.indices && position != history.position) {
+            _randomizerHistory.value = history.copy(position = position)
+        }
     }
 
     /** Likes/unlikes an episode with the club, then updates local state to match so every
