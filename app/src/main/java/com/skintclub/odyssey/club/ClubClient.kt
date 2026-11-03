@@ -16,7 +16,6 @@ import com.skintclub.odyssey.constants.ClubRefreshTokenKey
 import com.skintclub.odyssey.constants.ClubProfileNameKey
 import com.skintclub.odyssey.constants.ClubProfilePictureKey
 import com.skintclub.odyssey.constants.ClubViewerIdKey
-import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.playback.ODYSSEY_MEDIA_HOST
 import com.skintclub.odyssey.utils.dataStore
 import com.skintclub.odyssey.utils.get
@@ -211,10 +210,9 @@ private data class ClubGroupingsPageResponse(
     val contentGroupings: List<ClubGrouping> = emptyList(),
 )
 
-/** Whether [content] is offered for playback: audio always, and video (played as audio only)
- * while "Play videos as audio" is on. Everything else - articles, mostly - never is. */
-fun isPlayableContent(content: ClubContent, playVideosAsAudio: Boolean): Boolean =
-    content.type == "Audio" || (playVideosAsAudio && content.type == "Video")
+/** Whether [content] is offered for audio playback: only audio. Videos have their own
+ * player (see the Videos section); articles and the rest never play. */
+fun isPlayableContent(content: ClubContent): Boolean = content.type == "Audio"
 
 /** The club no longer accepts the stored login: the user has to log in again (or
  * [tryLoginSilently] has to). Unlike a plain [IOException], retrying won't help. */
@@ -310,12 +308,8 @@ class ClubClient(private val context: Context) {
 
     var codeVerifier: String? = null
 
-    /** The "Play videos as audio" setting, read once per list built (not per item - each
-     * read is a blocking DataStore lookup). */
-    fun playVideosAsAudio(): Boolean = context.dataStore.get(PlayVideosAsAudioKey, true)
-
-    private fun playableFilter(playVideosAsAudio: Boolean = playVideosAsAudio()): (ClubContent) -> Boolean =
-        { isPlayableContent(it, playVideosAsAudio) }
+    private fun playableFilter(includeVideos: Boolean = false): (ClubContent) -> Boolean =
+        { isPlayableContent(it) || (includeVideos && it.type == "Video") }
 
     companion object {
         /** The club's own logout page. It doesn't render anything useful itself — it just
@@ -860,12 +854,12 @@ class ClubClient(private val context: Context) {
      * always echoing the *playlist's* name instead), so each episode's real album is instead
      * resolved by cross-referencing every cached Album grouping's own content by id. Only
      * falls back to the playlist's name if an episode genuinely isn't in any cached album.
-     * [playVideosAsAudio] defaults to the setting; the playlist editor passes true so saving
-     * an edit can't silently drop videos the setting happens to be hiding. */
+     * The playlist editor passes [includeVideos] so saving an edit can't silently drop the
+     * playlist's videos, which aren't listed as episodes. */
     fun playlistEpisodesFrom(
         groupings: List<ClubGrouping>,
         playlistId: String,
-        playVideosAsAudio: Boolean = playVideosAsAudio(),
+        includeVideos: Boolean = false,
     ): List<Map<String, Any>> {
         val grouping = groupings.firstOrNull { it.type == "Playlist" && it.id == playlistId } ?: return emptyList()
         val albumNameByContentId = buildMap {
@@ -877,7 +871,7 @@ class ClubClient(private val context: Context) {
         // debug playlist on the club) - the episode list is keyed by content id downstream
         // (LazyColumn keys, download cache keys, etc.), so duplicates need to go here rather
         // than wherever it's consumed.
-        return grouping.contentList.filter(playableFilter(playVideosAsAudio)).distinctBy { it.id }.map { content ->
+        return grouping.contentList.filter(playableFilter(includeVideos)).distinctBy { it.id }.map { content ->
             val episode = mutableMapOf<String, Any>(
                 "id" to content.id,
                 "name" to content.name,

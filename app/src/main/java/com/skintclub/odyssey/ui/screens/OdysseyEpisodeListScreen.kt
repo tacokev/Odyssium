@@ -448,8 +448,7 @@ fun OdysseyPlaylistScreen(
     val groupings by viewModel.groupings.collectAsState()
     val grouping = remember(groupings, playlistId) { groupings.firstOrNull { it.id == playlistId } }
     val secretState by viewModel.secretEpisodesState.collectAsState()
-    val playVideosAsAudio by viewModel.playVideosAsAudio.collectAsState()
-    val episodes = remember(groupings, secretState, playlistId, playVideosAsAudio) {
+    val episodes = remember(groupings, secretState, playlistId) {
         clubClient.playlistEpisodesFrom(groupings, playlistId) + viewModel.secretEpisodesInPlaylist(secretState, playlistId)
     }
     OdysseyEpisodeListScreen(navController, viewModel, grouping?.name ?: "Playlist", episodes, grouping)

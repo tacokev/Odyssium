@@ -52,7 +52,6 @@ fun OdysseySearchResultsList(
     val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current
     val menuState = LocalMenuState.current
-    val playVideosAsAudio by viewModel.playVideosAsAudio.collectAsState()
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         if (results.episodes.isNotEmpty()) {
@@ -118,7 +117,7 @@ fun OdysseySearchResultsList(
                 title = grouping.name,
                 subtitle = joinByBullet(
                     odysseyGroupingTypeLabel(grouping.type),
-                    "${grouping.contentList.count { isPlayableContent(it, playVideosAsAudio) }} episodes",
+                    "${grouping.contentList.count { isPlayableContent(it) }} episodes",
                 ),
                 thumbnailContent = {
                     AsyncImage(

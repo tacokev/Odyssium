@@ -38,8 +38,7 @@ fun homeCategoriesFrom(
     val series = clubClient.groupingsOfType(groupings, ClubClient.SERIES_TYPE)
     val collections = clubClient.collectionsFrom(groupings)
     val podcastYears = clubClient.groupingsOfType(groupings, ClubClient.PODCAST_YEAR_TYPE)
-    val playVideosAsAudio = clubClient.playVideosAsAudio()
-    val isPlayable = { content: ClubContent -> isPlayableContent(content, playVideosAsAudio) }
+    val isPlayable = { content: ClubContent -> isPlayableContent(content) }
     fun List<ClubGrouping>.covers() =
         mapNotNull { it.imageUrl?.takeIf(String::isNotBlank) }.distinct().take(HOME_COLLAGE_COVER_COUNT)
     return listOfNotNull(

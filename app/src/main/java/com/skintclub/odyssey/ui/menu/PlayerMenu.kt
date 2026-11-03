@@ -48,13 +48,17 @@ import com.skintclub.odyssey.LocalDownloadUtil
 import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.isSecretEpisodeId
+import com.skintclub.odyssey.constants.ShowTranscriptKey
+import com.skintclub.odyssey.constants.TranscriptsEnabledKey
 import com.skintclub.odyssey.models.MediaMetadata
 import com.skintclub.odyssey.playback.ExoDownloadService
 import com.skintclub.odyssey.playback.queues.odysseyEpisodeToMediaItem
+import com.skintclub.odyssey.transcripts.Transcripts
 import com.skintclub.odyssey.ui.component.BigSeekBar
 import com.skintclub.odyssey.ui.component.BottomSheetState
 import com.skintclub.odyssey.ui.component.GridMenu
 import com.skintclub.odyssey.ui.component.GridMenuItem
+import com.skintclub.odyssey.utils.rememberPreference
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 import kotlin.math.log2
 import kotlin.math.pow
@@ -93,6 +97,11 @@ fun PlayerMenu(
     val isLiked = currentEpisode?.get("is_bookmarked") == true
 
     var showPlaylistPicker by remember { mutableStateOf(false) }
+
+    val transcriptsEnabled by rememberPreference(TranscriptsEnabledKey, false)
+    var showTranscript by rememberPreference(ShowTranscriptKey, false)
+    val transcriptEntries by remember { Transcripts.episodeIds(context) }.collectAsState()
+    val hasTranscript = transcriptsEnabled && transcriptEntries?.containsKey(mediaMetadata.id) == true
 
     if (isQueueTrigger != true) {
         Row(
@@ -240,6 +249,15 @@ fun PlayerMenu(
                         putExtra(Intent.EXTRA_TEXT, "https://app.adventuresinodyssey.com/content/${mediaMetadata.id}")
                     }
                 context.startActivity(Intent.createChooser(intent, null))
+            }
+        }
+        if (isQueueTrigger != true && hasTranscript) {
+            GridMenuItem(
+                icon = R.drawable.lyrics,
+                title = if (showTranscript) R.string.hide_transcript else R.string.transcript,
+            ) {
+                showTranscript = !showTranscript
+                onDismiss()
             }
         }
         if (isQueueTrigger != true) {

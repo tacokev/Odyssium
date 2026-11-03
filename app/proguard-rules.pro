@@ -74,6 +74,7 @@
 # Gson maps JSON keys to field names by reflection, and most club API/cache models rely on
 # their Kotlin property names rather than @SerializedName, so R8 mustn't rename or strip them.
 -keep class com.skintclub.odyssey.club.** { <fields>; <init>(...); }
+-keep class com.skintclub.odyssey.transcripts.Transcript* { <fields>; <init>(...); }
 -keep class com.skintclub.odyssey.viewmodels.HomeCategory { <fields>; <init>(...); }
 -keep class com.skintclub.odyssey.ui.video.VideoItem { <fields>; <init>(...); }
 

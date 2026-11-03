@@ -103,6 +103,8 @@
 
     <!-- Menu -->
     <string name="details">Details</string>
+    <string name="transcript">Transcript</string>
+    <string name="hide_transcript">Hide transcript</string>
     <string name="edit">Edit</string>
     <string name="start_radio">Start radio</string>
     <string name="play">Play</string>

@@ -62,7 +62,7 @@ fun OdysseyPlaylistEditScreen(
         mutableStateListOf<Map<String, Any>>().apply {
             // Always with videos: the save sends this exact list back as the playlist's
             // content, so anything left out here would be deleted from it.
-            addAll(clubClient.playlistEpisodesFrom(groupings, playlistId, playVideosAsAudio = true))
+            addAll(clubClient.playlistEpisodesFrom(groupings, playlistId, includeVideos = true))
         }
     }
 

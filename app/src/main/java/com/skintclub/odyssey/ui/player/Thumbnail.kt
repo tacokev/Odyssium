@@ -26,13 +26,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.constants.PlayerHorizontalPadding
+import com.skintclub.odyssey.constants.ShowTranscriptKey
 import com.skintclub.odyssey.constants.SwipeThumbnailKey
 import com.skintclub.odyssey.constants.ThumbnailCornerRadius
+import com.skintclub.odyssey.constants.TranscriptsEnabledKey
+import com.skintclub.odyssey.transcripts.Transcripts
 import com.skintclub.odyssey.utils.rememberPreference
 import kotlin.math.roundToInt
 
@@ -54,6 +58,15 @@ fun Thumbnail(
     val error by playerConnection.error.collectAsState()
 
     val swipeThumbnail by rememberPreference(SwipeThumbnailKey, true)
+
+    // The imported transcript replaces the cover while it's turned on in the player's menu.
+    val context = LocalContext.current
+    val transcriptsEnabled by rememberPreference(TranscriptsEnabledKey, false)
+    val showTranscript by rememberPreference(ShowTranscriptKey, false)
+    val transcriptEntries by remember { Transcripts.episodeIds(context) }.collectAsState()
+    val transcriptEpisodeId = mediaMetadata?.id?.takeIf {
+        transcriptsEnabled && showTranscript && transcriptEntries?.containsKey(it) == true
+    }
 
     var offsetX by remember { mutableFloatStateOf(0f) }
 
@@ -98,7 +111,14 @@ fun Thumbnail(
                             )
                         },
             ) {
-                AsyncImage(
+                if (transcriptEpisodeId != null) {
+                    TranscriptView(
+                        episodeId = transcriptEpisodeId,
+                        sliderPositionProvider = sliderPositionProvider,
+                        color = color,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else AsyncImage(
                     model = mediaMetadata?.thumbnailUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,

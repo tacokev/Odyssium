@@ -103,9 +103,8 @@ fun buildOdysseySearchIndex(
     }
     secretEpisodes.forEachIndexed { index, episode -> add(episode, secretEpisodes, index, null) }
 
-    val playVideosAsAudio = clubClient.playVideosAsAudio()
     val searchableGroupings = groupings
-        .filter { grouping -> grouping.contentList.any { isPlayableContent(it, playVideosAsAudio) } }
+        .filter { grouping -> grouping.contentList.any { isPlayableContent(it) } }
         .distinctBy { it.id }
         .sortedWith(
             compareBy(

@@ -35,7 +35,6 @@ import com.skintclub.odyssey.constants.ClubViewerIdKey
 import com.skintclub.odyssey.constants.ExcludeBonusEpisodesKey
 import com.skintclub.odyssey.constants.ExcludeSubsequentPartsKey
 import com.skintclub.odyssey.constants.OdysseySortReversedKey
-import com.skintclub.odyssey.constants.PlayVideosAsAudioKey
 import com.skintclub.odyssey.constants.RandomizerListMode
 import com.skintclub.odyssey.constants.RandomizerListModeKey
 import com.skintclub.odyssey.constants.RandomizerPlaylistIdKey
@@ -59,7 +58,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
@@ -144,13 +142,6 @@ class OdysseyViewModel @Inject constructor(
         .map { clubClient.playlistsFrom(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** Settings > Content > "Play videos as audio". Every episode list is built from it (see
-     * [ClubClient.playVideosAsAudio]), so flipping it rebuilds them - see [init]. */
-    val playVideosAsAudio = application.dataStore.data
-        .map { it[PlayVideosAsAudioKey] ?: true }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, application.dataStore.get(PlayVideosAsAudioKey, true))
-
     /** The locally-added "Secret Episodes" (see [SecretEpisodesStore]), plus which club
      * playlists each has been added to on this device. */
     val secretEpisodesState = secretEpisodesStore.state
@@ -164,7 +155,7 @@ class OdysseyViewModel @Inject constructor(
     /** What the search bar filters, rebuilt off the main thread whenever the cached groupings
      * (or the albums built from them, or the secret episodes) change. Albums are put back in
      * their default order, so the Albums screen's sort toggle doesn't also flip search results. */
-    val searchIndex = combine(_groupings, _albums, secretEpisodes, playVideosAsAudio) { groupings, albums, secret, _ ->
+    val searchIndex = combine(_groupings, _albums, secretEpisodes) { groupings, albums, secret ->
         buildOdysseySearchIndex(clubClient, groupings, albums.sortedWith(albumOrderComparator), secret)
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, OdysseySearchIndex.EMPTY)
@@ -242,13 +233,6 @@ class OdysseyViewModel @Inject constructor(
                 applyGroupings(cached)
             }
             performRefresh(silent = cached.isNotEmpty())
-        }
-        viewModelScope.launch {
-            // Videos appear in (or vanish from) albums and every other list when the setting
-            // flips; the first value is the current one, which startup already built with.
-            playVideosAsAudio.drop(1).collect {
-                if (_groupings.value.isNotEmpty()) applyGroupings(_groupings.value)
-            }
         }
         viewModelScope.launch {
             // Local playlists made before they belonged to a profile go to the one selected.
@@ -760,7 +744,7 @@ class OdysseyViewModel @Inject constructor(
             null
         } ?: return ClubLinkTarget.NotFound
         if (content.type == "Video") return ClubLinkTarget.Video(content.albumName.orEmpty(), listOf(content), 0)
-        if (!isPlayableContent(content, playVideosAsAudio.value)) return ClubLinkTarget.NotFound
+        if (!isPlayableContent(content)) return ClubLinkTarget.NotFound
         val standIn = ClubGrouping(name = content.albumName.orEmpty(), imageUrl = content.thumbnailMedium, contentList = listOf(content))
         val episode = clubClient.groupingEpisodesFrom(_groupings.value, standIn).firstOrNull() ?: return ClubLinkTarget.NotFound
         return ClubLinkTarget.Episode(listOf(episode), 0)

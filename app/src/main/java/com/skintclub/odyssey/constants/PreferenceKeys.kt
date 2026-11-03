@@ -333,9 +333,13 @@ enum class ClubAudioLoadMode {
 
 val ShowEpisodeNumberKey = booleanPreferencesKey("showEpisodeNumber")
 
-/** Whether the club's "Video" content is listed and played (audio track only) alongside its
- * audio episodes. On by default. */
-val PlayVideosAsAudioKey = booleanPreferencesKey("playVideosAsAudio")
+/** Settings > Content > "Transcriptions": whether the player offers an imported episode
+ * transcript in place of the cover art. Off by default. */
+val TranscriptsEnabledKey = booleanPreferencesKey("transcriptsEnabled")
+
+/** Whether the player is showing the transcript instead of the cover art (toggled from the
+ * player's menu), kept from episode to episode. */
+val ShowTranscriptKey = booleanPreferencesKey("showTranscript")
 
 /** "Show club playlists in library": whether your club playlists show in the library and
  * "Add to playlist". On by default; off hides them there without touching them on the club.
