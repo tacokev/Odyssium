@@ -177,7 +177,7 @@ fun NavGraphBuilder.navigationBuilder(
         HistoryScreen(navController, odysseyViewModel)
     }
     screen("stats") {
-        StatsScreen(navController)
+        StatsScreen(navController, odysseyViewModel)
     }
     screen("settings") {
         SettingsScreen(navController, scrollBehavior)

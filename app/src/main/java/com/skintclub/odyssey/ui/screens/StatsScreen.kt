@@ -47,7 +47,9 @@ import com.skintclub.odyssey.ui.component.SongListItem
 import com.skintclub.odyssey.ui.menu.SongMenu
 import com.skintclub.odyssey.ui.utils.backToMain
 import com.skintclub.odyssey.viewmodels.ListeningStats
+import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 import com.skintclub.odyssey.viewmodels.StatsViewModel
+import com.skintclub.odyssey.viewmodels.totalListeningMs
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -58,6 +60,7 @@ import java.util.Locale
 @Composable
 fun StatsScreen(
     navController: NavController,
+    odysseyViewModel: OdysseyViewModel,
     viewModel: StatsViewModel = hiltViewModel(),
 ) {
     val menuState = LocalMenuState.current
@@ -67,6 +70,9 @@ fun StatsScreen(
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
     val stats by viewModel.stats.collectAsState()
+    val clubHistory by odysseyViewModel.clubHistory.collectAsState()
+    // From the club's progress when the selected profile has any, else what this app recorded.
+    val clubTotalMs = clubHistory.totalListeningMs.takeIf { clubHistory.progress.isNotEmpty() }
 
     LazyColumn(
         contentPadding =
@@ -77,7 +83,7 @@ fun StatsScreen(
         modifier = Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)),
     ) {
         val s = stats ?: return@LazyColumn
-        if (s.totalPlays == 0) {
+        if (s.totalPlays == 0 && clubTotalMs == null) {
             item {
                 EmptyPlaceholder(
                     icon = R.drawable.trending_up,
@@ -99,11 +105,16 @@ fun StatsScreen(
                         style = MaterialTheme.typography.titleSmall,
                     )
                     Text(
-                        text = stringResource(R.string.stats_hours, "%.1f".format(s.totalTimeMs / 3_600_000.0)),
+                        text = stringResource(R.string.stats_hours, "%.1f".format((clubTotalMs ?: s.totalTimeMs) / 3_600_000.0)),
                         style = MaterialTheme.typography.displaySmall,
                         fontWeight = FontWeight.Bold,
                     )
-                    s.firstListen?.let {
+                    if (clubTotalMs != null) {
+                        Text(
+                            text = stringResource(R.string.stats_total_from_club),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else s.firstListen?.let {
                         Text(
                             text = stringResource(R.string.stats_since, it.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))),
                             style = MaterialTheme.typography.bodyMedium,
@@ -114,7 +125,7 @@ fun StatsScreen(
         }
 
         item(key = "tiles") {
-            StatTiles(s)
+            StatTiles(s, showAppTotal = clubTotalMs != null)
         }
 
         item(key = "topTitle") {
@@ -183,9 +194,13 @@ fun StatsScreen(
 }
 
 @Composable
-private fun StatTiles(s: ListeningStats) {
+private fun StatTiles(
+    s: ListeningStats,
+    showAppTotal: Boolean,
+) {
     val tiles =
-        listOf(
+        listOfNotNull(
+            if (showAppTotal) stringResource(R.string.stats_in_this_app) to formatListenTime(s.totalTimeMs) else null,
             stringResource(R.string.stats_this_week) to formatListenTime(s.thisWeekMs),
             stringResource(R.string.stats_this_month) to formatListenTime(s.thisMonthMs),
             stringResource(R.string.stats_episodes_played) to s.episodesPlayed.toString(),

@@ -19,6 +19,8 @@
     <string name="stats_total_listening">Total listening</string>
     <string name="stats_hours">%s hours</string>
     <string name="stats_since">Since %s</string>
+    <string name="stats_total_from_club">From your progress on the club: finished episodes in full, plus how far you got in the rest</string>
+    <string name="stats_in_this_app">In this app</string>
     <string name="stats_this_week">This week</string>
     <string name="stats_this_month">This month</string>
     <string name="stats_episodes_played">Episodes played</string>

@@ -84,3 +84,15 @@ fun mergeProgress(
     }
     return merged
 }
+
+/** Roughly how long the selected profile has listened on the club, in ms: the whole length of
+ * every content item it finished, plus how far it got into the ones it started. The club only
+ * keeps progress, so each item counts once however often it was replayed. */
+val ClubHistory.totalListeningMs: Long
+    get() = progress.values.sumOf { p ->
+        when {
+            p.completed -> p.lengthMs
+            p.lengthMs > 0 -> p.positionMs.coerceAtMost(p.lengthMs)
+            else -> p.positionMs
+        }
+    }
