@@ -103,6 +103,9 @@ import com.skintclub.odyssey.db.MusicDatabase
 import com.skintclub.odyssey.extensions.*
 import com.skintclub.odyssey.models.MediaMetadata
 import com.skintclub.odyssey.club.FreeRadio
+import com.skintclub.odyssey.mabel.MabelLibrary
+import com.skintclub.odyssey.mabel.MabelQueue
+import com.skintclub.odyssey.mabel.MabelVoice
 import com.skintclub.odyssey.constants.WelcomeSeenKey
 import com.skintclub.odyssey.playback.DownloadUtil
 import com.skintclub.odyssey.playback.MusicService
@@ -181,6 +184,12 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var freeRadio: FreeRadio
+
+    @Inject
+    lateinit var mabelVoice: MabelVoice
+
+    @Inject
+    lateinit var mabelLibrary: MabelLibrary
 
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
 
@@ -622,6 +631,8 @@ class MainActivity : ComponentActivity() {
                         LocalPlayerAwareWindowInsets provides playerAwareWindowInsets,
                         LocalDownloadUtil provides downloadUtil,
                         LocalFreeRadio provides freeRadio,
+                        LocalMabelVoice provides mabelVoice,
+                        LocalMabelLibrary provides mabelLibrary,
                         LocalShimmerTheme provides ShimmerTheme,
                         LocalTopBarColor provides topBarColor,
                     ) {
@@ -698,6 +709,9 @@ class MainActivity : ComponentActivity() {
                         val randomizerPlayOnPress by rememberPreference(RandomizerPlayOnPressKey, defaultValue = false)
                         val randomizerNonRepeating by rememberPreference(RandomizerNonRepeatingKey, defaultValue = true)
                         var randomizerDiceFace by remember { mutableStateOf((1..6).random()) }
+                        val mabelDj by rememberPreference(MabelDjKey, defaultValue = false)
+                        val mabelData by mabelLibrary.data.collectAsState()
+                        val mabelVoiceReady by mabelVoice.isAvailable.collectAsState()
                         // Logged out there's nothing for it to pick from (Home is the free radio).
                         val canRandomize by remember { ClubClient(this@MainActivity).isLoggedInFlow() }
                             .collectAsState(initial = true)
@@ -714,6 +728,20 @@ class MainActivity : ComponentActivity() {
                         ) {
                             FloatingActionButton(
                                 onClick = {
+                                    // Mabel hosts instead, once she has her voice and her lines.
+                                    val data = mabelData
+                                    if (mabelDj && data != null && mabelVoiceReady) {
+                                        playerConnection?.playQueue(
+                                            MabelQueue(
+                                                context = this@MainActivity,
+                                                data = data,
+                                                voice = mabelVoice,
+                                                database = database,
+                                                pool = odysseyViewModel.mabelEpisodes(),
+                                            ),
+                                        )
+                                        return@FloatingActionButton
+                                    }
                                     val (albumName, episodeIndex) =
                                         odysseyViewModel.pickRandomEpisode(
                                             excludeBonusEpisodes,
@@ -1054,6 +1082,8 @@ val LocalPlayerConnection = staticCompositionLocalOf<PlayerConnection?> { error(
 val LocalPlayerAwareWindowInsets = compositionLocalOf<WindowInsets> { error("No WindowInsets provided") }
 val LocalDownloadUtil = staticCompositionLocalOf<DownloadUtil> { error("No DownloadUtil provided") }
 val LocalFreeRadio = staticCompositionLocalOf<FreeRadio> { error("No FreeRadio provided") }
+val LocalMabelVoice = staticCompositionLocalOf<MabelVoice> { error("No MabelVoice provided") }
+val LocalMabelLibrary = staticCompositionLocalOf<MabelLibrary> { error("No MabelLibrary provided") }
 
 /** The status-bar strip's color (black in pure-black mode; on the bottom bar's tabs the bottom
  * bar's own tint, so the top and bottom of those screens match; elsewhere the screens' surface

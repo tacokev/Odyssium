@@ -77,6 +77,10 @@
 -keep class com.skintclub.odyssey.transcripts.Transcript* { <fields>; <init>(...); }
 -keep class com.skintclub.odyssey.viewmodels.HomeCategory { <fields>; <init>(...); }
 -keep class com.skintclub.odyssey.ui.video.VideoItem { <fields>; <init>(...); }
+-keep class com.skintclub.odyssey.mabel.MabelData** { <fields>; <init>(...); }
+# sherpa-onnx's native code reads its config classes' fields, and calls back into its classes,
+# by name.
+-keep class com.k2fsa.sherpa.onnx.** { *; }
 
 -dontwarn java.beans.BeanDescriptor
 -dontwarn java.beans.BeanInfo

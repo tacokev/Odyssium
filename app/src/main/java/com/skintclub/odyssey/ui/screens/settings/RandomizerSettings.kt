@@ -124,6 +124,8 @@ fun RandomizerSettings(
                 onValueSelected = onSelectedPlaylistIdChange,
             )
         }
+
+        MabelPreferences()
     }
 
     TopAppBar(

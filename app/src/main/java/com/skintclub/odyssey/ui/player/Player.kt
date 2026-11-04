@@ -124,6 +124,7 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import com.skintclub.odyssey.LocalDatabase
 import com.skintclub.odyssey.LocalDownloadUtil
+import com.skintclub.odyssey.mabel.isMabelClip
 import com.skintclub.odyssey.LocalPlayerConnection
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.constants.*
@@ -851,7 +852,7 @@ fun BottomSheetPlayer(
                             .clip(RoundedCornerShape(24.dp))
                             .background(MaterialTheme.colorScheme.secondaryContainer)
                             .clickable {
-                                odysseyViewModel.setEpisodeLiked(mediaMetadata.id, !isLiked)
+                                if (!isMabelClip(mediaMetadata.id)) odysseyViewModel.setEpisodeLiked(mediaMetadata.id, !isLiked)
                             },
                 ) {
                     Image(
@@ -1438,7 +1439,7 @@ fun BottomSheetPlayer(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     IconButton(
-                        onClick = { odysseyViewModel.setEpisodeLiked(metadata.id, !isLiked) },
+                        onClick = { if (!isMabelClip(metadata.id)) odysseyViewModel.setEpisodeLiked(metadata.id, !isLiked) },
                         onLongClick = {},
                     ) {
                         Icon(

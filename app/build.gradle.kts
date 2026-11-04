@@ -25,6 +25,16 @@ android {
         versionCode = 31
         versionName = "0.5.14"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // sherpa-onnx's native libraries are big; 32-bit x86 is only old emulators.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+    }
+    packaging {
+        jniLibs {
+            // Only its JNI library (and onnxruntime, which that needs) is used.
+            excludes += listOf("**/libsherpa-onnx-c-api.so", "**/libsherpa-onnx-cxx-api.so")
+            // Compressed in the APK, which keeps the download much smaller.
+            useLegacyPackaging = true
+        }
     }
     signingConfigs {
         getByName("debug") {
@@ -141,6 +151,8 @@ dependencies {
 
     implementation(libs.apache.lang3)
     implementation(libs.gson)
+    // On-device speech for Mabel (a Piper voice)
+    implementation(libs.sherpa.onnx)
 
     implementation(libs.hilt)
     ksp(libs.hilt.compiler)

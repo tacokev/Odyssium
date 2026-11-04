@@ -65,6 +65,8 @@ desugaring = { group = "com.android.tools", name = "desugar_jdk_libs", version =
 
 timber = { group = "com.jakewharton.timber", name = "timber", version = "5.0.1" }
 
+sherpa-onnx = { group = "com.github.k2-fsa.sherpa-onnx", name = "sherpa-onnx", version = "v1.13.8" }
+
 [plugins]
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

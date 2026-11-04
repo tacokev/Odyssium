@@ -478,11 +478,15 @@ class OdysseyViewModel @Inject constructor(
     fun everyEpisode(): List<Map<String, Any>> =
         baseAlbums.flatMap { album -> album.episodes.filterNot(::isBonusEpisode) }
 
+    /** Every episode Mabel can play: the randomizer's, with later parts of a story too,
+     * since she plays a story's parts in order. */
+    fun mabelEpisodes(): List<Map<String, Any>> = randomizerEpisodes(includeLaterParts = true)
+
     /** Every episode the randomizer can pick with its current settings, in album order. */
-    fun randomizerEpisodes(): List<Map<String, Any>> {
+    fun randomizerEpisodes(includeLaterParts: Boolean = false): List<Map<String, Any>> {
         val dataStore = getApplication<Application>().dataStore
         val excludeBonusEpisodes = dataStore.get(ExcludeBonusEpisodesKey, true)
-        val excludeSubsequentParts = dataStore.get(ExcludeSubsequentPartsKey, true)
+        val excludeSubsequentParts = !includeLaterParts && dataStore.get(ExcludeSubsequentPartsKey, true)
         val listMode = dataStore.get(RandomizerListModeKey).toEnum(RandomizerListMode.OFF)
         val playlistId = dataStore.get(RandomizerPlaylistIdKey, "")
         val listEpisodeIds = if (listMode != RandomizerListMode.OFF && playlistId.isNotBlank()) {

@@ -65,6 +65,10 @@ import com.skintclub.odyssey.extensions.currentMetadata
 import com.skintclub.odyssey.extensions.mediaItems
 import com.skintclub.odyssey.extensions.metadata
 import com.skintclub.odyssey.extensions.toMediaItem
+import com.skintclub.odyssey.mabel.MabelDataSourceFactory
+import com.skintclub.odyssey.mabel.MabelQueue
+import com.skintclub.odyssey.mabel.MabelVoice
+import com.skintclub.odyssey.mabel.isMabelClip
 import com.skintclub.odyssey.models.PersistQueue
 import com.skintclub.odyssey.playback.queues.EmptyQueue
 import com.skintclub.odyssey.playback.queues.ListQueue
@@ -115,6 +119,9 @@ class MusicService :
 
     @Inject
     lateinit var mediaLibrarySessionCallback: MediaLibrarySessionCallback
+
+    @Inject
+    lateinit var mabelVoice: MabelVoice
 
     private var scope = CoroutineScope(Dispatchers.Main) + Job()
     private val binder = MusicBinder()
@@ -470,6 +477,26 @@ class MusicService :
         }
     }
 
+    override fun onPositionDiscontinuity(
+        oldPosition: Player.PositionInfo,
+        newPosition: Player.PositionInfo,
+        reason: Int,
+    ) {
+        // Skipping an episode Mabel picked, early on, tells her it wasn't what they wanted.
+        val queue = currentQueue as? MabelQueue ?: return
+        // Forward only: going back to something isn't turning it down.
+        if (reason != Player.DISCONTINUITY_REASON_SEEK || newPosition.mediaItemIndex <= oldPosition.mediaItemIndex) return
+        val skipped = oldPosition.mediaItem?.mediaId ?: return
+        val duration = lastDuration?.takeIf { it.first == skipped }?.second
+        val early = oldPosition.positionMs < SKIP_EARLY_MS ||
+            (duration != null && oldPosition.positionMs < duration * 0.3)
+        if (early) queue.onSkipped(skipped)
+    }
+
+    /** The playing item's id and length, once known; kept for [onPositionDiscontinuity], which
+     * runs once the player has already moved on to the next item. */
+    private var lastDuration: Pair<String, Long>? = null
+
     override fun onPlaybackStateChanged(
         @Player.State playbackState: Int,
     ) {
@@ -496,6 +523,9 @@ class MusicService :
         if (events.containsAny(EVENT_TIMELINE_CHANGED, EVENT_POSITION_DISCONTINUITY)) {
             currentMediaMetadata.value = player.currentMetadata
         }
+        if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, EVENT_TIMELINE_CHANGED) && player.duration > 0) {
+            player.currentMediaItem?.mediaId?.let { lastDuration = it to player.duration }
+        }
         if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) historyRecordedFor = null
         if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION) && player.isPlaying) {
             recordHistory()
@@ -507,6 +537,8 @@ class MusicService :
         val metadata = player.currentMetadata ?: return
         if (historyRecordedFor == metadata.id) return
         historyRecordedFor = metadata.id
+        // Mabel talking isn't something listened to.
+        if (isMabelClip(metadata.id)) return
         if (dataStore.get(PauseListenHistoryKey, false)) return
         val viewerId = dataStore[ClubViewerIdKey]
         database.query {
@@ -672,11 +704,12 @@ class MusicService :
             .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
 
     private fun createDataSourceFactory(): DataSource.Factory {
-        return ResolvingDataSource.Factory(createCacheDataSource()) { spec ->
+        val episodes = ResolvingDataSource.Factory(createCacheDataSource()) { spec ->
             val dataSpec = resolveOdysseyDataSpec(clubClient, spec)
             Timber.d("MusicService: DataSpec URI: ${dataSpec.uri}")
             dataSpec
         }
+        return MabelDataSourceFactory(mabelVoice, episodes)
     }
 
     private fun createMediaSourceFactory() =
@@ -797,6 +830,9 @@ class MusicService :
         const val CHANNEL_ID = "music_channel_01"
         const val NOTIFICATION_ID = 888
         const val PERSISTENT_QUEUE_FILE = "persistent_queue.data"
+
+        /** Moving on from an episode Mabel picked within this long counts as skipping it. */
+        const val SKIP_EARLY_MS = 5 * 60 * 1000L
         const val PERSISTENT_AUTOMIX_FILE = "persistent_automix.data"
     }
 }

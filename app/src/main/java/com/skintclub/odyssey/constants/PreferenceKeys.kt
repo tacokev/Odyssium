@@ -324,6 +324,9 @@ val RandomizerPlaylistIdKey = stringPreferencesKey("randomizerPlaylistId")
 val RandomizerPlayOnPressKey = booleanPreferencesKey("randomizerPlayOnPress")
 val RandomizerNonRepeatingKey = booleanPreferencesKey("randomizerNonRepeating")
 
+/** The random button starts a listening session hosted by Mabel (see MabelSession). */
+val MabelDjKey = booleanPreferencesKey("mabelDj")
+
 val ClubAudioLoadModeKey = stringPreferencesKey("clubAudioLoadMode")
 
 enum class ClubAudioLoadMode {
