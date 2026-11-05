@@ -90,7 +90,10 @@ class MabelSession(
         units = standalone.map { Story(listOf(it)) } +
             parts.groupBy { (_, info) -> spokenTitle(info.title).lowercase() to info.part!![1] }
                 .values
-                .map { story -> Story(story.sortedBy { it.second.part!![0] }) }
+                .map { story -> story.sortedBy { it.second.part!![0] } }
+                // A story she can't play from part one (it isn't in the pool) is left out.
+                .filter { story -> story.first().second.part!![0] == 1 }
+                .map(::Story)
         unitsByVibe = units.flatMap { unit -> unit.vibes.map { it to unit } }
             .groupBy({ it.first }, { it.second })
 

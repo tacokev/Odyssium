@@ -39,6 +39,7 @@ fun MabelPreferences() {
     val library = LocalMabelLibrary.current
     val (mabelDj, onMabelDjChange) = rememberPreference(MabelDjKey, defaultValue = false)
     val lines by library.data.collectAsState()
+    val linesImported by library.isImported.collectAsState()
     val linesImporting by library.importing.collectAsState()
     val linesError by library.importError.collectAsState()
     val pickLines = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -57,9 +58,8 @@ fun MabelPreferences() {
     SwitchPreference(
         title = { Text("Mabel DJ") },
         description = when {
-            !isAvailable && lines == null -> "Import her voice and her lines below to use her."
             !isAvailable -> "Import her voice below to use her."
-            lines == null -> "Import her lines below to use her."
+            lines == null -> "Her lines couldn't be read. Import a mabel.json below."
             else -> "The random button starts a listening session hosted by Mabel: runs of episodes that go together, picked from what you've been enjoying, with her introducing them."
         },
         checked = mabelDj,
@@ -100,7 +100,8 @@ fun MabelPreferences() {
         text = when {
             linesImporting -> "Importing Mabel's lines…"
             linesError != null -> "Couldn't import the lines: $linesError"
-            lines != null -> "Mabel knows ${lines!!.episodes.size} episodes and ${lines!!.vibes.size} vibes."
+            lines != null -> "Mabel knows ${lines!!.episodes.size} episodes and ${lines!!.vibes.size} vibes" +
+                if (linesImported) ", from an imported file." else "."
             else -> "Import her lines (mabel.json) so she knows the episodes."
         },
         style = MaterialTheme.typography.bodyMedium,
@@ -108,14 +109,15 @@ fun MabelPreferences() {
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
     )
     PreferenceEntry(
-        title = { Text(if (lines != null) "Replace lines" else "Import lines") },
+        title = { Text("Import newer lines") },
+        description = "A mabel.json from tools/mabel, in place of the built-in lines.",
         onClick = { pickLines.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
         isEnabled = !linesImporting,
     )
-    if (lines != null) {
+    if (linesImported) {
         PreferenceEntry(
-            title = { Text("Delete lines") },
-            onClick = library::delete,
+            title = { Text("Use built-in lines") },
+            onClick = library::useBuiltIn,
             isEnabled = !linesImporting,
         )
     }

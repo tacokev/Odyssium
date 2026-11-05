@@ -48,15 +48,13 @@ data class MabelData(
         val number: Int? = null,
         /** [part, of] for a multi-part story. */
         val part: List<Int>? = null,
-        val summary: String? = null,
-        val arc: String? = null,
         val season: String? = null,
         val vibes: List<String> = emptyList(),
-        val intros: List<String> = emptyList(),
     )
 }
 
-/** Mabel's lines: imported from mabel.json, and kept in the app's files. */
+/** Mabel's lines: the ones built into the app (assets/mabel.json, written by
+ * tools/mabel/mabel_lines.py), or a newer mabel.json imported in their place. */
 @Singleton
 class MabelLibrary
     @Inject
@@ -69,19 +67,32 @@ class MabelLibrary
         private val _data = MutableStateFlow<MabelData?>(null)
         val data: StateFlow<MabelData?> = _data.asStateFlow()
 
+        /** Whether [data] is an imported file rather than the built-in lines. */
+        private val _isImported = MutableStateFlow(false)
+        val isImported: StateFlow<Boolean> = _isImported.asStateFlow()
+
         private val _importing = MutableStateFlow(false)
         val importing: StateFlow<Boolean> = _importing.asStateFlow()
         private val _importError = MutableStateFlow<String?>(null)
         val importError: StateFlow<String?> = _importError.asStateFlow()
 
         init {
-            scope.launch {
-                if (file.exists()) {
-                    _data.value = runCatching { parse(file.readText()) }
-                        .onFailure { Timber.w(it, "Couldn't read mabel.json") }
-                        .getOrNull()
-                }
+            scope.launch { load() }
+        }
+
+        /** The imported lines if there are some (and they can be read), or else the built-in ones. */
+        private fun load() {
+            val imported = if (file.exists()) {
+                runCatching { parse(file.readText()) }
+                    .onFailure { Timber.w(it, "Couldn't read the imported mabel.json") }
+                    .getOrNull()
+            } else {
+                null
             }
+            _isImported.value = imported != null
+            _data.value = imported ?: runCatching {
+                parse(context.assets.open(BUILT_IN).use { it.reader().readText() })
+            }.onFailure { Timber.w(it, "Couldn't read the built-in mabel.json") }.getOrNull()
         }
 
         fun import(uri: Uri) {
@@ -96,6 +107,7 @@ class MabelLibrary
                     file.parentFile?.mkdirs()
                     file.writeText(text)
                     _data.value = parsed
+                    _isImported.value = true
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -107,11 +119,16 @@ class MabelLibrary
             }
         }
 
-        fun delete() {
+        /** Goes back to the built-in lines. */
+        fun useBuiltIn() {
             scope.launch {
                 file.delete()
-                _data.value = null
+                load()
             }
+        }
+
+        private companion object {
+            const val BUILT_IN = "mabel.json"
         }
 
         private fun parse(text: String): MabelData {

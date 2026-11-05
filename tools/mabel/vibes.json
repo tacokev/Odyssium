@@ -1,0 +1,817 @@
+{
+ "openers": [
+  "Hey, it's Mabel.",
+  "Hello! Mabel here.",
+  "Hi there. Mabel, your DJ.",
+  "Mabel online. Let's listen.",
+  "Welcome back! It's Mabel.",
+  "Hello again. Mabel here."
+ ],
+ "part_lines": [
+  "Part {part}.",
+  "And now, part {part}.",
+  "On to part {part}.",
+  "Here's part {part}."
+ ],
+ "taste_lines": [
+  "You've been enjoying {vibe} lately, so here's more.",
+  "My records say you like {vibe}. Let's keep it going.",
+  "{vibe} again, since you've been enjoying it.",
+  "Since you've been into {vibe}, here's more."
+ ],
+ "liked_lines": [
+  "You liked {title}, so try this.",
+  "Since you liked {title}, here's another.",
+  "A fan of {title}? You'll like this.",
+  "Because you liked {title}."
+ ],
+ "resume_lines": [
+  "You finished part {part} of {title}. Let's keep going.",
+  "Picking up after part {part} of {title}.",
+  "Back to {title}, right after part {part}.",
+  "You left off after part {part} of {title}. Here's the rest."
+ ],
+ "vibes": [
+  {
+   "id": "novacom",
+   "name": "The Novacom saga",
+   "spoken": "the Novacom saga",
+   "ordered": true,
+   "members": [
+    "arc: the Novacom saga",
+    "novacom"
+   ],
+   "switch_lines": [
+    "Let's switch it up with the Novacom saga.",
+    "Time for some Novacom.",
+    "Into the Novacom saga.",
+    "Novacom time."
+   ]
+  },
+  {
+   "id": "blackgaard",
+   "name": "The Blackgaard saga",
+   "spoken": "the Blackgaard saga",
+   "ordered": true,
+   "members": [
+    "arc: the Blackgaard saga",
+    "blackgaard saga",
+    "blackgaard"
+   ],
+   "switch_lines": [
+    "Let's switch it up with the Blackgaard saga.",
+    "Time for some Blackgaard.",
+    "Into the Blackgaard saga.",
+    "Things get tense. It's Blackgaard."
+   ]
+  },
+  {
+   "id": "green-ring",
+   "name": "The Green Ring conspiracy",
+   "spoken": "the Green Ring conspiracy",
+   "ordered": true,
+   "members": [
+    "arc: the Green Ring conspiracy",
+    "green ring",
+    "green ring conspiracy"
+   ],
+   "switch_lines": [
+    "Let's switch it up with the Green Ring conspiracy.",
+    "Time for the Green Ring.",
+    "Let's follow the Green Ring.",
+    "Into the Green Ring conspiracy."
+   ]
+  },
+  {
+   "id": "ties-that-bind",
+   "name": "The Ties That Bind",
+   "spoken": "The Ties That Bind",
+   "ordered": true,
+   "members": [
+    "arc: the Ties That Bind",
+    "the ties that bind"
+   ],
+   "switch_lines": [
+    "Let's switch it up with The Ties That Bind.",
+    "Time for The Ties That Bind.",
+    "Settling in for The Ties That Bind.",
+    "The Ties That Bind, coming up."
+   ]
+  },
+  {
+   "id": "meltsner",
+   "name": "The Meltsner saga",
+   "spoken": "the Meltsner saga",
+   "ordered": true,
+   "members": [
+    "arc: the Meltsner saga",
+    "meltsner saga"
+   ],
+   "switch_lines": [
+    "Let's switch it up with the Meltsner saga.",
+    "Time for the Meltsners.",
+    "Into the Meltsner saga.",
+    "Meltsner family time."
+   ]
+  },
+  {
+   "id": "marus",
+   "name": "Marus",
+   "spoken": "a trip to Marus",
+   "ordered": true,
+   "members": [
+    "arc: the Marus saga",
+    "marus"
+   ],
+   "switch_lines": [
+    "Let's switch it up with a trip to Marus.",
+    "Next stop, Marus.",
+    "Off to Marus.",
+    "Time for some Marus."
+   ]
+  },
+  {
+   "id": "eugene",
+   "name": "Eugene Meltsner",
+   "spoken": "some Eugene",
+   "ordered": false,
+   "members": [
+    "eugene",
+    "eugene meltsner",
+    "eugene returns",
+    "eugene and leonard"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Eugene.",
+    "Time for Eugene. Big words ahead.",
+    "My circuits like Eugene. Here's more.",
+    "Eugene time."
+   ]
+  },
+  {
+   "id": "eugene-katrina",
+   "name": "Eugene and Katrina",
+   "spoken": "some Eugene and Katrina",
+   "ordered": false,
+   "members": [
+    "eugene and katrina",
+    "katrina"
+   ],
+   "switch_lines": [
+    "Let's switch it up with Eugene and Katrina.",
+    "Time for Eugene and Katrina.",
+    "Eugene and Katrina, coming up.",
+    "Some Eugene and Katrina."
+   ]
+  },
+  {
+   "id": "connie",
+   "name": "Connie Kendall",
+   "spoken": "some Connie",
+   "ordered": false,
+   "members": [
+    "connie kendall",
+    "connie",
+    "connie and whit",
+    "connie and eugene",
+    "connie and jules",
+    "connie and penny",
+    "connie and jason",
+    "connie and lucy",
+    "connie and tom",
+    "connie and jack",
+    "connie and jillian"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Connie.",
+    "Time for Connie.",
+    "Let's see what Connie's up to.",
+    "Connie time."
+   ]
+  },
+  {
+   "id": "bernard",
+   "name": "Bernard Walton",
+   "spoken": "some Bernard",
+   "ordered": false,
+   "members": [
+    "bernard walton",
+    "bernard",
+    "eugene and bernard"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Bernard.",
+    "Time for Bernard Walton.",
+    "Bernard's up. He'll have opinions.",
+    "Some Bernard."
+   ]
+  },
+  {
+   "id": "whit",
+   "name": "Whit",
+   "spoken": "some Whit",
+   "ordered": false,
+   "members": [
+    "john avery whittaker",
+    "whit"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Whit.",
+    "Time for Whit.",
+    "My creator's up next.",
+    "Some Whit stories."
+   ]
+  },
+  {
+   "id": "jason",
+   "name": "Jason Whittaker",
+   "spoken": "some Jason Whittaker",
+   "ordered": false,
+   "members": [
+    "jason whittaker"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Jason.",
+    "Time for Jason Whittaker.",
+    "Jason's up. Expect trouble.",
+    "Some Jason stories."
+   ]
+  },
+  {
+   "id": "tom-riley",
+   "name": "Tom Riley",
+   "spoken": "some Tom Riley",
+   "ordered": false,
+   "members": [
+    "tom riley"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Tom Riley.",
+    "Time for Tom Riley.",
+    "Out to the farm with Tom.",
+    "Some Tom Riley."
+   ]
+  },
+  {
+   "id": "jack-allen",
+   "name": "Jack Allen",
+   "spoken": "some Jack Allen",
+   "ordered": false,
+   "members": [
+    "jack allen"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Jack Allen.",
+    "Time for Jack Allen.",
+    "Jack Allen's up.",
+    "Some Jack Allen."
+   ]
+  },
+  {
+   "id": "wooton",
+   "name": "Wooton Bassett",
+   "spoken": "some Wooton",
+   "ordered": false,
+   "members": [
+    "wooton bassett",
+    "penny and wooton",
+    "connie and wooton",
+    "power boy",
+    "penny bassett"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Wooton.",
+    "Time for something silly. It's Wooton.",
+    "Wooton's up.",
+    "Some Wooton Bassett."
+   ]
+  },
+  {
+   "id": "buck-jules",
+   "name": "Buck and Jules",
+   "spoken": "some Buck and Jules",
+   "ordered": false,
+   "members": [
+    "jules kendall",
+    "buck meltsner",
+    "buck",
+    "buck and jules",
+    "arc: the Jules Kendall saga"
+   ],
+   "switch_lines": [
+    "Let's switch it up with Buck and Jules.",
+    "Time for Buck and Jules.",
+    "Buck and Jules, coming up.",
+    "Some Buck and Jules."
+   ]
+  },
+  {
+   "id": "barclays",
+   "name": "The Barclays",
+   "spoken": "some Barclay family stories",
+   "ordered": false,
+   "members": [
+    "barclay family",
+    "george barclay",
+    "donna barclay",
+    "jimmy barclay"
+   ],
+   "switch_lines": [
+    "Let's switch it up with the Barclays.",
+    "Time for the Barclay family.",
+    "Over to the Barclays.",
+    "Some Barclay family stories."
+   ]
+  },
+  {
+   "id": "parkers",
+   "name": "The Parkers",
+   "spoken": "some Parker family stories",
+   "ordered": false,
+   "members": [
+    "parker family",
+    "olivia parker",
+    "matthew parker",
+    "emily and matthew",
+    "emily jones"
+   ],
+   "switch_lines": [
+    "Let's switch it up with the Parkers.",
+    "Time for the Parker family.",
+    "Over to the Parkers.",
+    "Some Parker family stories."
+   ]
+  },
+  {
+   "id": "jay-smouse",
+   "name": "Jay Smouse",
+   "spoken": "some Jay Smouse",
+   "ordered": false,
+   "members": [
+    "jay smouse"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Jay Smouse.",
+    "Time for Jay.",
+    "Jay Smouse is up.",
+    "Some Jay Smouse."
+   ]
+  },
+  {
+   "id": "rathbones",
+   "name": "The Rathbones",
+   "spoken": "some Rathbones",
+   "ordered": false,
+   "members": [
+    "rodney rathbone",
+    "bart rathbone",
+    "rodney"
+   ],
+   "switch_lines": [
+    "Let's switch it up with the Rathbones.",
+    "Rathbones next. Hold on to your wallet.",
+    "Time for a Rathbone scheme.",
+    "Some Rathbones."
+   ]
+  },
+  {
+   "id": "harlow-doyle",
+   "name": "Harlow Doyle",
+   "spoken": "some Harlow Doyle",
+   "ordered": false,
+   "members": [
+    "detective harlow doyle",
+    "harlow doyle"
+   ],
+   "switch_lines": [
+    "Let's switch it up with Harlow Doyle.",
+    "Harlow Doyle, private eye, is on the case.",
+    "Time for Harlow Doyle.",
+    "Some Harlow Doyle."
+   ]
+  },
+  {
+   "id": "polehaus",
+   "name": "Detective Polehaus",
+   "spoken": "some Detective Polehaus",
+   "ordered": false,
+   "members": [
+    "detective polehaus",
+    "detective don polehaus"
+   ],
+   "switch_lines": [
+    "Let's switch it up with Detective Polehaus.",
+    "Time for Detective Polehaus.",
+    "Polehaus is on the case.",
+    "Some Detective Polehaus."
+   ]
+  },
+  {
+   "id": "mystery",
+   "name": "Mysteries",
+   "spoken": "a mystery or two",
+   "ordered": false,
+   "members": [
+    "mystery",
+    "detective",
+    "historical mystery",
+    "secrets",
+    "spy"
+   ],
+   "switch_lines": [
+    "Let's switch it up with a mystery.",
+    "Mystery time.",
+    "My sensors detect a mystery.",
+    "Time for some detective work."
+   ]
+  },
+  {
+   "id": "spooky",
+   "name": "Something spooky",
+   "spoken": "something spooky",
+   "ordered": false,
+   "members": [
+    "mood: spooky"
+   ],
+   "switch_lines": [
+    "Let's switch it up with something spooky.",
+    "Something a little spooky.",
+    "Dim the lights.",
+    "Spooky time. Not too spooky."
+   ]
+  },
+  {
+   "id": "suspense",
+   "name": "Edge of your seat",
+   "spoken": "something suspenseful",
+   "ordered": false,
+   "members": [
+    "mood: suspenseful",
+    "danger",
+    "kidnapping",
+    "rescue"
+   ],
+   "switch_lines": [
+    "Let's switch it up with something suspenseful.",
+    "Edge of your seat time.",
+    "Hold on tight.",
+    "Turning up the suspense."
+   ]
+  },
+  {
+   "id": "adventure",
+   "name": "Adventure",
+   "spoken": "an adventure",
+   "ordered": false,
+   "members": [
+    "mood: adventurous",
+    "adventure",
+    "treasure hunt",
+    "odyssey adventure club"
+   ],
+   "switch_lines": [
+    "Let's switch it up with an adventure.",
+    "Adventure time.",
+    "Let's go exploring.",
+    "Pack your bags."
+   ]
+  },
+  {
+   "id": "funny",
+   "name": "Something funny",
+   "spoken": "something funny",
+   "ordered": false,
+   "members": [
+    "mood: funny",
+    "humor",
+    "comedy",
+    "pranks"
+   ],
+   "switch_lines": [
+    "Let's switch it up with something funny.",
+    "Time for a laugh.",
+    "Let's lighten things up.",
+    "Something funny."
+   ]
+  },
+  {
+   "id": "heartfelt",
+   "name": "Heartfelt",
+   "spoken": "something heartfelt",
+   "ordered": false,
+   "members": [
+    "mood: heartfelt"
+   ],
+   "switch_lines": [
+    "Let's switch it up with something heartfelt.",
+    "Something with a lot of heart.",
+    "Slowing it down.",
+    "A heartfelt one."
+   ]
+  },
+  {
+   "id": "imagination-station",
+   "name": "The Imagination Station",
+   "spoken": "a trip in the Imagination Station",
+   "ordered": false,
+   "members": [
+    "imagination station",
+    "inspiration station",
+    "arc: the Imagination Station saga"
+   ],
+   "switch_lines": [
+    "Let's switch it up with the Imagination Station.",
+    "Into the Imagination Station.",
+    "Firing up the Imagination Station.",
+    "Imagination Station time."
+   ]
+  },
+  {
+   "id": "room-of-consequence",
+   "name": "The Room of Consequence",
+   "spoken": "the Room of Consequence",
+   "ordered": false,
+   "members": [
+    "the room of consequence",
+    "room of consequence"
+   ],
+   "switch_lines": [
+    "Let's switch it up with the Room of Consequence.",
+    "Into the Room of Consequence.",
+    "Room of Consequence time.",
+    "Let's see what happens next."
+   ]
+  },
+  {
+   "id": "bible",
+   "name": "Bible stories",
+   "spoken": "some Bible stories",
+   "ordered": false,
+   "members": [
+    "bible story",
+    "bible stories",
+    "biblical story",
+    "mood: biblical",
+    "ancient israel",
+    "king david",
+    "bethlehem",
+    "jerusalem",
+    "passover",
+    "bible room"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Bible stories.",
+    "Back to Bible times.",
+    "Time for a Bible story.",
+    "Some Bible stories."
+   ]
+  },
+  {
+   "id": "history",
+   "name": "History",
+   "spoken": "some history",
+   "ordered": false,
+   "members": [
+    "history",
+    "mood: historical",
+    "american revolution",
+    "civil war",
+    "world war ii",
+    "world war i",
+    "alvin york",
+    "underground railroad",
+    "roman empire",
+    "war"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some history.",
+    "Back in time we go.",
+    "Time for some history.",
+    "Opening my history files."
+   ]
+  },
+  {
+   "id": "faith",
+   "name": "Faith",
+   "spoken": "some stories about faith",
+   "ordered": false,
+   "members": [
+    "faith journey",
+    "prayer",
+    "spiritual journey",
+    "doubt",
+    "miracle",
+    "god's plan",
+    "god's love"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some stories about faith.",
+    "Time for stories about faith.",
+    "Some stories about trusting God.",
+    "Faith stories, coming up."
+   ]
+  },
+  {
+   "id": "forgiveness",
+   "name": "Second chances",
+   "spoken": "some second chances",
+   "ordered": false,
+   "members": [
+    "forgiveness",
+    "redemption",
+    "second chances",
+    "mercy"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some second chances.",
+    "Stories about forgiveness.",
+    "Time for second chances.",
+    "Making things right."
+   ]
+  },
+  {
+   "id": "family",
+   "name": "Family",
+   "spoken": "some family stories",
+   "ordered": false,
+   "members": [
+    "family drama",
+    "family secrets",
+    "family conflict",
+    "family issues",
+    "family reunion",
+    "father and son",
+    "father-son",
+    "parent-child",
+    "parenting",
+    "sisters",
+    "adoption"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some family stories.",
+    "Family time.",
+    "Some family stories.",
+    "Time for family."
+   ]
+  },
+  {
+   "id": "love",
+   "name": "Love and weddings",
+   "spoken": "some love stories",
+   "ordered": false,
+   "members": [
+    "wedding",
+    "marriage",
+    "romance",
+    "love story",
+    "valentine's day",
+    "connie and mitch"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some love stories.",
+    "Wedding bells ahead.",
+    "Time for some romance. The sweet kind.",
+    "Some love stories."
+   ]
+  },
+  {
+   "id": "school",
+   "name": "School days",
+   "spoken": "some school stories",
+   "ordered": false,
+   "members": [
+    "school",
+    "odyssey middle school",
+    "middle school",
+    "student council",
+    "science fair",
+    "odyssey high school",
+    "high school",
+    "education"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some school stories.",
+    "Back to class.",
+    "School stories. No homework.",
+    "Time for school."
+   ]
+  },
+  {
+   "id": "sports",
+   "name": "Sports",
+   "spoken": "some sports stories",
+   "ordered": false,
+   "members": [
+    "sports",
+    "basketball",
+    "baseball",
+    "football",
+    "competition"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some sports stories.",
+    "To the field.",
+    "Game time.",
+    "Some sports stories."
+   ]
+  },
+  {
+   "id": "far-away",
+   "name": "Far from Odyssey",
+   "spoken": "some stories far from Odyssey",
+   "ordered": false,
+   "members": [
+    "missionary",
+    "missionary work",
+    "africa",
+    "alaska",
+    "hawaii",
+    "chicago",
+    "baltimore"
+   ],
+   "switch_lines": [
+    "Let's switch it up with stories far from Odyssey.",
+    "Let's leave Odyssey for a bit.",
+    "Time to travel.",
+    "Somewhere new."
+   ]
+  },
+  {
+   "id": "summer",
+   "name": "Summer",
+   "spoken": "some summer stories",
+   "ordered": false,
+   "members": [
+    "summer",
+    "summer camp",
+    "camp what-a-nut",
+    "camping",
+    "camp",
+    "trickle lake",
+    "family vacation"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some summer stories.",
+    "Summer time.",
+    "Off to camp.",
+    "Some summer stories."
+   ]
+  },
+  {
+   "id": "christmas",
+   "name": "Christmas",
+   "spoken": "some Christmas stories",
+   "ordered": false,
+   "members": [
+    "season: christmas",
+    "christmas"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Christmas stories.",
+    "Christmas time.",
+    "Deck the halls.",
+    "Some Christmas stories."
+   ]
+  },
+  {
+   "id": "thanksgiving",
+   "name": "Thanksgiving",
+   "spoken": "some Thanksgiving stories",
+   "ordered": false,
+   "members": [
+    "season: thanksgiving",
+    "thanksgiving",
+    "gratitude"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some Thanksgiving stories.",
+    "Thanksgiving time.",
+    "Something to be thankful for.",
+    "Some Thanksgiving stories."
+   ]
+  },
+  {
+   "id": "b-tv",
+   "name": "B-TV",
+   "spoken": "some B-TV",
+   "ordered": false,
+   "members": [
+    "b-tv"
+   ],
+   "switch_lines": [
+    "Let's switch it up with some B-TV.",
+    "Tuning in to B-TV.",
+    "Time for B-TV.",
+    "Changing the channel to B-TV."
+   ]
+  }
+ ],
+ "intro_lines": [
+  "Up next, {title}.",
+  "Here's {title}.",
+  "This one's {title}.",
+  "Let's start with {title}.",
+  "First up, {title}.",
+  "Starting with {title}."
+ ]
+}
