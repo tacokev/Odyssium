@@ -61,6 +61,12 @@ class MabelQueue(
         withContext(Dispatchers.IO) {
             val session = MabelSession(data, pool, loadHistory()).also { session = it }
             val segments = session.start().let { if (it.size < 3) it + session.nextBlock() else it }
+            timber.log.Timber.d("Mabel session starts: %s", segments.joinToString(" | ") {
+                when (it) {
+                    is MabelSegment.Speak -> "\"${it.text}\""
+                    is MabelSegment.Play -> it.episode["name"].toString()
+                }
+            })
             // The first thing she says is spoken now, so playback starts right away.
             (segments.firstOrNull() as? MabelSegment.Speak)?.let { voice.speak(it.text) }
             Queue.Status(title = "Mabel", items = toItems(segments), mediaItemIndex = 0)

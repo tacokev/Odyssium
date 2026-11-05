@@ -136,6 +136,7 @@ class MabelVoice
                     clipDir.mkdirs()
                     val temp = File(clipDir, "${file.name}.tmp")
                     writeWav(temp, audio.samples, audio.sampleRate)
+                    Timber.d("Mabel said (%.1f s): %s", audio.samples.size / audio.sampleRate.toFloat(), text)
                     temp.renameTo(file)
                 }
                 file

@@ -151,17 +151,18 @@ class MabelSession(
             val line = data.resumeLines.randomOrNull(random)
                 ?.fill(part = spell(finished), title = unit.title)
                 ?: "Last time you got through part ${spell(finished)} of ${unit.title}. Let's keep going."
-            play(unit, unit.episodes.drop(from), lead = line, vibe = null)
+            play(unit, unit.episodes.drop(from), lead = listOfNotNull(opener?.to(OPENER), line to 0), vibe = null)
         } else {
             null
         }
-        return block?.let { it.withOpener(opener) } ?: nextBlock().withOpener(opener)
+        return block ?: nextBlock(opener)
     }
 
     /** The next vibe, and what she says switching to it. */
     @Synchronized
-    fun nextBlock(): List<MabelSegment> {
-        if (!started) return start()
+    fun nextBlock(): List<MabelSegment> = if (started) nextBlock(opener = null) else start()
+
+    private fun nextBlock(opener: String?): List<MabelSegment> {
         val vibe = pickVibe() ?: run {
             // Heard everything there is: start over.
             played.clear()
@@ -174,25 +175,25 @@ class MabelSession(
         picked.flatMap { it.ids }.forEach { vibeOf[it] = vibe.id }
         val first = picked.first().ids.first()
         val tasteScore = taste[vibe.id] ?: 0.0
-        val lead = buildString {
+        val lead = buildList {
+            opener?.let { add(it to OPENER) }
             val tasteLine = data.tasteLines.randomOrNull(random)
             if (tasteScore >= 0.5 && tasteLine != null && random.nextDouble() < 0.6) {
-                append(tasteLine.fill(vibe = vibe.spoken))
+                add(tasteLine.fill(vibe = vibe.spoken) to 0)
             } else {
-                append(vibe.switchLines.randomOrNull(random) ?: "Alright, let's switch it up with ${vibe.spoken}.")
+                add((vibe.switchLines.randomOrNull(random) ?: "Let's switch it up with ${vibe.spoken}.") to 0)
                 // Something they liked that's in this vibe, other than what's about to play.
                 val liked = history.liked
                     .filter { it != first && it in data.episodes && vibe.id in data.episodes[it]!!.vibes }
                     .randomOrNull(random)
                 val likedLine = data.likedLines.randomOrNull(random)
                 if (liked != null && likedLine != null && random.nextDouble() < 0.5) {
-                    append(' ')
-                    append(likedLine.fill(title = spokenTitle(data.episodes[liked]!!.title)))
+                    add(likedLine.fill(title = spokenTitle(data.episodes[liked]!!.title)) to LIKED)
                 }
             }
         }
         return picked.flatMapIndexed { index, unit ->
-            play(unit, unit.episodes, lead = lead.takeIf { index == 0 }, vibe = vibe.name)
+            play(unit, unit.episodes, lead = lead.takeIf { index == 0 }.orEmpty(), vibe = vibe.name)
         }
     }
 
@@ -213,13 +214,16 @@ class MabelSession(
             }
             val vibeUnits = unitsByVibe[vibe.id].orEmpty()
             weight *= 1 + ln(vibeUnits.size.toDouble()) / 3
-            // A seasonal vibe: mostly in its season.
-            val season = vibeUnits.mapNotNull { it.season }.groupingBy { it }.eachCount().maxByOrNull { it.value }
-            if (season != null && season.value * 2 > vibeUnits.size) {
+            // A seasonal vibe: mostly in its season. A holiday vibe is known by its name (its
+            // episodes' own seasons are often just "winter"); otherwise by most of its episodes.
+            val season = HOLIDAYS.firstOrNull { vibe.id == it || vibe.name.equals(it, ignoreCase = true) }
+                ?: vibeUnits.mapNotNull { it.season }.groupingBy { it }.eachCount().maxByOrNull { it.value }
+                    ?.takeIf { it.value * 2 > vibeUnits.size }?.key
+            if (season != null) {
                 // A holiday hardly ever out of its season; the time of year just a little.
-                val holiday = season.key !in WEATHER
+                val holiday = season !in WEATHER
                 weight *= when {
-                    inSeason(season.key) -> if (holiday) 4.0 else 1.5
+                    inSeason(season) -> if (holiday) 4.0 else 1.5
                     else -> if (holiday) 0.03 else 0.5
                 }
             }
@@ -265,21 +269,26 @@ class MabelSession(
             .maxByOrNull { it.third }
             ?.let { it.first to it.second }
 
-    /** [episodes] of [unit], with [lead] and an intro before the first, and a "part two" line
-     * before each part after it. */
+    /** [episodes] of [unit], with [lead] and the title before the first, and a "part two" line
+     * before each part after it. [lead] is what she says first, each line with how readily it's
+     * left out to keep the clip short (see [fit]). */
     private fun play(
         unit: Story,
         episodes: List<Pair<Map<String, Any>, MabelData.EpisodeInfo>>,
-        lead: String?,
+        lead: List<Pair<String, Int>>,
         vibe: String?,
     ): List<MabelSegment> {
         lastUnit = unit
         played += unit.ids
         return episodes.flatMapIndexed { index, (episode, info) ->
-            val intro = info.intros.randomOrNull(random) ?: "Up next, ${spokenTitle(info.title)}."
+            // Just the title, like a radio DJ: what happens is for the episode to tell.
+            val title = spokenTitle(info.title)
+            val intros = data.introLines.ifEmpty { DEFAULT_INTROS }
             val line = when {
-                index == 0 && lead != null -> "$lead $intro"
-                index == 0 -> intro.takeIf { random.nextDouble() < 0.35 }
+                index == 0 && lead.isNotEmpty() -> fit(lead + (intros.random(random).fill(title = title) to 0))
+                // Partway through a run, not "first up".
+                index == 0 -> intros.filterNot { FIRST_ONLY.containsMatchIn(it) }.ifEmpty { DEFAULT_INTROS }
+                    .random(random).fill(title = title).takeIf { random.nextDouble() < 0.35 }
                 else -> info.part?.let { part ->
                     data.partLines.randomOrNull(random)?.fill(part = spell(part[0])) ?: "And now, part ${spell(part[0])}."
                 }
@@ -288,14 +297,15 @@ class MabelSession(
         }
     }
 
-    private fun List<MabelSegment>.withOpener(opener: String?): List<MabelSegment> {
-        if (opener == null) return this
-        val first = firstOrNull()
-        return if (first is MabelSegment.Speak) {
-            listOf(first.copy(text = "$opener ${first.text}")) + drop(1)
-        } else {
-            listOf(MabelSegment.Speak(opener, null)) + this
+    /** [pieces] as one clip, short enough to say in about [MAX_WORDS] words: the optional ones
+     * (a number above zero; the highest goes first) are left out until it fits. */
+    private fun fit(pieces: List<Pair<String, Int>>): String {
+        val kept = pieces.toMutableList()
+        while (kept.sumOf { words(it.first) } > MAX_WORDS) {
+            val drop = kept.filter { it.second > 0 }.maxByOrNull { it.second } ?: break
+            kept.remove(drop)
         }
+        return kept.joinToString(" ") { it.first }
     }
 
     private fun inSeason(season: String): Boolean {
@@ -327,6 +337,20 @@ class MabelSession(
     }
 
     private companion object {
+        /** About eleven seconds of her speaking. */
+        const val MAX_WORDS = 30
+
+        /** How readily each optional line is left out of a clip that'd run long. */
+        const val OPENER = 1
+        const val LIKED = 2
+
+        val DEFAULT_INTROS = listOf("Up next, {title}.", "Here's {title}.", "This one's {title}.")
+
+        /** Intros only for the first episode after she switches vibes. */
+        val FIRST_ONLY = Regex("""^(let's start|first up|starting)""", RegexOption.IGNORE_CASE)
+
+        fun words(text: String) = text.split(Regex("""\s+""")).count { it.isNotBlank() }
+
         const val EXPLORE = 0.25
         const val MAX_EPISODES = 4
         const val RECENT_VIBES = 4
@@ -335,6 +359,7 @@ class MabelSession(
         const val RESUME_DAYS = 21L
 
         val WEATHER = setOf("summer", "fall", "autumn", "winter", "spring")
+        val HOLIDAYS = listOf("christmas", "thanksgiving", "halloween", "easter", "new year", "valentines day")
 
         val PART_SUFFIX = Regex("""[,:]?\s*\(?Part \w+ of \w+\)?""", RegexOption.IGNORE_CASE)
 
@@ -349,7 +374,11 @@ class MabelSession(
 
         fun String.fill(vibe: String? = null, title: String? = null, part: String? = null): String {
             var text = this
-            if (vibe != null) text = text.replace("{vibe}", vibe)
+            if (vibe != null) {
+                // At the start of a sentence it's capitalized: "Some Eugene again, ..."
+                text = if (text.startsWith("{vibe}")) vibe.replaceFirstChar { it.uppercase() } + text.removePrefix("{vibe}") else text
+                text = text.replace("{vibe}", vibe)
+            }
             if (title != null) text = text.replace("{title}", title)
             if (part != null) text = text.replace("{part}", part)
             return text

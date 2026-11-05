@@ -26,6 +26,8 @@ data class MabelData(
     @SerializedName("taste_lines") val tasteLines: List<String> = emptyList(),
     @SerializedName("liked_lines") val likedLines: List<String> = emptyList(),
     @SerializedName("resume_lines") val resumeLines: List<String> = emptyList(),
+    /** What she says right before an episode, with {title} for its title: "Up next, {title}." */
+    @SerializedName("intro_lines") val introLines: List<String> = emptyList(),
     val vibes: List<Vibe> = emptyList(),
     /** By content id. */
     val episodes: Map<String, EpisodeInfo> = emptyMap(),
