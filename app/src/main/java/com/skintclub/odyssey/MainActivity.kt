@@ -118,6 +118,7 @@ import com.skintclub.odyssey.ui.player.BottomSheetPlayer
 import com.skintclub.odyssey.ui.video.VideoPlayerActivity
 import com.skintclub.odyssey.ui.screens.*
 import com.skintclub.odyssey.ui.screens.search.OdysseySearchResultsList
+import com.skintclub.odyssey.ui.screens.search.TranscriptSearchResultsList
 import com.skintclub.odyssey.ui.screens.settings.DarkMode
 import com.skintclub.odyssey.ui.screens.settings.ThemeColorSource
 import com.skintclub.odyssey.ui.screens.settings.rememberThemeColorSource
@@ -524,6 +525,11 @@ class MainActivity : ComponentActivity() {
                     }
                     val searchIndex by odysseyViewModel.searchIndex.collectAsState()
                     val searchResults = remember(searchIndex, query.text) { searchIndex.search(query.text) }
+                    // With transcriptions on, the search bar's trailing button switches it to
+                    // searching what's said in the episodes instead of their titles.
+                    val transcriptsEnabled by rememberPreference(TranscriptsEnabledKey, defaultValue = false)
+                    var searchTranscriptsChosen by rememberSaveable { mutableStateOf(false) }
+                    val searchTranscripts = transcriptsEnabled && searchTranscriptsChosen
 
                     // The secret feature: pasting (or submitting) a CDN episode path/URL plays it
                     // right away and files it under Secret Episodes. False if [input] isn't one.
@@ -598,6 +604,8 @@ class MainActivity : ComponentActivity() {
                             coroutineScope.launch {
                                 openClubLinkTarget(odysseyViewModel.resolveClubLink(clubLink), playEpisode = true)
                             }
+                        } else if (searchTranscripts) {
+                            if (!playSecretEpisode(text)) focusManager.clearFocus()
                         } else if (!playSecretEpisode(text)) {
                             val firstEpisode = searchResults.episodes.firstOrNull()
                             val queue = if (firstEpisode != null) {
@@ -785,7 +793,33 @@ class MainActivity : ComponentActivity() {
                                 onActiveChange = onActiveChange,
                                 scrollBehavior = searchBarScrollBehavior,
                                 placeholder = {
-                                    Text(text = stringResource(R.string.search))
+                                    Text(
+                                        text = if (searchTranscripts) {
+                                            stringResource(R.string.search_transcripts)
+                                        } else {
+                                            stringResource(R.string.search)
+                                        },
+                                    )
+                                },
+                                trailingIcon = if (transcriptsEnabled) {
+                                    {
+                                        IconButton(
+                                            onClick = { searchTranscriptsChosen = !searchTranscriptsChosen },
+                                            onLongClick = {},
+                                        ) {
+                                            Icon(
+                                                painterResource(R.drawable.lyrics),
+                                                contentDescription = stringResource(R.string.search_transcripts),
+                                                tint = if (searchTranscripts) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    LocalContentColor.current
+                                                },
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    null
                                 },
                                 leadingIcon = {
                                     IconButton(
@@ -809,12 +843,20 @@ class MainActivity : ComponentActivity() {
                                 tonalElevation = if (useBlackBars) 0.dp else SearchBarDefaults.TonalElevation,
                                 modifier = Modifier.align(Alignment.TopCenter),
                             ) {
-                                OdysseySearchResultsList(
-                                    results = searchResults,
-                                    navController = navController,
-                                    viewModel = odysseyViewModel,
-                                    onDismiss = { onActiveChange(false) },
-                                )
+                                if (searchTranscripts) {
+                                    TranscriptSearchResultsList(
+                                        query = query.text,
+                                        searchIndex = searchIndex,
+                                        onDismiss = { onActiveChange(false) },
+                                    )
+                                } else {
+                                    OdysseySearchResultsList(
+                                        results = searchResults,
+                                        navController = navController,
+                                        viewModel = odysseyViewModel,
+                                        onDismiss = { onActiveChange(false) },
+                                    )
+                                }
                             }
                         }
 

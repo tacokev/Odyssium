@@ -61,7 +61,7 @@ object Transcripts {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Transcript>?) = size > 4
     }
 
-    private fun file(context: Context) = File(context.filesDir, FILE_NAME)
+    internal fun file(context: Context) = File(context.filesDir, FILE_NAME)
 
     /** Each content id that has a transcript, to its zip entry - empty when none is imported,
      * null while the imported file is still being indexed. */
@@ -150,7 +150,7 @@ object Transcripts {
         transcript
     }
 
-    private fun read(zip: ZipFile, entryName: String): Transcript? {
+    internal fun read(zip: ZipFile, entryName: String): Transcript? {
         val entry = zip.getEntry(entryName) ?: return null
         return zip.getInputStream(entry).bufferedReader().use { gson.fromJson(it, Transcript::class.java) }
     }
