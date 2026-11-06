@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Rational
 import android.view.WindowManager
-import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -34,11 +33,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +47,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -61,6 +62,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -238,6 +240,12 @@ private fun VideoPlayerScreen(
     val shelfTitle by viewModel.shelfTitle.collectAsState()
     val current = videos.getOrNull(currentIndex)
 
+    // Held here rather than in the list so going fullscreen and back keeps where it was.
+    val listState = rememberLazyListState()
+    // The video the list was last scrolled for: the one it opened on, so opening the player
+    // leaves the list at the top, then each video it moves on to.
+    var scrolledForIndex by remember { mutableIntStateOf(currentIndex) }
+
     // Back out of fullscreen before out of the player.
     BackHandler(enabled = isLandscape && !isInPip) { onFullscreenChange(false) }
 
@@ -246,37 +254,36 @@ private fun VideoPlayerScreen(
             VideoSurface(
                 viewModel = viewModel,
                 loadState = loadState,
+                title = current?.title,
                 showControls = !isInPip,
                 isFullscreen = true,
                 onFullscreenChange = onFullscreenChange,
+                onClose = onClose,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.statusBarsPadding()) {
-                    VideoSurface(
-                        viewModel = viewModel,
-                        loadState = loadState,
-                        showControls = true,
-                        isFullscreen = false,
-                        onFullscreenChange = onFullscreenChange,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f),
-                    )
-                    IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart)) {
-                        Icon(
-                            painterResource(R.drawable.arrow_back),
-                            contentDescription = null,
-                            tint = Color.White,
-                        )
-                    }
-                }
+                VideoSurface(
+                    viewModel = viewModel,
+                    loadState = loadState,
+                    title = current?.title,
+                    showControls = true,
+                    isFullscreen = false,
+                    onFullscreenChange = onFullscreenChange,
+                    onClose = onClose,
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f),
+                )
                 VideoDetails(
                     shelfTitle = shelfTitle,
                     current = current,
                     videos = videos,
                     currentIndex = currentIndex,
+                    listState = listState,
+                    scrolledForIndex = scrolledForIndex,
+                    onScrolledFor = { scrolledForIndex = it },
                     onSelect = { viewModel.play(it) },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -293,9 +300,11 @@ private fun VideoPlayerScreen(
 private fun VideoSurface(
     viewModel: VideoPlayerViewModel,
     loadState: VideoLoadState,
+    title: String?,
     showControls: Boolean,
     isFullscreen: Boolean,
     onFullscreenChange: (Boolean) -> Unit,
+    onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.background(Color.Black), contentAlignment = Alignment.Center) {
@@ -303,32 +312,32 @@ private fun VideoSurface(
             factory = { context ->
                 PlayerView(context).apply {
                     player = viewModel.player
+                    useController = false
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                    setShowNextButton(true)
-                    setShowPreviousButton(true)
-                    setShowSubtitleButton(true)
-                    controllerAutoShow = true
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    setShutterBackgroundColor(android.graphics.Color.BLACK)
                 }
-            },
-            update = { view ->
-                view.useController = showControls
-                // The controller keeps its own fullscreen flag, which a rotation by hand never
-                // updates - so the click's own idea of the new state is ignored for this
-                // screen's, and the icon is put back to match it.
-                view.setFullscreenButtonClickListener {
-                    onFullscreenChange(!isFullscreen)
-                    view.post { view.showFullscreenState(isFullscreen) }
-                }
-                view.showFullscreenState(isFullscreen)
             },
             onRelease = { view -> view.player = null },
             modifier = Modifier.fillMaxSize(),
         )
 
-        when (loadState) {
-            VideoLoadState.Loading -> CircularProgressIndicator(color = Color.White)
-            is VideoLoadState.Failed -> Column(
+        if (showControls && loadState !is VideoLoadState.Failed) {
+            VideoControls(
+                player = viewModel.player,
+                title = title,
+                isLoading = loadState == VideoLoadState.Loading,
+                isFullscreen = isFullscreen,
+                onFullscreenChange = onFullscreenChange,
+                onClose = onClose,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (loadState == VideoLoadState.Loading) {
+            CircularProgressIndicator(color = Color.White)
+        }
+
+        if (loadState is VideoLoadState.Failed) {
+            Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxSize()
@@ -340,7 +349,11 @@ private fun VideoSurface(
                 Spacer(Modifier.height(12.dp))
                 FilledTonalButton(onClick = viewModel::retry) { Text("Try again") }
             }
-            VideoLoadState.Ready -> {}
+            if (!isFullscreen) {
+                IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart)) {
+                    Icon(painterResource(R.drawable.expand_more), contentDescription = null, tint = Color.White)
+                }
+            }
         }
     }
 }
@@ -351,67 +364,51 @@ private fun VideoDetails(
     current: VideoItem?,
     videos: List<VideoItem>,
     currentIndex: Int,
+    listState: LazyListState,
+    scrolledForIndex: Int,
+    onScrolledFor: (Int) -> Unit,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
-    // Keeps the playing video in view as the list auto-advances.
+    // As the list moves on to another video, brings it into view if it isn't already - but
+    // not for the video it opened on, which would start the list scrolled part way down.
     LaunchedEffect(currentIndex) {
-        if (videos.size > 1) listState.animateScrollToItem(UP_NEXT_HEADER_INDEX + 1 + currentIndex)
+        if (currentIndex == scrolledForIndex) return@LaunchedEffect
+        onScrolledFor(currentIndex)
+        if (videos.size <= 1) return@LaunchedEffect
+        val item = FIRST_VIDEO_ITEM_INDEX + currentIndex
+        val layout = listState.layoutInfo
+        val info = layout.visibleItemsInfo.firstOrNull { it.index == item }
+        val fullyVisible = info != null &&
+            info.offset >= layout.viewportStartOffset &&
+            info.offset + info.size <= layout.viewportEndOffset
+        if (!fullyVisible) listState.animateScrollToItem(item)
     }
 
     LazyColumn(state = listState, modifier = modifier) {
         item(key = "details") {
-            var expanded by rememberSaveable(current?.id) { mutableStateOf(false) }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = current?.description != null) { expanded = !expanded }
-                    .animateContentSize()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-            ) {
-                Text(
-                    text = current?.title.orEmpty(),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-                val meta = listOfNotNull(
-                    shelfTitle.takeIf { it.isNotBlank() },
-                    current?.lengthMs?.let(::formatVideoLength),
-                    "${currentIndex + 1} of ${videos.size}".takeIf { videos.size > 1 },
-                ).joinToString(" · ")
-                if (meta.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(meta, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                current?.description?.let { description ->
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = if (expanded) Int.MAX_VALUE else 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (!expanded) {
-                        Text(
-                            text = "More",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
-                }
-            }
+            VideoInfo(shelfTitle = shelfTitle, current = current, videos = videos, currentIndex = currentIndex)
         }
         if (videos.size > 1) {
             item(key = "up_next_header") {
-                HorizontalDivider()
-                Text(
-                    text = "Up next",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                ) {
+                    Text(
+                        text = shelfTitle.ifBlank { "Up next" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Text(
+                        text = "  ${currentIndex + 1} / ${videos.size}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             itemsIndexed(videos, key = { _, video -> video.id }) { index, video ->
                 UpNextRow(video = video, isCurrent = index == currentIndex, onClick = { onSelect(index) })
@@ -423,25 +420,73 @@ private fun VideoDetails(
     }
 }
 
-/** The details item comes first, then the "Up next" header. */
-private const val UP_NEXT_HEADER_INDEX = 1
+/** The details item comes first, then the "Up next" header, then the videos. */
+private const val FIRST_VIDEO_ITEM_INDEX = 2
+
+/** YouTube-style: the title, a grey line under it, and the description in a rounded box that
+ * opens up when tapped. */
+@Composable
+private fun VideoInfo(shelfTitle: String, current: VideoItem?, videos: List<VideoItem>, currentIndex: Int) {
+    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)) {
+        Text(
+            text = current?.title.orEmpty(),
+            style = MaterialTheme.typography.titleLarge.copy(fontSize = 19.sp, lineHeight = 25.sp),
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        val meta = listOfNotNull(
+            current?.lengthMs?.let(::formatVideoLength),
+            shelfTitle.takeIf { it.isNotBlank() && videos.size <= 1 },
+        ).joinToString("  ·  ")
+        if (meta.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        current?.description?.let { description ->
+            var expanded by rememberSaveable(current.id) { mutableStateOf(false) }
+            Spacer(Modifier.height(12.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .clickable { expanded = !expanded }
+                    .animateContentSize()
+                    .padding(12.dp),
+            ) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = if (expanded) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (expanded) "Show less" else "…more",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun UpNextRow(video: VideoItem, isCurrent: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
     Row(
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isCurrent) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else Color.Transparent)
+            .background(if (isCurrent) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Box(
             modifier = Modifier
-                .width(140.dp)
+                .width(160.dp)
                 .aspectRatio(16f / 9f)
-                .clip(shape)
+                .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             AsyncImage(
@@ -469,27 +514,18 @@ private fun UpNextRow(video: VideoItem, isCurrent: Boolean, onClick: () -> Unit)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = video.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                maxLines = 2,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 20.sp),
+                fontWeight = FontWeight.Medium,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (isCurrent) {
-                Text("Now playing", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = if (isCurrent) "Now playing" else formatVideoLength(video.lengthMs).orEmpty(),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-    }
-}
-
-@androidx.annotation.OptIn(UnstableApi::class)
-private fun PlayerView.showFullscreenState(fullscreen: Boolean) {
-    val icon = if (fullscreen) {
-        androidx.media3.ui.R.drawable.exo_styled_controls_fullscreen_exit
-    } else {
-        androidx.media3.ui.R.drawable.exo_styled_controls_fullscreen_enter
-    }
-    listOf(androidx.media3.ui.R.id.exo_fullscreen, androidx.media3.ui.R.id.exo_minimal_fullscreen).forEach { id ->
-        findViewById<ImageView>(id)?.setImageResource(icon)
     }
 }
 
