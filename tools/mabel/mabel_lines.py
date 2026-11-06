@@ -19,7 +19,8 @@ its transcripts/*.json, catalog.json, soda_cast.json and club_characters.json ar
 each episode's result is kept in its mabel/episodes/<content id>.json, so re-runs only do what's
 missing.
 
-vibes.json next to this script is the vibes and Mabel's lines, edited by hand; the vibes command
+vibes.json next to this script is the vibes and Mabel's lines, edited by hand, and
+episode_vibes.json is which vibes each episode is in (by content id), also checked by hand; the vibes command
 only writes a draft of it to the data folder (mabel/vibes.json), to start from.
 """
 import argparse
@@ -39,6 +40,9 @@ DATA = Path(os.environ.get("MABEL_DATA", HERE))
 OUT = DATA / "mabel"
 EPISODES_OUT = OUT / "episodes"
 VIBES = HERE / "vibes.json"
+# Each episode's vibes, picked by reading its summary (by Claude, in a Claude Code session); an
+# episode listed here uses these instead of matching its tags against the vibes' members.
+EPISODE_VIBES = HERE / "episode_vibes.json"
 # In the repo this is tools/mabel/, and the app reads its built-in lines from its assets.
 APP_ASSET = HERE.parent.parent / "app" / "src" / "main" / "assets" / "mabel.json"
 
@@ -436,6 +440,8 @@ def clean_nulls(r):
 
 def cmd_build(args):
     vibes = json.loads((VIBES if VIBES.exists() else OUT / "vibes.json").read_text(encoding="utf-8"))
+    picked = json.loads(EPISODE_VIBES.read_text(encoding="utf-8")) if EPISODE_VIBES.exists() else {}
+    order = [v["id"] for v in vibes["vibes"]]
     episodes = {}
     for p in EPISODES_OUT.glob("*.json"):
         r = clean_nulls(json.loads(p.read_text(encoding="utf-8")))
@@ -452,7 +458,8 @@ def cmd_build(args):
             "number": r["number"],
             "part": [int(part.group(1)), int(part.group(2))] if part else None,
             "season": r["season"],
-            "vibes": [v["id"] for v in vibes["vibes"]
+            "vibes": [x for x in order if x in picked[r["id"]]] if r["id"] in picked else
+                     [v["id"] for v in vibes["vibes"]
                       if any(m.lower() in keys or m.lower() in plain for m in v["members"])],
         }
     out = {

@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -24,12 +26,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.skintclub.odyssey.LocalMabelLibrary
 import com.skintclub.odyssey.LocalMabelVoice
+import com.skintclub.odyssey.constants.MABEL_MONOTONE_DEFAULT
 import com.skintclub.odyssey.constants.MabelDjKey
+import com.skintclub.odyssey.constants.MabelMonotoneKey
 import com.skintclub.odyssey.ui.component.SwitchPreference
 import com.skintclub.odyssey.utils.rememberPreference
 import com.skintclub.odyssey.ui.component.PreferenceEntry
 import com.skintclub.odyssey.ui.component.PreferenceGroupTitle
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /** Randomizer's "Mabel" section: turning her on, importing her voice and lines, and trying
  * her voice out. */
@@ -84,6 +89,7 @@ fun MabelPreferences() {
         isEnabled = !importing,
     )
     if (isAvailable) {
+        MonotoneSlider()
         PreferenceEntry(
             title = { Text("Try her voice") },
             onClick = { showTest = true },
@@ -123,6 +129,29 @@ fun MabelPreferences() {
     }
 
     if (showTest) VoiceTestDialog(onDismiss = { showTest = false })
+}
+
+/** How flat she speaks. Saved when the slider is let go, since each new setting means her
+ * clips are spoken again. */
+@Composable
+private fun MonotoneSlider() {
+    val (saved, onSavedChange) = rememberPreference(MabelMonotoneKey, defaultValue = MABEL_MONOTONE_DEFAULT)
+    var value by remember(saved) { mutableFloatStateOf(saved) }
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text("Monotone: ${(value * 100).roundToInt()}%", style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = "Higher is flatter and steadier, like a computer; lower is more expressive. Try her voice to hear it.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.secondary,
+        )
+        Slider(
+            value = value,
+            onValueChange = { value = it },
+            onValueChangeFinished = { onSavedChange(value) },
+            valueRange = 0f..1f,
+            steps = 19,
+        )
+    }
 }
 
 /** Type something for Mabel to say; shows how long it took to generate. */

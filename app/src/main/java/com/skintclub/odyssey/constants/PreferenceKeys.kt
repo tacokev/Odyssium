@@ -327,6 +327,10 @@ val RandomizerNonRepeatingKey = booleanPreferencesKey("randomizerNonRepeating")
 /** The random button starts a listening session hosted by Mabel (see MabelSession). */
 val MabelDjKey = booleanPreferencesKey("mabelDj")
 
+/** How flat Mabel speaks, 0 (the voice's own expression) to 1 (one note). See PitchFlattener. */
+val MabelMonotoneKey = floatPreferencesKey("mabelMonotone")
+const val MABEL_MONOTONE_DEFAULT = 0.7f
+
 val ClubAudioLoadModeKey = stringPreferencesKey("clubAudioLoadMode")
 
 enum class ClubAudioLoadMode {

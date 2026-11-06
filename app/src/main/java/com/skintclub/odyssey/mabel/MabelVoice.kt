@@ -6,6 +6,9 @@ import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
+import com.skintclub.odyssey.constants.MABEL_MONOTONE_DEFAULT
+import com.skintclub.odyssey.constants.MabelMonotoneKey
+import com.skintclub.odyssey.utils.dataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -14,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -125,7 +129,11 @@ class MabelVoice
          * then reused. Null if there's no voice or it couldn't be spoken. */
         suspend fun speak(text: String): File? = withContext(Dispatchers.IO) {
             if (!_isAvailable.value) return@withContext null
-            val file = File(clipDir, "${sha1(text)}.wav")
+            // Rounded, so a slider nudge doesn't respeak everything; part of the clip's name, so
+            // clips spoken at another setting aren't reused.
+            val monotone = ((context.dataStore.data.first()[MabelMonotoneKey] ?: MABEL_MONOTONE_DEFAULT)
+                .coerceIn(0f, 1f) * 20).roundToInt() / 20f
+            val file = File(clipDir, "${sha1("flat|$monotone|$text")}.wav")
             if (file.exists()) return@withContext file
             try {
                 ttsLock.withLock {
@@ -133,10 +141,12 @@ class MabelVoice
                     if (file.exists()) return@withLock
                     val engine = tts ?: load().also { tts = it }
                     val audio = engine.generate(text)
+                    val samples = PitchFlattener.flatten(audio.samples, audio.sampleRate, monotone)
                     clipDir.mkdirs()
                     val temp = File(clipDir, "${file.name}.tmp")
-                    writeWav(temp, audio.samples, audio.sampleRate)
-                    Timber.d("Mabel said (%.1f s): %s", audio.samples.size / audio.sampleRate.toFloat(), text)
+                    writeWav(temp, samples, audio.sampleRate)
+                    Timber.d("Mabel said (%.1f s, %d%% monotone): %s",
+                        samples.size / audio.sampleRate.toFloat(), (monotone * 100).roundToInt(), text)
                     temp.renameTo(file)
                 }
                 file
