@@ -59,6 +59,14 @@ data class TranscriptMatch(
     val matchEnd: Int,
 )
 
+/** A search's [matches] to show (the first few hundred), and how many lines in how many
+ * episodes match in all. */
+data class TranscriptSearchResults(
+    val matches: List<TranscriptMatch>,
+    val totalLines: Int,
+    val totalEpisodes: Int,
+)
+
 sealed interface TranscriptSearchState {
     data class Indexing(val done: Int, val total: Int) : TranscriptSearchState
     class Ready(val episodes: Map<String, TranscriptSearchEpisode>) : TranscriptSearchState
@@ -141,34 +149,42 @@ object TranscriptSearch {
     }
 
     /**
-     * Lines of [episodes] (in that order) containing [rawQuery], ignoring case, at most [limit]
-     * of them. Checks for cancellation as it goes so a newer keystroke can replace it.
+     * Lines of [episodes] (in that order) containing [rawQuery]: the first [limit] of them as
+     * [TranscriptMatch]es to show, plus how many lines and episodes match in all.
+     * Forgiving about how it's typed (see [normalizeQuery]): case, apostrophes and punctuation
+     * don't matter, so "its over For now" finds "It's over. For now...". Checks for
+     * cancellation as it goes so a newer keystroke can replace it.
      */
     suspend fun search(
         index: Map<String, TranscriptSearchEpisode>,
         episodeOrder: List<String>,
         rawQuery: String,
         limit: Int = 300,
-    ): List<TranscriptMatch> {
-        val query = rawQuery.trim()
-        if (query.length < 2) return emptyList()
+    ): TranscriptSearchResults {
+        val query = normalizeQuery(rawQuery)
+        if (query.length < 2) return TranscriptSearchResults(emptyList(), 0, 0)
         val results = ArrayList<TranscriptMatch>()
+        var totalLines = 0
+        var totalEpisodes = 0
         for (id in episodeOrder) {
             coroutineContext.ensureActive()
             val episode = index[id] ?: continue
             val text = episode.text
             var from = 0
-            while (results.size < limit) {
-                val at = indexOfIgnoreCase(text, query, from)
-                if (at < 0) break
+            var linesHere = 0
+            while (true) {
+                val (at, end) = findLoosely(text, query, from) ?: break
                 val line = episode.lineOf(at)
-                results.add(matchIn(episode, line, at, at + query.length))
+                // Past the limit lines are only counted - building a snippet for each would be wasted.
+                if (results.size < limit) results.add(matchIn(episode, line, at, end))
+                linesHere++
                 // One result per line, however often it says it.
                 from = episode.lineEnd(line) + 1
             }
-            if (results.size >= limit) break
+            totalLines += linesHere
+            if (linesHere > 0) totalEpisodes++
         }
-        return results
+        return TranscriptSearchResults(results, totalLines, totalEpisodes)
     }
 
     private fun matchIn(episode: TranscriptSearchEpisode, line: Int, at: Int, end: Int): TranscriptMatch {
@@ -200,19 +216,72 @@ object TranscriptSearch {
         )
     }
 
-    private fun indexOfIgnoreCase(text: String, query: String, from: Int): Int {
+    /** The first match of [query] (from [normalizeQuery]) in [text] at or after [from], as the
+     * start and end of the matched text, or null. Walks the text the way [normalizeQuery] reads
+     * the query - apostrophes skipped, any run of other non-letters as one gap - so no second,
+     * normalized copy of every transcript has to be kept in memory. Never crosses a line. */
+    private fun findLoosely(text: String, query: String, from: Int): Pair<Int, Int>? {
         val first = query[0]
-        val firstLower = first.lowercaseChar()
-        val firstUpper = first.uppercaseChar()
-        val last = text.length - query.length
         var i = from
-        while (i <= last) {
-            val c = text[i]
-            if ((c == firstLower || c == firstUpper) && text.regionMatches(i, query, 0, query.length, ignoreCase = true)) {
-                return i
+        while (i < text.length) {
+            if (text[i].lowercaseChar() == first) {
+                val end = matchLooselyAt(text, query, i)
+                if (end >= 0) return i to end
             }
             i++
         }
-        return -1
+        return null
+    }
+
+    /** Where a loose match of [query] starting at [start] ends (exclusive), or -1. */
+    private fun matchLooselyAt(text: String, query: String, start: Int): Int {
+        var q = 0
+        var t = start
+        var inGap = false
+        while (q < query.length) {
+            if (t >= text.length) return -1
+            val c = text[t]
+            when {
+                c == '\n' -> return -1
+                isApostrophe(c) -> t++
+                c.isLetterOrDigit() -> {
+                    if (inGap) {
+                        if (query[q] != ' ') return -1
+                        q++
+                        inGap = false
+                    }
+                    if (c.lowercaseChar() != query[q]) return -1
+                    q++
+                    t++
+                }
+                else -> {
+                    inGap = true
+                    t++
+                }
+            }
+        }
+        // t is just past the last letter matched; trailing punctuation isn't highlighted.
+        return t
+    }
+
+    private fun isApostrophe(c: Char) = c == '\'' || c == '’' || c == '‘' || c == '`'
+
+    /** [raw] lowercased, apostrophes dropped ("it's" -> "its") and every run of anything else
+     * that isn't a letter or digit (spaces, commas, periods, dashes...) made one space, trimmed. */
+    fun normalizeQuery(raw: String): String {
+        val out = StringBuilder(raw.length)
+        var gap = false
+        for (c in raw) {
+            when {
+                isApostrophe(c) -> {}
+                c.isLetterOrDigit() -> {
+                    if (gap && out.isNotEmpty()) out.append(' ')
+                    gap = false
+                    out.append(c.lowercaseChar())
+                }
+                else -> gap = true
+            }
+        }
+        return out.toString()
     }
 }

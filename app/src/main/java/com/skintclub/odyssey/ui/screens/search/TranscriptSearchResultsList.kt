@@ -40,6 +40,7 @@ import com.skintclub.odyssey.playback.queues.OdysseyQueue
 import com.skintclub.odyssey.playback.queues.odysseyEpisodeToMediaMetadata
 import com.skintclub.odyssey.transcripts.TranscriptMatch
 import com.skintclub.odyssey.transcripts.TranscriptSearch
+import com.skintclub.odyssey.transcripts.TranscriptSearchResults
 import com.skintclub.odyssey.transcripts.TranscriptSearchState
 import com.skintclub.odyssey.transcripts.Transcripts
 import com.skintclub.odyssey.utils.joinByBullet
@@ -66,17 +67,17 @@ fun TranscriptSearchResultsList(
     val episodeById = remember(searchIndex) { searchIndex.episodes.associateBy { it.episode["id"] as? String } }
     val episodeOrder = remember(searchIndex) { searchIndex.episodes.mapNotNull { it.episode["id"] as? String } }
 
-    var matches by remember { mutableStateOf<List<TranscriptMatch>?>(emptyList()) }
+    var results by remember { mutableStateOf<TranscriptSearchResults?>(NO_RESULTS) }
     val ready = state as? TranscriptSearchState.Ready
     LaunchedEffect(ready, episodeOrder, query) {
         if (ready == null) return@LaunchedEffect
         if (query.trim().length < 2) {
-            matches = emptyList()
+            results = NO_RESULTS
             return@LaunchedEffect
         }
         delay(250)
-        matches = null
-        matches = withContext(Dispatchers.Default) {
+        results = null
+        results = withContext(Dispatchers.Default) {
             TranscriptSearch.search(ready.episodes, episodeOrder, query)
         }
     }
@@ -98,13 +99,27 @@ fun TranscriptSearchResultsList(
         }
         is TranscriptSearchState.Failed -> Message(s.message)
         is TranscriptSearchState.Ready -> {
-            val list = matches
+            val found = results
+            val list = found?.matches
             when {
                 s.episodes.isEmpty() -> Message("No transcripts imported. Add them in Settings > Content.")
                 query.trim().length < 2 -> Message("Search what's said in ${s.episodes.size} episodes")
-                list == null -> Unit
+                found == null || list == null -> Unit
                 list.isEmpty() -> Message("Nobody says that")
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item(key = "count") {
+                        Text(
+                            text = "%,d %s in %,d %s".format(
+                                found.totalLines,
+                                if (found.totalLines == 1) "result" else "results",
+                                found.totalEpisodes,
+                                if (found.totalEpisodes == 1) "episode" else "episodes",
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
                     itemsIndexed(list, key = { i, m -> "${m.episodeId}_${m.startMs}_$i" }) { _, match ->
                         val result = episodeById[match.episodeId] ?: return@itemsIndexed
                         TranscriptMatchRow(
@@ -126,8 +141,10 @@ fun TranscriptSearchResultsList(
                             },
                         )
                     }
-                    if (list.size >= 300) {
-                        item(key = "more") { Message("Showing the first 300 lines. Search for more words to narrow it down.") }
+                    if (found.totalLines > list.size) {
+                        item(key = "more") {
+                            Message("Showing the first ${list.size} of %,d. Search for more words to narrow it down.".format(found.totalLines))
+                        }
                     }
                 }
             }
@@ -206,3 +223,5 @@ private fun TranscriptMatchRow(
         }
     }
 }
+
+private val NO_RESULTS = TranscriptSearchResults(emptyList(), 0, 0)
