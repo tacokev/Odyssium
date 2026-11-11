@@ -18,8 +18,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      # Only when the KEYSTORE secret is set; otherwise the build falls back to the standard
+      # debug keystore (see the debug signingConfig in app/build.gradle.kts).
       - name: Decode Keystore
-        run: echo ${{ secrets.KEYSTORE }} | base64 -d >> app/music-debug.jks
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            echo "$KEYSTORE" | base64 -d > app/music-debug.jks
+          else
+            echo "KEYSTORE secret not set; signing with the default debug keystore."
+          fi
 
       - name: set up JDK 17
         uses: actions/setup-java@v3
@@ -32,8 +41,8 @@ jobs:
         run: ./gradlew assembleDebug lintFossDebug testFossDebugUnitTest --stacktrace -DskipFormatKtlint
         env:
           MUSIC_DEBUG_KEYSTORE_FILE: 'music-debug.jks'
-          MUSIC_DEBUG_SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-          MUSIC_DEBUG_SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          MUSIC_DEBUG_SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          MUSIC_DEBUG_SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
