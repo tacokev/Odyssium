@@ -126,7 +126,7 @@
     <string name="view_artist">View artist</string>
     <string name="view_album">View album</string>
     <string name="refetch">Refetch</string>
-    <string name="developed_by">Developed by tacokev and CATEIN</string>
+    <string name="developed_by">Developed by tacokev, CATEIN and UncleJonny</string>
     <string name="view_on_github">View on GitHub</string>
     <string name="share">Share</string>
     <string name="delete">Delete</string>
@@ -393,6 +393,14 @@
     <string name="login_failed">Login failed</string>
     <string name="logout">Logout</string>
     <string name="enable_discord_rpc">Enable Rich Presence</string>
+    <string name="discord_presence">Show on Discord</string>
+    <string name="discord_presence_desc">Show the episode you\'re listening to as your Discord status</string>
+    <string name="discord_sign_in">Sign in with Discord</string>
+    <string name="discord_sign_in_desc">Opens Discord\'s sign-in page in your browser</string>
+    <string name="discord_signed_in">Signed in to Discord</string>
+    <string name="discord_signed_in_as">Signed in as %1$s</string>
+    <string name="discord_sign_out">Sign out</string>
+    <string name="discord_unofficial_note">Sets your status through Discord\'s own connection, the way some other apps do. Discord doesn\'t officially support this; use it at your own risk.</string>
 
     <string name="about">About</string>
     <string name="app_version">App version</string>

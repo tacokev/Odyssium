@@ -8,6 +8,8 @@ import android.database.SQLException
 import android.media.audiofx.AudioEffect
 import android.net.ConnectivityManager
 import android.os.Binder
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.getSystemService
 import androidx.datastore.preferences.core.edit
 import androidx.media3.common.AudioAttributes
@@ -52,7 +54,10 @@ import com.skintclub.odyssey.constants.*
 import com.skintclub.odyssey.constants.MediaSessionConstants.CommandToggleLike
 import com.skintclub.odyssey.constants.MediaSessionConstants.CommandToggleRepeatMode
 import com.skintclub.odyssey.constants.MediaSessionConstants.CommandToggleShuffle
+import com.skintclub.odyssey.club.isSecretEpisodeId
 import com.skintclub.odyssey.db.MusicDatabase
+import com.skintclub.odyssey.discord.DiscordRpc
+import com.skintclub.odyssey.discord.DiscordStatus
 import com.skintclub.odyssey.db.entities.Event
 import com.skintclub.odyssey.di.DownloadCache
 import com.skintclub.odyssey.di.PlayerCache
@@ -127,6 +132,12 @@ class MusicService :
 
     // The item that already has a history entry for its current play-through.
     private var historyRecordedFor: String? = null
+
+    private var discordEnabled = false
+    private val discordHandler = Handler(Looper.getMainLooper())
+
+    // Paused for a while: close the Discord connection rather than hold it open for nothing.
+    private val discordIdle = Runnable { DiscordRpc.disconnect() }
     private val currentSong =
         currentMediaMetadata
             .flatMapLatest { mediaMetadata ->
@@ -243,6 +254,22 @@ class MusicService :
             .distinctUntilChanged()
             .collectLatest(scope) {
                 player.skipSilenceEnabled = it
+            }
+
+        DiscordRpc.init(this)
+        combine(
+            dataStore.data.map { it[DiscordPresenceKey] ?: false }.distinctUntilChanged(),
+            DiscordRpc.signedIn,
+        ) { enabled, signedIn -> enabled && signedIn }
+            .distinctUntilChanged()
+            .collectLatest(scope) { enabled ->
+                discordEnabled = enabled
+                if (enabled) {
+                    updateDiscordStatus()
+                } else {
+                    discordHandler.removeCallbacks(discordIdle)
+                    DiscordRpc.disconnect()
+                }
             }
 
         combine(
@@ -498,6 +525,48 @@ class MusicService :
         if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION) && player.isPlaying) {
             recordHistory()
         }
+        if (events.containsAny(
+                Player.EVENT_IS_PLAYING_CHANGED,
+                Player.EVENT_PLAYBACK_STATE_CHANGED,
+                Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                Player.EVENT_MEDIA_ITEM_TRANSITION,
+                EVENT_POSITION_DISCONTINUITY,
+                EVENT_TIMELINE_CHANGED,
+            )
+        ) {
+            updateDiscordStatus()
+        }
+    }
+
+    /** Shows the current episode as the Discord status while listening (playing, or buffering on
+     * the way to it), and clears it when paused or stopped. */
+    private fun updateDiscordStatus() {
+        if (!discordEnabled) return
+        val metadata = player.currentMetadata
+        val listening = metadata != null && player.playWhenReady &&
+            (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)
+        if (!listening) {
+            DiscordRpc.show(null)
+            discordHandler.removeCallbacks(discordIdle)
+            discordHandler.postDelayed(discordIdle, DISCORD_IDLE_MS)
+            return
+        }
+        discordHandler.removeCallbacks(discordIdle)
+        DiscordRpc.start()
+        // A secret episode stays secret: no title, album or artwork of its own.
+        val secret = isSecretEpisodeId(metadata!!.id)
+        val start = System.currentTimeMillis() - player.currentPosition
+        val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0 }
+        DiscordRpc.show(
+            DiscordStatus(
+                title = if (secret) "Secret Episode" else metadata.title,
+                subtitle = "Adventures in Odyssey",
+                imageUrl = metadata.thumbnailUrl?.takeIf { !secret && it.startsWith("https://") },
+                imageText = if (secret) null else metadata.album?.title ?: metadata.artists.firstOrNull()?.name,
+                startMs = start,
+                endMs = duration?.let { start + it },
+            ),
+        )
     }
 
     /** Adds the current item to listen history as soon as it starts playing. */
@@ -755,6 +824,8 @@ class MusicService :
         if (dataStore.get(PersistentQueueKey, true)) {
             saveQueueToDisk()
         }
+        discordHandler.removeCallbacks(discordIdle)
+        DiscordRpc.disconnect()
         mediaSession.release()
         player.removeListener(this)
         player.removeListener(sleepTimer)
@@ -780,6 +851,9 @@ class MusicService :
         /** See [retryStream]. */
         private const val MAX_STREAM_RETRIES = 2
         private const val STREAM_RETRY_DELAY_MS = 2_000L
+
+        /** How long paused before the Discord connection is closed. */
+        private const val DISCORD_IDLE_MS = 5 * 60_000L
 
         const val ROOT = "root"
         const val SONG = "song"

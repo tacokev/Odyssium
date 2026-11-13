@@ -25,6 +25,9 @@ android {
         versionCode = 32
         versionName = "1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The Discord application the status shows as, and that signs users in. It must be a
+        // Public Client with odyssiumdiscord://oauth2/callback under OAuth2 > Redirects.
+        buildConfigField("long", "DISCORD_APP_ID", "1570932702239264839L")
     }
     signingConfigs {
         getByName("debug") {

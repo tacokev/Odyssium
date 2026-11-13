@@ -24,6 +24,7 @@ import com.skintclub.odyssey.club.SECRET_EPISODES_ROUTE
 import com.skintclub.odyssey.ui.screens.settings.AboutScreen
 import com.skintclub.odyssey.ui.screens.settings.AccountSettings
 import com.skintclub.odyssey.ui.screens.settings.AppearanceSettings
+import com.skintclub.odyssey.ui.screens.settings.DiscordSettings
 import com.skintclub.odyssey.ui.screens.settings.ClubContentSettings
 import com.skintclub.odyssey.ui.screens.settings.PlayerSettings
 import com.skintclub.odyssey.ui.screens.settings.RandomizerSettings
@@ -202,6 +203,9 @@ fun NavGraphBuilder.navigationBuilder(
     }
     screen("settings/randomizer") {
         RandomizerSettings(navController, scrollBehavior)
+    }
+    screen("settings/discord") {
+        DiscordSettings(navController, scrollBehavior)
     }
     screen("settings/content") {
         ClubContentSettings(navController, scrollBehavior)

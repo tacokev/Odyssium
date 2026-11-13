@@ -57,6 +57,11 @@ fun SettingsScreen(
             onClick = { navController.navigate("settings/randomizer") },
         )
         PreferenceEntry(
+            title = { Text(stringResource(R.string.discord_integration)) },
+            icon = { Icon(painterResource(R.drawable.discord), null) },
+            onClick = { navController.navigate("settings/discord") },
+        )
+        PreferenceEntry(
             title = { Text("Content") },
             icon = { Icon(painterResource(R.drawable.download), null) },
             onClick = { navController.navigate("settings/content") },

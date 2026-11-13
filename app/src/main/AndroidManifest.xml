@@ -88,6 +88,26 @@
             android:resizeableActivity="true"
             android:theme="@style/Theme.InnerTune.Video" />
 
+        <!-- Where the browser returns after signing in to Discord (see DiscordAuth). -->
+        <activity
+            android:name=".discord.DiscordAuthCallbackActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="oauth2"
+                    android:path="/callback"
+                    android:scheme="odyssiumdiscord" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.FileProvider"
