@@ -17,6 +17,7 @@ import com.skintclub.odyssey.constants.ClubProfileNameKey
 import com.skintclub.odyssey.constants.ClubProfilePictureKey
 import com.skintclub.odyssey.constants.ClubViewerIdKey
 import com.skintclub.odyssey.playback.ODYSSEY_MEDIA_HOST
+import com.skintclub.odyssey.viewmodels.albumNumberOf
 import com.skintclub.odyssey.utils.dataStore
 import com.skintclub.odyssey.utils.get
 import kotlinx.coroutines.Dispatchers
@@ -1109,6 +1110,41 @@ class ClubClient(private val context: Context) {
             .map { it to groupingEpisodesFrom(it, albumEpisodeById, isPlayable) }
             .filter { (_, episodes) -> episodes.isNotEmpty() }
     }
+
+    /** The Episodes page's rows: the club's "Episodes 1 to 50", ... blocks. The club files a
+     * new album's episodes into a block some time after releasing it, so until then they'd only
+     * be on the Albums page - they're added to the end of the last block ("1001 and above") here
+     * instead. Only albums numbered at or past the newest one the blocks reach count (and only
+     * their episodes missing from every block), so older albums' extras never turn up. */
+    fun episodeSectionsFrom(groupings: List<ClubGrouping>): List<Pair<ClubGrouping, List<Map<String, Any>>>> {
+        val blocks = groupingsOfType(groupings, EPISODE_HOME_TYPE)
+        val sections = sectionsFrom(groupings, blocks)
+        val (lastBlock, lastEpisodes) = sections.lastOrNull() ?: return sections
+        val inBlocks = sections.flatMapTo(HashSet()) { (_, episodes) -> episodes.map { it["id"] } }
+        val albums = groupings.filter { it.type == "Album" }
+            .mapNotNull { album -> albumNumberOf(album.name)?.let { album to it } }
+        val newestInBlocks = albums
+            .filter { (album, _) -> album.contentList.any { it.id in inBlocks } }
+            .maxOfOrNull { (_, number) -> number }
+            ?: return sections
+        val unfiled = albums
+            .filter { (_, number) -> number >= newestInBlocks }
+            .sortedBy { (_, number) -> number }
+            .flatMap { (album, _) -> albumEpisodesFrom(listOf(album)).filter { it["id"] !in inBlocks } }
+            .distinctBy { it["id"] }
+        if (unfiled.isEmpty()) return sections
+        return sections.dropLast(1) + (lastBlock to lastEpisodes + unfiled)
+    }
+
+    /** A grouping's episodes for its own list screen - for an episode block, as the Episodes
+     * page shows it (so the last block has the not-yet-filed new episodes too). */
+    fun groupingScreenEpisodesFrom(groupings: List<ClubGrouping>, grouping: ClubGrouping): List<Map<String, Any>> =
+        if (grouping.type == EPISODE_HOME_TYPE) {
+            episodeSectionsFrom(groupings).firstOrNull { (block, _) -> block.id == grouping.id }?.second
+                ?: groupingEpisodesFrom(groupings, grouping)
+        } else {
+            groupingEpisodesFrom(groupings, grouping)
+        }
 
     /** A content item's download_url, ready to stream from as-is (no signed-cookie query
      * string needed). Used by the "Content request" audio-loading mode, which trades an extra

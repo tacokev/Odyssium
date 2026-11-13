@@ -165,7 +165,8 @@ fun OdysseyAlbumsScreen(
     )
 }
 
-/** Every numbered episode, 1 onward, one row per 50-episode block. */
+/** Every numbered episode, 1 onward, one row per 50-episode block - with any new
+ * album's episodes the club hasn't filed into a block yet, at the end of the last one. */
 @Composable
 fun OdysseyAllEpisodesScreen(
     navController: NavController,
@@ -175,7 +176,7 @@ fun OdysseyAllEpisodesScreen(
     val clubClient = remember { ClubClient(context) }
     val groupings by viewModel.groupings.collectAsState()
     val sections = remember(groupings) {
-        clubClient.sectionsFrom(groupings, clubClient.groupingsOfType(groupings, ClubClient.EPISODE_HOME_TYPE))
+        clubClient.episodeSectionsFrom(groupings)
     }
     OdysseySectionedEpisodesScreen(navController, viewModel, "Episodes", sections, EpisodesSortReversedKey)
 }
@@ -494,7 +495,7 @@ fun OdysseyGroupingScreen(
     val groupings by viewModel.groupings.collectAsState()
     val grouping = remember(groupings, groupingId) { groupings.firstOrNull { it.id == groupingId } }
     val episodes = remember(groupings, grouping) {
-        grouping?.let { clubClient.groupingEpisodesFrom(groupings, it) }.orEmpty()
+        grouping?.let { clubClient.groupingScreenEpisodesFrom(groupings, it) }.orEmpty()
     }
     OdysseyEpisodeListScreen(navController, viewModel, grouping?.name ?: "", episodes, grouping)
 }
