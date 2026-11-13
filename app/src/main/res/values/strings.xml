@@ -393,6 +393,8 @@
     <string name="login_failed">Login failed</string>
     <string name="logout">Logout</string>
     <string name="enable_discord_rpc">Enable Rich Presence</string>
+    <string name="discord_presence">Show on Discord</string>
+    <string name="discord_presence_desc">Show the episode you\'re listening to as your Discord status. Uses the Discord app on this phone; no Discord login needed.</string>
 
     <string name="about">About</string>
     <string name="app_version">App version</string>

@@ -94,3 +94,6 @@ output-metadata.json
 
 # Stray screenshots in the project root
 /*.png
+
+# Discord Social SDK (download it yourself from the Discord Developer Portal; not ours to redistribute)
+/discord_social_sdk/

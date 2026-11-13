@@ -23,6 +23,8 @@ import com.skintclub.odyssey.constants.AudioNormalizationKey
 import com.skintclub.odyssey.constants.AudioQuality
 import com.skintclub.odyssey.constants.AudioQualityKey
 import com.skintclub.odyssey.constants.AutoSkipNextOnErrorKey
+import com.skintclub.odyssey.constants.DiscordPresenceKey
+import com.skintclub.odyssey.playback.DiscordPresence
 import com.skintclub.odyssey.constants.PersistentQueueKey
 import com.skintclub.odyssey.constants.SeekIncrement
 import com.skintclub.odyssey.constants.SeekIncrementKey
@@ -48,6 +50,7 @@ fun PlayerSettings(
     val (autoSkipNextOnError, onAutoSkipNextOnErrorChange) = rememberPreference(AutoSkipNextOnErrorKey, defaultValue = false)
     val (stopMusicOnTaskClear, onStopMusicOnTaskClearChange) = rememberPreference(StopMusicOnTaskClearKey, defaultValue = false)
     val (seekIncrement, onSeekIncrementChange) = rememberEnumPreference(SeekIncrementKey, defaultValue = SeekIncrement.TEN)
+    val (discordPresence, onDiscordPresenceChange) = rememberPreference(DiscordPresenceKey, defaultValue = false)
 
     Column(
         Modifier
@@ -101,6 +104,16 @@ fun PlayerSettings(
             checked = stopMusicOnTaskClear,
             onCheckedChange = onStopMusicOnTaskClearChange,
         )
+        // Only in builds made with the Discord Social SDK (see DiscordPresence).
+        if (DiscordPresence.isAvailable) {
+            SwitchPreference(
+                title = { Text(stringResource(R.string.discord_presence)) },
+                description = stringResource(R.string.discord_presence_desc),
+                icon = { Icon(painterResource(R.drawable.discord), null) },
+                checked = discordPresence,
+                onCheckedChange = onDiscordPresenceChange,
+            )
+        }
         EnumListPreference(
             title = { Text(stringResource(R.string.seek_buttons)) },
             icon = { Icon(painterResource(R.drawable.forward_30), null) },

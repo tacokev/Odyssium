@@ -127,6 +127,9 @@ class MusicService :
 
     // The item that already has a history entry for its current play-through.
     private var historyRecordedFor: String? = null
+
+    private val discordPresence = DiscordPresence()
+    private var discordPresenceEnabled = false
     private val currentSong =
         currentMediaMetadata
             .flatMapLatest { mediaMetadata ->
@@ -244,6 +247,16 @@ class MusicService :
             .collectLatest(scope) {
                 player.skipSilenceEnabled = it
             }
+
+        if (DiscordPresence.isAvailable) {
+            dataStore.data
+                .map { it[DiscordPresenceKey] ?: false }
+                .distinctUntilChanged()
+                .collectLatest(scope) { enabled ->
+                    discordPresenceEnabled = enabled
+                    if (enabled) updateDiscordPresence() else discordPresence.release()
+                }
+        }
 
         combine(
             currentFormat,
@@ -498,6 +511,31 @@ class MusicService :
         if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION) && player.isPlaying) {
             recordHistory()
         }
+        if (events.containsAny(
+                Player.EVENT_IS_PLAYING_CHANGED,
+                Player.EVENT_PLAYBACK_STATE_CHANGED,
+                Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                Player.EVENT_MEDIA_ITEM_TRANSITION,
+                EVENT_POSITION_DISCONTINUITY,
+                EVENT_TIMELINE_CHANGED,
+            )
+        ) {
+            updateDiscordPresence()
+        }
+    }
+
+    /** Shows the current episode as the Discord status while listening (playing, or buffering on
+     * the way to it), and clears it when paused or stopped. */
+    private fun updateDiscordPresence() {
+        if (!discordPresenceEnabled) return
+        val listening = player.playWhenReady &&
+            (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)
+        discordPresence.show(
+            metadata = if (listening) player.currentMetadata else null,
+            isPlaying = listening,
+            positionMs = player.currentPosition,
+            durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L,
+        )
     }
 
     /** Adds the current item to listen history as soon as it starts playing. */
@@ -755,6 +793,7 @@ class MusicService :
         if (dataStore.get(PersistentQueueKey, true)) {
             saveQueueToDisk()
         }
+        discordPresence.release()
         mediaSession.release()
         player.removeListener(this)
         player.removeListener(sleepTimer)
