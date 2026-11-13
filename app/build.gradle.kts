@@ -22,8 +22,8 @@ android {
         applicationId = "com.skintclub.odyssey"
         minSdk = 24
         targetSdk = 35
-        versionCode = 32
-        versionName = "1.1"
+        versionCode = 33
+        versionName = "1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // The Discord application the status shows as, and that signs users in. It must be a
         // Public Client with odyssiumdiscord://oauth2/callback under OAuth2 > Redirects.
