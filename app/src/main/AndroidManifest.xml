@@ -133,9 +133,16 @@
             android:resource="@xml/automotive_app_desc" />
 
         <!-- From the Discord Social SDK: its account-linking screen and voice-chat service. Only
-             Rich Presence is used, which needs neither. -->
-        <activity android:name="com.discord.socialsdk.AuthenticationActivity" tools:node="remove" />
-        <service android:name="com.discord.socialsdk.ForegroundService" tools:node="remove" />
+             Rich Presence is used, which needs neither. (Builds without the SDK don't have these
+             classes at all, hence MissingClass is ignored.) -->
+        <activity
+            android:name="com.discord.socialsdk.AuthenticationActivity"
+            tools:ignore="MissingClass"
+            tools:node="remove" />
+        <service
+            android:name="com.discord.socialsdk.ForegroundService"
+            tools:ignore="MissingClass"
+            tools:node="remove" />
     </application>
 
 </manifest>
