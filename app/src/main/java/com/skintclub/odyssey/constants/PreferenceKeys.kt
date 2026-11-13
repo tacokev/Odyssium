@@ -56,9 +56,6 @@ val AudioNormalizationKey = booleanPreferencesKey("audioNormalization")
 val AutoSkipNextOnErrorKey = booleanPreferencesKey("autoSkipNextOnError")
 val StopMusicOnTaskClearKey = booleanPreferencesKey("stopMusicOnTaskClear")
 
-/** Show what's playing as the Discord status (see [com.skintclub.odyssey.playback.DiscordPresence]). */
-val DiscordPresenceKey = booleanPreferencesKey("discordPresence")
-
 val MaxImageCacheSizeKey = intPreferencesKey("maxImageCacheSize")
 val MaxSongCacheSizeKey = intPreferencesKey("maxSongCacheSize")
 

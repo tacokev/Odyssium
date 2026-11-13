@@ -11,14 +11,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
-    <!-- The Discord Social SDK (Discord status - see DiscordPresence) asks for these for voice
-         chat, which the app doesn't use. Rich Presence needs none of them. -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" tools:node="remove" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" tools:node="remove" />
-    <uses-permission android:name="android.permission.BLUETOOTH" tools:node="remove" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" tools:node="remove" />
-
     <queries>
         <intent>
             <action android:name="android.media.action.DISPLAY_AUDIO_EFFECT_CONTROL_PANEL" />
@@ -131,18 +123,6 @@
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
-
-        <!-- From the Discord Social SDK: its account-linking screen and voice-chat service. Only
-             Rich Presence is used, which needs neither. (Builds without the SDK don't have these
-             classes at all, hence MissingClass is ignored.) -->
-        <activity
-            android:name="com.discord.socialsdk.AuthenticationActivity"
-            tools:ignore="MissingClass"
-            tools:node="remove" />
-        <service
-            android:name="com.discord.socialsdk.ForegroundService"
-            tools:ignore="MissingClass"
-            tools:node="remove" />
     </application>
 
 </manifest>

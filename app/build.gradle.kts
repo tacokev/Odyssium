@@ -8,21 +8,6 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
 
-// The Discord Social SDK (for the Discord status - see DiscordPresence) isn't ours to share, so it
-// isn't in the repo. Download it from the Discord Developer Portal and put its include/ and
-// lib/release/discord_partner_sdk.aar under discord_social_sdk/ to build with it; without it the
-// app builds as before, just without the Discord option.
-val discordSdkAar = rootProject.file("discord_social_sdk/lib/release/discord_partner_sdk.aar")
-val hasDiscordSdk = discordSdkAar.exists()
-
-// Optional, in local.properties: app.buildDirectory=<path> moves this module's build output
-// elsewhere. Only needed on a machine where the native (Discord SDK) build trips over files in the
-// usual build folder being locked; does nothing unless set.
-val localProperties = Properties().apply {
-    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
-}
-localProperties.getProperty("app.buildDirectory")?.let { layout.buildDirectory.set(file(it)) }
-
 plugins {
     id("com.android.application")
     alias(libs.plugins.hilt)
@@ -40,16 +25,6 @@ android {
         versionCode = 32
         versionName = "1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("boolean", "DISCORD_SDK", hasDiscordSdk.toString())
-        // The "Odyssium" app in the Discord Developer Portal, which the status is shown as.
-        buildConfigField("long", "DISCORD_APPLICATION_ID", "1570491963122126998L")
-    }
-    if (hasDiscordSdk) {
-        externalNativeBuild {
-            cmake {
-                path = file("src/main/cpp/CMakeLists.txt")
-            }
-        }
     }
     signingConfigs {
         getByName("debug") {
@@ -95,8 +70,6 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
-        // The SDK's AAR hands its headers and native library to CMake through Prefab.
-        prefab = hasDiscordSdk
     }
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -127,8 +100,6 @@ ksp {
 }
 
 dependencies {
-    if (hasDiscordSdk) implementation(files(discordSdkAar))
-
     implementation(libs.guava)
     implementation(libs.coroutines.guava)
 

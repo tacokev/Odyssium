@@ -104,7 +104,6 @@ import com.skintclub.odyssey.extensions.*
 import com.skintclub.odyssey.models.MediaMetadata
 import com.skintclub.odyssey.club.FreeRadio
 import com.skintclub.odyssey.constants.WelcomeSeenKey
-import com.skintclub.odyssey.playback.DiscordPresence
 import com.skintclub.odyssey.playback.DownloadUtil
 import com.skintclub.odyssey.playback.MusicService
 import com.skintclub.odyssey.playback.MusicService.MusicBinder
@@ -247,7 +246,6 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        DiscordPresence.attach(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         // Only a fresh launch: after a rotation, savedInstanceState is set and the link that
         // opened the app has already been handled.
