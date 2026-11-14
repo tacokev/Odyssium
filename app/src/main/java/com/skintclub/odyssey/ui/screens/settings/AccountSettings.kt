@@ -44,6 +44,7 @@ import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.CLUB_WEB_HOST
 import com.skintclub.odyssey.club.ClubClient
+import com.skintclub.odyssey.constants.AutoLoginKey
 import com.skintclub.odyssey.constants.ClubProfileNameKey
 import com.skintclub.odyssey.constants.ClubProfilePictureKey
 import com.skintclub.odyssey.constants.ResumeFromHistoryKey
@@ -69,6 +70,7 @@ fun AccountSettings(
     val isLoggedIntoClub by clubClient.isLoggedInFlow().collectAsState(initial = false)
     var showClubPlaylists by rememberPreference(ShowClubPlaylistsKey, defaultValue = true)
     var syncPlaylistsToClub by rememberPreference(SyncPlaylistsToClubKey, defaultValue = false)
+    var autoLogin by rememberPreference(AutoLoginKey, defaultValue = false)
     var syncEpisodeProgress by rememberPreference(SyncEpisodeProgressKey, defaultValue = true)
     var showClubHistory by rememberPreference(ShowClubHistoryKey, defaultValue = true)
     var resumeFromHistory by rememberPreference(ResumeFromHistoryKey, defaultValue = true)
@@ -136,6 +138,14 @@ fun AccountSettings(
             )
 
             ClubLinksPreference()
+
+            SwitchPreference(
+                title = { Text("Attempt auto login") },
+                description = "When the club logs you out, try logging back in in the background first. You're only asked to log in if the club wants your email and password.",
+                icon = { Icon(painterResource(R.drawable.sync), null) },
+                checked = autoLogin,
+                onCheckedChange = { autoLogin = it },
+            )
 
             SwitchPreference(
                 title = { Text("Show club playlists in library") },

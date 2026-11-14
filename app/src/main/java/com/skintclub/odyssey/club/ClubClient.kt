@@ -22,6 +22,9 @@ import com.skintclub.odyssey.utils.dataStore
 import com.skintclub.odyssey.utils.get
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -313,6 +316,28 @@ class ClubClient(private val context: Context) {
         { isPlayableContent(it) || (includeVideos && it.type == "Video") }
 
     companion object {
+        private val _loginLost = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+        /** Fires whenever any request finds the club no longer accepts the stored login (its
+         * refresh token was turned down), from any ClubClient. Not when there's simply no
+         * login. */
+        val loginLost: SharedFlow<Unit> = _loginLost.asSharedFlow()
+
+        private val _loginRestored = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+        /** Fires when "Attempt auto login" has logged back in, so a screen whose request ran
+         * into the lost login can load again. */
+        val loginRestored: SharedFlow<Unit> = _loginRestored.asSharedFlow()
+
+        fun notifyLoginRestored() {
+            _loginRestored.tryEmit(Unit)
+        }
+
+        /** Set when a background login attempt already reached the email and password form,
+         * so the login screen shows its page straight away instead of hiding it first. Read
+         * (and cleared) by the login screen. */
+        @Volatile
+        var loginFormExpected = false
         /** The club's own logout page. It doesn't render anything useful itself — it just
          * kicks off a server-side session teardown and, once that's done, redirects away -
          * to a Salesforce domain, or sometimes just back to the club's own homepage - which
@@ -394,10 +419,8 @@ class ClubClient(private val context: Context) {
      * authorization `code` (or an `error`). */
     fun isLoginCallback(url: String): Boolean = url.startsWith(redirectUrl)
 
-    /** The club's login page, for a WebView. [immediate] asks the club not to show a login
-     * form at all: it goes straight to the callback, with a code when the website session is
-     * still alive, or an error when it isn't. */
-    fun generateLoginUrl(immediate: Boolean = false): String {
+    /** The club's login page, for a WebView. */
+    fun generateLoginUrl(): String {
         val sr = SecureRandom()
         val code = ByteArray(32)
         sr.nextBytes(code)
@@ -413,8 +436,7 @@ class ClubClient(private val context: Context) {
                 "redirect_uri=$redirectUrl&" +
                 "code_challenge=$codeChallenge&" +
                 "code_challenge_method=S256&" +
-                "scope=api web refresh_token" +
-                if (immediate) "&immediate=true" else ""
+                "scope=api web refresh_token"
     }
 
     suspend fun exchangeCodeForToken(code: String): Boolean = withContext(Dispatchers.IO) {
@@ -487,11 +509,11 @@ class ClubClient(private val context: Context) {
             if (response.code == 401) {
                 response.close()
                 val refreshedToken = (if (refreshAccessToken()) getAccessToken() else null)
-                    ?: throw ClubAuthException("$label failed: refresh token rejected")
+                    ?: throw loginLost("$label failed: refresh token rejected")
                 response = client.newCall(build(refreshedToken)).await()
                 if (response.code == 401) {
                     response.close()
-                    throw ClubAuthException("$label failed: HTTP 401 after refreshing")
+                    throw loginLost("$label failed: HTTP 401 after refreshing")
                 }
             }
             if (!response.isSuccessful) {
@@ -501,6 +523,13 @@ class ClubClient(private val context: Context) {
             }
             response
         }
+
+    /** The exception for a login the club no longer takes, after telling [loginLost] - so
+     * it's handled (see OdysseyViewModel) whichever screen's request ran into it. */
+    private fun loginLost(message: String): ClubAuthException {
+        _loginLost.tryEmit(Unit)
+        return ClubAuthException(message)
+    }
 
     suspend fun fetchProfiles(): List<ClubProfile> = withContext(Dispatchers.IO) {
         val response = authorizedCall("fetchProfiles") { token ->
