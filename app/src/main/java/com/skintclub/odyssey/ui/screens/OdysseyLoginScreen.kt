@@ -37,6 +37,7 @@ import androidx.navigation.NavController
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.ClubClient
+import com.skintclub.odyssey.club.HAS_LOGIN_FORM_JS
 import com.skintclub.odyssey.ui.component.IconButton
 import com.skintclub.odyssey.ui.utils.backToMain
 import kotlinx.coroutines.delay
@@ -47,9 +48,6 @@ private const val LOGIN_FORM_CHECK_MS = 250L
 
 /** Shown anyway after this long, in case the form isn't recognized. */
 private const val LOGIN_FORM_WAIT_MS = 10_000L
-
-private const val HAS_LOGIN_FORM_JS = "!!document.querySelector('input[type=password]')"
-
 @SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,8 +60,11 @@ fun OdysseyLoginScreen(navController: NavController) {
 
     // The club website often still has a session and logs straight back in, which takes a
     // second or two of a white page. So the page stays hidden behind a spinner until it shows
-    // a login form; if it goes to the callback first, it's never seen.
-    var showWebView by remember { mutableStateOf(false) }
+    // a login form; if it goes to the callback first, it's never seen. When "Attempt auto
+    // login" already found the form, it's shown straight away.
+    var showWebView by remember {
+        mutableStateOf(ClubClient.loginFormExpected.also { ClubClient.loginFormExpected = false })
+    }
     // Whether the club's site has answered yet, for what the spinner says.
     var pageLoaded by remember { mutableStateOf(false) }
     LaunchedEffect(webViewInstance) {

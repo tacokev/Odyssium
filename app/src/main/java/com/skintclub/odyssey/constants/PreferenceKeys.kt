@@ -353,6 +353,11 @@ val ShowClubPlaylistsKey = booleanPreferencesKey("syncPlaylists")
  * club, for the selected profile (see OdysseyViewModel.syncPlaylistToClub). Off by default. */
 val SyncPlaylistsToClubKey = booleanPreferencesKey("syncPlaylistsToClub")
 
+/** "Attempt auto login": when the club stops accepting the login, try the login page in the
+ * background first (see tryLoginSilently), and only ask if it wants an email and password.
+ * Off by default. */
+val AutoLoginKey = booleanPreferencesKey("clubAutoLogin")
+
 /** Whether the welcome screen has been seen (and left, by logging in or skipping). It's only
  * shown once: logged out after that, the app is used without an account (see FreeRadio). */
 val WelcomeSeenKey = booleanPreferencesKey("welcomeSeen")

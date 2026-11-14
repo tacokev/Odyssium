@@ -30,7 +30,9 @@ import com.skintclub.odyssey.club.mergeComicSeries
 import com.skintclub.odyssey.club.parseSecretEpisodePath
 import com.skintclub.odyssey.club.secretEpisodeMap
 import com.skintclub.odyssey.club.toGrouping
+import com.skintclub.odyssey.club.SilentLoginResult
 import com.skintclub.odyssey.club.tryLoginSilently
+import com.skintclub.odyssey.constants.AutoLoginKey
 import com.skintclub.odyssey.constants.ClubViewerIdKey
 import com.skintclub.odyssey.constants.ExcludeBonusEpisodesKey
 import com.skintclub.odyssey.constants.ExcludeSubsequentPartsKey
@@ -49,6 +51,7 @@ import com.skintclub.odyssey.utils.dataStore
 import com.skintclub.odyssey.utils.get
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -208,9 +211,9 @@ class OdysseyViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
 
-    /** Set when a refresh fails while logged in, meaning the stored tokens no longer work.
-     * [odysseyClient] is logged out immediately so the app doesn't keep hitting the API with
-     * a dead token; the UI observes this to send the user back through [OdysseyLoginScreen]. */
+    /** Set when the club stops accepting the stored login (see [onLoginLost]). The client is
+     * logged out so the app doesn't keep hitting the API with a dead token; the UI observes
+     * this to send the user back through [OdysseyLoginScreen]. */
     private val _needsRelogin = MutableStateFlow(false)
     val needsRelogin = _needsRelogin.asStateFlow()
 
@@ -241,6 +244,39 @@ class OdysseyViewModel @Inject constructor(
             }.filterNotNull().collect { localPlaylistStore.claimUnowned(it) }
         }
         syncPlaylistsWhileOn()
+        // Whichever screen's request finds the login no longer works (the episode details
+        // page, playback, a refresh...).
+        viewModelScope.launch { ClubClient.loginLost.collect { onLoginLost() } }
+    }
+
+    private val relogging = AtomicBoolean(false)
+
+    /** The club turned the stored login down. With "Attempt auto login" on, the login page is
+     * tried in the background first; otherwise (or if it wants an email and password) the user
+     * is asked to log in. Once at a time, since several requests can fail together. */
+    private fun onLoginLost() {
+        if (!relogging.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                val context = getApplication<Application>()
+                val result = if (context.dataStore.data.first()[AutoLoginKey] == true) {
+                    clubClient.tryLoginSilently(context)
+                } else {
+                    SilentLoginResult.Failed
+                }
+                if (result == SilentLoginResult.LoggedIn) {
+                    // Screens whose request failed load again, and the lists come up to date.
+                    ClubClient.notifyLoginRestored()
+                    performRefresh(silent = true)
+                    return@launch
+                }
+                ClubClient.loginFormExpected = result == SilentLoginResult.NeedsLogin
+                clubClient.logout()
+                _needsRelogin.value = true
+            } finally {
+                relogging.set(false)
+            }
+        }
     }
 
     /** While "Sync playlists" is on, a local playlist's club copy follows it a moment after each
@@ -310,9 +346,8 @@ class OdysseyViewModel @Inject constructor(
     }
 
     /** [silent] skips the refresh indicator for the automatic startup refresh that runs
-     * behind an already-displayed cache, so it doesn't look like the list is reloading.
-     * [allowSilentLogin] is false for the retry after a silent login, so it can't loop. */
-    private suspend fun performRefresh(silent: Boolean, allowSilentLogin: Boolean = true) {
+     * behind an already-displayed cache, so it doesn't look like the list is reloading. */
+    private suspend fun performRefresh(silent: Boolean) {
         if (!silent) _isRefreshing.value = true
         try {
             if (clubClient.isLoggedIn()) {
@@ -334,15 +369,8 @@ class OdysseyViewModel @Inject constructor(
                 viewModelScope.launch { refreshVideoShelves() }
             }
         } catch (e: ClubAuthException) {
+            // Handled by onLoginLost, which ClubClient.loginLost has already told.
             e.printStackTrace()
-            // The club's website session often outlives the refresh token; if it's still
-            // alive, this logs back in without asking (and keeps the selected profile).
-            if (allowSilentLogin && clubClient.tryLoginSilently(getApplication())) {
-                performRefresh(silent, allowSilentLogin = false)
-                return
-            }
-            clubClient.logout()
-            _needsRelogin.value = true
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
