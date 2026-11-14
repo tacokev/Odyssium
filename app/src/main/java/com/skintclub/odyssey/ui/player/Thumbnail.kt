@@ -11,8 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,10 +31,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.skintclub.odyssey.LocalPlayerConnection
+import com.skintclub.odyssey.R
 import com.skintclub.odyssey.constants.PlayerHorizontalPadding
 import com.skintclub.odyssey.constants.ShowTranscriptKey
 import com.skintclub.odyssey.constants.SwipeThumbnailKey
@@ -59,14 +65,16 @@ fun Thumbnail(
 
     val swipeThumbnail by rememberPreference(SwipeThumbnailKey, true)
 
-    // The imported transcript replaces the cover while it's turned on in the player's menu.
+    // The imported transcript replaces the cover while it's turned on, from the player's menu
+    // or by tapping the cover; the X over it goes back to the cover.
     val context = LocalContext.current
     val transcriptsEnabled by rememberPreference(TranscriptsEnabledKey, false)
-    val showTranscript by rememberPreference(ShowTranscriptKey, false)
+    var showTranscript by rememberPreference(ShowTranscriptKey, false)
     val transcriptEntries by remember { Transcripts.episodeIds(context) }.collectAsState()
-    val transcriptEpisodeId = mediaMetadata?.id?.takeIf {
-        transcriptsEnabled && showTranscript && transcriptEntries?.containsKey(it) == true
-    }
+    val hasTranscript = mediaMetadata?.id?.let {
+        transcriptsEnabled && transcriptEntries?.containsKey(it) == true
+    } == true
+    val transcriptEpisodeId = mediaMetadata?.id?.takeIf { hasTranscript && showTranscript }
 
     var offsetX by remember { mutableFloatStateOf(0f) }
 
@@ -112,12 +120,30 @@ fun Thumbnail(
                         },
             ) {
                 if (transcriptEpisodeId != null) {
-                    TranscriptView(
-                        episodeId = transcriptEpisodeId,
-                        sliderPositionProvider = sliderPositionProvider,
-                        color = color,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        TranscriptView(
+                            episodeId = transcriptEpisodeId,
+                            sliderPositionProvider = sliderPositionProvider,
+                            color = color,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        IconButton(
+                            onClick = { showTranscript = false },
+                            colors = IconButtonDefaults.iconButtonColors(
+                                containerColor = color.copy(alpha = 0.12f),
+                                contentColor = color,
+                            ),
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(36.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.close),
+                                contentDescription = "Show cover art",
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
                 } else AsyncImage(
                     model = mediaMetadata?.thumbnailUrl,
                     contentDescription = null,
@@ -129,8 +155,9 @@ fun Thumbnail(
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(ThumbnailCornerRadius * 2))
                             .alpha(if (showArtwork) 1f else 0f)
-                            .pointerInput(Unit) {
+                            .pointerInput(hasTranscript) {
                                 detectTapGestures(
+                                    onTap = { if (hasTranscript) showTranscript = true },
                                     onDoubleTap = { offset ->
                                         if (offset.x < size.width / 2) {
                                             playerConnection.player.seekBack()
