@@ -72,16 +72,21 @@ fun OdysseyEpisodeExtraDetails(
     var loading by remember(contentId) { mutableStateOf(details == null) }
 
     LaunchedEffect(contentId) {
-        if (details != null) return@LaunchedEffect
-        details = try {
-            clubClient.getContentDetails(contentId)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
+        suspend fun load() {
+            loading = true
+            details = try {
+                clubClient.getContentDetails(contentId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+            loading = false
         }
-        loading = false
+        if (details == null) load()
+        // Failed because the login was lost, and "Attempt auto login" has since logged back in.
+        ClubClient.loginRestored.collect { if (details == null) load() }
     }
 
     if (details == null && loading) {
