@@ -101,17 +101,23 @@ fun OdysseyProfileSelectScreen(
     }
 
     LaunchedEffect(Unit) {
+        // Opened from Settings to switch profiles, one is already selected; after logging in
+        // (again), none is.
+        val switching = clubClient.getViewerId() != null
         val fetched = try {
             clubClient.fetchProfiles()
         } catch (e: Exception) {
             errorMessage = "Couldn't load profiles. Please log in again."
-            clubClient.logout()
+            clubClient.logout(forgetProfile = false)
             navController.navigate("odyssey_login") {
                 popUpTo(0)
             }
             return@LaunchedEffect
         }
+        // Logging back in after the login was lost goes straight to the profile in use before.
+        val remembered = if (switching) null else clubClient.rememberedProfileIn(fetched)
         when {
+            remembered != null -> finishSelection(remembered.first, remembered.second)
             fetched.isEmpty() -> errorMessage = "No profiles found on this account."
             // Nothing to choose between - skip straight to the app, same as the official client.
             fetched.size == 1 && !fetched[0].hasPin -> finishSelection(fetched[0])

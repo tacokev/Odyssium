@@ -10,6 +10,8 @@ import com.google.gson.reflect.TypeToken
 import com.skintclub.odyssey.constants.ClubAccessTokenKey
 import com.skintclub.odyssey.constants.ClubContentGroupingsCacheKey
 import com.skintclub.odyssey.constants.ClubContentGroupingsViewerKey
+import com.skintclub.odyssey.constants.ClubLastPinKey
+import com.skintclub.odyssey.constants.ClubLastViewerIdKey
 import com.skintclub.odyssey.constants.ClubMembershipExpiresKey
 import com.skintclub.odyssey.constants.ClubPinKey
 import com.skintclub.odyssey.constants.ClubRefreshTokenKey
@@ -769,6 +771,27 @@ class ClubClient(private val context: Context) {
         if (enteredPin != null) {
             setPin(enteredPin)
         }
+        context.dataStore.edit {
+            it[ClubLastViewerIdKey] = profile.viewerId
+            if (enteredPin != null) it[ClubLastPinKey] = enteredPin else it.remove(ClubLastPinKey)
+        }
+    }
+
+    /** The profile among [profiles] that was in use before the login was lost, with its PIN
+     * (null for a profile without one), so logging back in can go straight to it. Null when
+     * there isn't one, it's no longer on the account, or its saved PIN no longer works. */
+    suspend fun rememberedProfileIn(profiles: List<ClubProfile>): Pair<ClubProfile, String?>? {
+        val prefs = context.dataStore.data.first()
+        val viewerId = prefs[ClubLastViewerIdKey] ?: return null
+        val profile = profiles.find { it.viewerId == viewerId } ?: return null
+        if (!profile.hasPin) return profile to null
+        val pin = prefs[ClubLastPinKey] ?: return null
+        val correct = try {
+            verifyPin(profile.viewerId, pin)
+        } catch (e: IOException) {
+            false
+        }
+        return if (correct) profile to pin else null
     }
 
     private suspend fun fetchContentGroupingsPage(pageNumber: Int, pageSize: Int = 300): Pair<List<ClubGrouping>, Int> {
@@ -1292,9 +1315,20 @@ class ClubClient(private val context: Context) {
         getCachedContentGroupings() ?: emptyList()
     }
 
-    suspend fun logout() {
+    /** Clears the login. [forgetProfile] is false when the club dropped the login rather than
+     * the user logging out, so the profile in use (see [rememberedProfileIn]) is kept for when
+     * they log back in. */
+    suspend fun logout(forgetProfile: Boolean = true) {
         invalidateSignedUrls()
         context.dataStore.edit {
+            if (forgetProfile) {
+                it.remove(ClubLastViewerIdKey)
+                it.remove(ClubLastPinKey)
+            } else if (it[ClubLastViewerIdKey] == null) {
+                // A profile picked before these were kept.
+                it[ClubViewerIdKey]?.let { viewerId -> it[ClubLastViewerIdKey] = viewerId }
+                it[ClubPinKey]?.let { pin -> it[ClubLastPinKey] = pin }
+            }
             it.remove(ClubAccessTokenKey)
             it.remove(ClubRefreshTokenKey)
             it.remove(ClubViewerIdKey)

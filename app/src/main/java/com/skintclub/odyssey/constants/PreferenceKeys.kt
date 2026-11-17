@@ -296,6 +296,12 @@ val ClubRefreshTokenKey = stringPreferencesKey("odysseyRefreshToken")
 val ClubViewerIdKey = stringPreferencesKey("odysseyViewerId")
 val ClubPinKey = stringPreferencesKey("odysseyPin")
 
+/** The profile last picked (and its PIN, if it has one), kept when the club drops the login so
+ * logging back in goes straight to it (see ClubClient.rememberedProfileIn). Only logging out
+ * forgets them. */
+val ClubLastViewerIdKey = stringPreferencesKey("odysseyLastViewerId")
+val ClubLastPinKey = stringPreferencesKey("odysseyLastPin")
+
 /** The selected profile's name and picture, shown in Settings > Account. */
 val ClubProfileNameKey = stringPreferencesKey("odysseyProfileName")
 val ClubProfilePictureKey = stringPreferencesKey("odysseyProfilePicture")
