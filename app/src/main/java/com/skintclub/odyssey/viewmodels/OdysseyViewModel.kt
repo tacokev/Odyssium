@@ -271,7 +271,7 @@ class OdysseyViewModel @Inject constructor(
                     return@launch
                 }
                 ClubClient.loginFormExpected = result == SilentLoginResult.NeedsLogin
-                clubClient.logout()
+                clubClient.logout(forgetProfile = false)
                 _needsRelogin.value = true
             } finally {
                 relogging.set(false)
@@ -353,7 +353,10 @@ class OdysseyViewModel @Inject constructor(
             if (clubClient.isLoggedIn()) {
                 if (clubClient.getViewerId() == null) {
                     val profiles = clubClient.fetchProfiles()
-                    if (profiles.isNotEmpty()) {
+                    val remembered = clubClient.rememberedProfileIn(profiles)
+                    if (remembered != null) {
+                        clubClient.selectProfile(remembered.first, remembered.second)
+                    } else if (profiles.isNotEmpty()) {
                         clubClient.selectProfile(profiles[0])
                     }
                 }
