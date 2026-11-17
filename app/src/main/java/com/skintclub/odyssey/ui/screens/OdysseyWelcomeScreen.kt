@@ -1,6 +1,6 @@
 package com.skintclub.odyssey.ui.screens
 
-import android.app.Activity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -43,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -251,7 +250,7 @@ fun OdysseyNightBackdrop(
 @Composable
 private fun DarkSystemBarsWhileShown() {
     val view = LocalView.current
-    val window = (LocalContext.current as? Activity)?.window ?: return
+    val window = LocalActivity.current?.window ?: return
     DisposableEffect(window) {
         val controller = WindowCompat.getInsetsController(window, view)
         val lightStatusBars = controller.isAppearanceLightStatusBars
