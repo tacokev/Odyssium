@@ -90,6 +90,7 @@ data class ClubContent(
     @SerializedName("media_length") val mediaLength: Long = 0,
     @SerializedName("download_url") val downloadUrl: String? = null,
     @SerializedName("album_name") val albumName: String? = null,
+    @SerializedName("last_published_date") val lastPublishedDate: String? = null,
     val progress: ClubProgress? = null,
     @SerializedName("is_bookmarked") val isBookmarked: Boolean = false,
     val tags: List<ClubTag> = emptyList(),
@@ -181,6 +182,16 @@ private data class ClubGroupingsPageMetadata(val totalPageCount: Int = 1)
 
 /** One page of a `content/search` - the endpoint behind the club site's own content-type pages
  * (Animations, Video Podcasts, ...). */
+/** One of the club's home page banners: a 960x400 image, and where tapping it goes (a path
+ * on the club's web app like "/content/{id}", or a full URL). */
+data class ClubBanner(
+    val id: String = "",
+    @SerializedName("imageUrl") val imageUrl: String? = null,
+    val hyperlink: String? = null,
+)
+
+private data class ClubViewerHome(val carousel: List<ClubBanner>? = null)
+
 private data class ClubContentSearchPage(
     @SerializedName("results") val results: List<ClubContent>? = null,
     @SerializedName("total_pages") val totalPages: Int = 1,
@@ -1004,6 +1015,48 @@ class ClubClient(private val context: Context) {
             page++
         }
         all.distinctBy { it.id }
+    }
+
+    /** The club's home page banners, as the web app's home page shows them. */
+    suspend fun fetchBanners(): List<ClubBanner> = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        val response = authorizedCall("fetchBanners") { token ->
+            Request.Builder()
+                .url(apiBase + "apexrest/v1/viewer/home?carousel=true")
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .build()
+        }
+        val body = response.use { it.body?.string() }
+        gson.fromJson(body, ClubViewerHome::class.java)?.carousel.orEmpty()
+            .filter { !it.imageUrl.isNullOrBlank() }
+    }
+
+    /** The [count] most recently published content items of every kind (episodes, podcasts,
+     * videos, articles, books...), newest first - the club's "new content". */
+    suspend fun fetchNewContent(count: Int): List<ClubContent> = withContext(Dispatchers.IO) {
+        val vid = getViewerId()
+        val p = getPin()
+        val url = (apiBase + "apexrest/v1/content/search").toHttpUrlOrNull()!!.newBuilder()
+            .addQueryParameter("community", "Adventures In Odyssey")
+            .addQueryParameter("orderby", "Last_Published_Date__c DESC NULLS LAST")
+            .addQueryParameter("pagenum", "1")
+            .addQueryParameter("pagecount", count.toString())
+            .build()
+        val response = authorizedCall("fetchNewContent") { token ->
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .header("x-experience-name", experienceName)
+                .header("x-viewer-id", vid ?: "")
+                .header("x-pin", p)
+                .build()
+        }
+        val body = response.use { it.body?.string() }
+        gson.fromJson(body, ClubContentSearchPage::class.java)?.results.orEmpty()
     }
 
     /** Where video [contentId] streams from, fetched fresh - the same content request the club

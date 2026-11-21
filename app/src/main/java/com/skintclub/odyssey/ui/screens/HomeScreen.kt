@@ -64,11 +64,13 @@ import com.skintclub.odyssey.R
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ODYSSEY_COMICS_ROUTE
 import com.skintclub.odyssey.club.ODYSSEY_VIDEOS_ROUTE
+import com.skintclub.odyssey.constants.AlternateHomeKey
 import com.skintclub.odyssey.constants.AppBarHeight
 import com.skintclub.odyssey.constants.ThumbnailCornerRadius
 import com.skintclub.odyssey.ui.theme.capsuleColor
 import com.skintclub.odyssey.ui.utils.appBarScrollBehavior
 import com.skintclub.odyssey.ui.utils.collapsingTopAppBarColors
+import com.skintclub.odyssey.utils.rememberPreference
 import com.skintclub.odyssey.viewmodels.HomeCategory
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
 import com.skintclub.odyssey.viewmodels.homeCollageCoverRequest
@@ -85,6 +87,8 @@ fun HomeScreen(
     // the stored login is read, so a logged-in launch doesn't flash them.
     val isLoggedIn by remember { ClubClient(context).isLoggedInFlow() }.collectAsState(initial = null)
     val categories by viewModel.homeCategories.collectAsState()
+    val alternateHome by rememberPreference(AlternateHomeKey, defaultValue = false)
+    val homeFeed by viewModel.homeFeed.collectAsState()
     val isClubRefreshing by viewModel.isRefreshing.collectAsState()
     val isRadioRefreshing by freeRadio.isRefreshing.collectAsState()
     val isRefreshing = if (isLoggedIn == false) isRadioRefreshing else isClubRefreshing
@@ -114,6 +118,20 @@ fun HomeScreen(
                     .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top + WindowInsetsSides.Bottom)
                     .asPaddingValues(),
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            )
+        } else if (alternateHome) {
+            AlternateHome(
+                feed = homeFeed,
+                categories = categories,
+                navController = navController,
+                onOpenLink = viewModel::openClubLink,
+                contentPadding = LocalPlayerAwareWindowInsets.current
+                    .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top + WindowInsetsSides.Bottom)
+                    .add(WindowInsets(top = 8.dp, bottom = 8.dp))
+                    .asPaddingValues(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
             )
         } else LazyColumn(
             // Each tile pads itself 8dp top and bottom (16dp between tiles), so the extra 8dp
@@ -186,20 +204,22 @@ private const val COLLAGE_ROWS = 2
 private const val COLLAGE_GAP_FRACTION = 0.05f
 
 /** A full-width 2:1 tile: a grid of the category's covers on the right, faded
- * out toward the left into a solid panel carrying the name and size. */
+ * out toward the left into a solid panel carrying the name and size. [compact] is the
+ * alternate Home page's smaller version, two to a row. */
 @Composable
-private fun CategoryTile(
+internal fun CategoryTile(
     category: HomeCategory,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val tileColor = MaterialTheme.colorScheme.capsuleColor
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(2f)
-            .clip(RoundedCornerShape(16.dp))
+            .aspectRatio(if (compact) 1.6f else 2f)
+            .clip(RoundedCornerShape(if (compact) 12.dp else 16.dp))
             .background(tileColor)
             .clickable(onClick = onClick),
     ) {
@@ -253,12 +273,13 @@ private fun CategoryTile(
                 .fillMaxHeight()
                 // Stops short of the first collage column, so long names wrap instead of
                 // running over a cover.
-                .fillMaxWidth(0.4f)
-                .padding(start = 20.dp),
+                .fillMaxWidth(if (compact) 0.8f else 0.4f)
+                .padding(start = if (compact) 12.dp else 20.dp),
         ) {
             Text(
                 text = category.title,
-                style = MaterialTheme.typography.headlineSmall.copy(shadow = textShadow),
+                style = (if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmall)
+                    .copy(shadow = textShadow),
                 fontWeight = FontWeight.Bold,
                 color = if (background != null) Color.White else MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
@@ -266,7 +287,8 @@ private fun CategoryTile(
             )
             Text(
                 text = category.subtitle,
-                style = MaterialTheme.typography.bodyMedium.copy(shadow = textShadow),
+                style = (if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium)
+                    .copy(shadow = textShadow),
                 color = if (background != null) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

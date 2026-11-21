@@ -353,6 +353,10 @@ val ShowClubPlaylistsKey = booleanPreferencesKey("syncPlaylists")
  * club, for the selected profile (see OdysseyViewModel.syncPlaylistToClub). Off by default. */
 val SyncPlaylistsToClubKey = booleanPreferencesKey("syncPlaylistsToClub")
 
+/** "Alternate home page" (Appearance): Home shows the club's banners and its newest content
+ * above smaller category tiles, instead of just the big tiles. Off by default. */
+val AlternateHomeKey = booleanPreferencesKey("alternateHome")
+
 /** Whether the welcome screen has been seen (and left, by logging in or skipping). It's only
  * shown once: logged out after that, the app is used without an account (see FreeRadio). */
 val WelcomeSeenKey = booleanPreferencesKey("welcomeSeen")

@@ -593,6 +593,13 @@ class MainActivity : ComponentActivity() {
                             openClubLinkTarget(odysseyViewModel.resolveClubLink(link), playEpisode = false)
                         }
                     }
+                    // A club link tapped inside the app (the alternate Home page's banners and
+                    // new content) opens the same way.
+                    LaunchedEffect(Unit) {
+                        odysseyViewModel.clubLinkRequests.collect { link ->
+                            openClubLinkTarget(odysseyViewModel.resolveClubLink(link), playEpisode = false)
+                        }
+                    }
 
                     // Enter plays the top result: the first episode, or failing that the whole
                     // first grouping. A club link plays the episode it points to.
