@@ -33,6 +33,7 @@ import androidx.navigation.NavController
 import com.skintclub.odyssey.LocalPlayerAwareWindowInsets
 import com.skintclub.odyssey.R
 import com.skintclub.odyssey.constants.*
+import com.skintclub.odyssey.constants.AlternateHomeKey
 import com.skintclub.odyssey.constants.ThemeColorSourceKey
 import com.skintclub.odyssey.ui.component.EnumListPreference
 import com.skintclub.odyssey.ui.component.IconButton
@@ -64,6 +65,7 @@ fun AppearanceSettings(
         rememberEnumPreference(AlbumGridColumnsKey, defaultValue = AlbumGridColumns.TWO)
     var albumGridConnectedSquares by rememberPreference(AlbumGridConnectedSquaresKey, defaultValue = false)
     var compactNavigationBar by rememberPreference(CompactNavigationBarKey, defaultValue = false)
+    var alternateHome by rememberPreference(AlternateHomeKey, defaultValue = false)
 
     Column(
         Modifier
@@ -124,6 +126,13 @@ fun AppearanceSettings(
             icon = { Icon(painterResource(R.drawable.expand_less), null) },
             checked = compactNavigationBar,
             onCheckedChange = { compactNavigationBar = it },
+        )
+        SwitchPreference(
+            title = { Text("Alternate home page") },
+            description = "Show the club's banners and its newest episodes, podcasts, videos and comics on Home, above smaller category tiles.",
+            icon = { Icon(painterResource(R.drawable.home), null) },
+            checked = alternateHome,
+            onCheckedChange = { alternateHome = it },
         )
 
         PreferenceGroupTitle(title = stringResource(R.string.player))

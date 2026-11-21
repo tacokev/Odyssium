@@ -33,6 +33,7 @@ import com.skintclub.odyssey.club.toGrouping
 import com.skintclub.odyssey.club.SilentLoginResult
 import com.skintclub.odyssey.club.tryLoginSilently
 import com.skintclub.odyssey.constants.AutoLoginKey
+import com.skintclub.odyssey.constants.AlternateHomeKey
 import com.skintclub.odyssey.constants.ClubViewerIdKey
 import com.skintclub.odyssey.constants.ExcludeBonusEpisodesKey
 import com.skintclub.odyssey.constants.ExcludeSubsequentPartsKey
@@ -55,7 +56,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -200,6 +205,35 @@ class OdysseyViewModel @Inject constructor(
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** The alternate Home page's banners and newest content, as last fetched (see
+     * [refreshHomeFeed]) - seeded from [HomeFeedSnapshot]. */
+    private val fetchedHomeFeed = MutableStateFlow(HomeFeedSnapshot.load(application))
+
+    /** [fetchedHomeFeed] with only the new content the app can open: episodes, podcasts,
+     * videos and comics. */
+    val homeFeed = combine(fetchedHomeFeed, comicSeries) { feed, comics ->
+        val comicIds = comics.flatMapTo(HashSet()) { series -> series.contentList.map { it.id } }
+        feed.copy(
+            newContent = feed.newContent
+                .filter { newContentKind(it, comicIds) != null }
+                .take(HOME_NEW_CONTENT_COUNT),
+        )
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, HomeFeed())
+
+    private val alternateHome = application.dataStore.data
+        .map { it[AlternateHomeKey] == true }
+        .distinctUntilChanged()
+
+    /** Club links opened from inside the app (the alternate Home page's banners and new
+     * content), for MainActivity to open like a tapped link. */
+    private val _clubLinkRequests = MutableSharedFlow<ClubLink>(extraBufferCapacity = 1)
+    val clubLinkRequests = _clubLinkRequests.asSharedFlow()
+
+    fun openClubLink(link: ClubLink) {
+        _clubLinkRequests.tryEmit(link)
+    }
+
     /** The Home screen's category tiles. Seeded from [HomeTilesSnapshot] so they (and their
      * covers, prefetched right here) are ready on a cold start before the full grouping cache
      * has even been parsed; recomputed and re-saved whenever the groupings change. */
@@ -247,6 +281,11 @@ class OdysseyViewModel @Inject constructor(
         // Whichever screen's request finds the login no longer works (the episode details
         // page, playback, a refresh...).
         viewModelScope.launch { ClubClient.loginLost.collect { onLoginLost() } }
+        // The feed is only fetched while the alternate Home page is on; turning it on fetches
+        // it right away, and every refresh after that does too.
+        viewModelScope.launch {
+            alternateHome.collect { on -> if (on && clubClient.isLoggedIn()) refreshHomeFeed() }
+        }
     }
 
     private val relogging = AtomicBoolean(false)
@@ -370,6 +409,7 @@ class OdysseyViewModel @Inject constructor(
                 applyGroupings(fetchedGroupings)
                 viewModelScope.launch { refreshComicSeries() }
                 viewModelScope.launch { refreshVideoShelves() }
+                if (alternateHome.first()) viewModelScope.launch { refreshHomeFeed() }
             }
         } catch (e: ClubAuthException) {
             // Handled by onLoginLost, which ClubClient.loginLost has already told.
@@ -382,6 +422,21 @@ class OdysseyViewModel @Inject constructor(
             e.printStackTrace()
         }
         _isRefreshing.value = false
+    }
+
+    /** Fetches the alternate Home page's banners and newest content. Either failing keeps
+     * what was there before. */
+    private suspend fun refreshHomeFeed() = coroutineScope {
+        val banners = async { runCatching { clubClient.fetchBanners() }.getOrNull() }
+        val newContent = async { runCatching { clubClient.fetchNewContent(HOME_NEW_CONTENT_FETCH_COUNT) }.getOrNull() }
+        val previous = fetchedHomeFeed.value
+        val feed = HomeFeed(
+            banners = banners.await() ?: previous.banners,
+            newContent = newContent.await() ?: previous.newContent,
+        )
+        if (feed == previous) return@coroutineScope
+        fetchedHomeFeed.value = feed
+        withContext(Dispatchers.IO) { HomeFeedSnapshot.save(getApplication(), feed) }
     }
 
     /** Rebuilds [indexedComicSeries] from the club's arc index. Failing leaves the last list
