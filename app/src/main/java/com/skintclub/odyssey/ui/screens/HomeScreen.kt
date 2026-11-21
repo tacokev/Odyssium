@@ -65,7 +65,6 @@ import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ODYSSEY_COMICS_ROUTE
 import com.skintclub.odyssey.club.ODYSSEY_VIDEOS_ROUTE
 import com.skintclub.odyssey.constants.AlternateHomeKey
-import com.skintclub.odyssey.constants.AppBarHeight
 import com.skintclub.odyssey.constants.ThumbnailCornerRadius
 import com.skintclub.odyssey.ui.theme.capsuleColor
 import com.skintclub.odyssey.ui.utils.appBarScrollBehavior
@@ -103,10 +102,12 @@ fun HomeScreen(
             PullToRefreshDefaults.Indicator(
                 state = pullRefreshState,
                 isRefreshing = isRefreshing,
+                // Just below the app bar - which sits below the status bar, so it's the same
+                // top inset the list's content starts at, not the app bar's height alone.
                 modifier =
                     Modifier
                         .align(Alignment.TopCenter)
-                        .padding(top = AppBarHeight),
+                        .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)),
             )
         },
         modifier = Modifier.fillMaxSize(),
