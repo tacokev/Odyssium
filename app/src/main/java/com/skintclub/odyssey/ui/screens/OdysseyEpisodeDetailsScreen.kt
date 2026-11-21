@@ -105,40 +105,7 @@ fun OdysseyEpisodeDetailsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
-            Box {
-                if (metadata.thumbnailUrl != null) {
-                    AsyncImage(
-                        model = metadata.thumbnailUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(380.dp),
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(380.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(380.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0f to Color.Transparent,
-                                    0.55f to Color.Transparent,
-                                    1f to MaterialTheme.colorScheme.background,
-                                ),
-                            ),
-                        ),
-                )
-            }
+            DetailsPoster(metadata.thumbnailUrl)
 
             Column(
                 modifier = Modifier
@@ -262,28 +229,73 @@ fun OdysseyEpisodeDetailsScreen(
             }
         }
 
-        IconButton(
-            onClick = navController::navigateUp,
-            colors = IconButtonDefaults.iconButtonColors(
-                containerColor = Color.Black.copy(alpha = 0.35f),
-                contentColor = Color.White,
-            ),
-            modifier = Modifier
-                .padding(12.dp)
-                .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.arrow_back),
+        DetailsBackButton(onClick = navController::navigateUp)
+    }
+}
+
+/** A details page's cover art, fading into the background toward the bottom. Shared by the
+ * episode page and the content page (podcasts, articles...). */
+@Composable
+internal fun DetailsPoster(imageUrl: String?) {
+    Box {
+        if (imageUrl != null) {
+            AsyncImage(
+                model = imageUrl,
                 contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(380.dp),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(380.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
             )
         }
 
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(380.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0f to Color.Transparent,
+                            0.55f to Color.Transparent,
+                            1f to MaterialTheme.colorScheme.background,
+                        ),
+                    ),
+                ),
+        )
+    }
+}
+
+/** The round back button over a details page's cover art. */
+@Composable
+internal fun DetailsBackButton(onClick: () -> Unit) {
+    IconButton(
+        onClick = onClick,
+        colors = IconButtonDefaults.iconButtonColors(
+            containerColor = Color.Black.copy(alpha = 0.35f),
+            contentColor = Color.White,
+        ),
+        modifier = Modifier
+            .padding(12.dp)
+            .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top)),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.arrow_back),
+            contentDescription = null,
+        )
     }
 }
 
 /** The raw content-detail response, pretty-printed, selectable, and copyable. */
 @Composable
-private fun ContentResponseDialog(raw: String, onDismiss: () -> Unit) {
+internal fun ContentResponseDialog(raw: String, onDismiss: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val pretty = remember(raw) {
         runCatching { GsonBuilder().setPrettyPrinting().create().toJson(JsonParser.parseString(raw)) }

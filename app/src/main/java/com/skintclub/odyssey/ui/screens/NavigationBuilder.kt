@@ -163,6 +163,16 @@ fun NavGraphBuilder.navigationBuilder(
         )
     }
     screen(
+        ODYSSEY_CONTENT_ROUTE,
+        arguments = listOf(navArgument("contentId") { type = NavType.StringType }),
+    ) { backStackEntry ->
+        OdysseyContentDetailsScreen(
+            navController = navController,
+            viewModel = odysseyViewModel,
+            contentId = backStackEntry.arguments?.getString("contentId").orEmpty(),
+        )
+    }
+    screen(
         ODYSSEY_EPISODE_ROUTE,
         arguments = listOf(
             navArgument("albumName") { type = NavType.StringType },

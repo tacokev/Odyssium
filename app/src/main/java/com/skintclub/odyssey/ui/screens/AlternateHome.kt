@@ -49,7 +49,7 @@ import com.skintclub.odyssey.constants.ThumbnailCornerRadius
 import com.skintclub.odyssey.ui.theme.capsuleColor
 import com.skintclub.odyssey.viewmodels.HomeCategory
 import com.skintclub.odyssey.viewmodels.HomeFeed
-import com.skintclub.odyssey.viewmodels.newContentKind
+import com.skintclub.odyssey.viewmodels.NewContentKind
 import com.skintclub.odyssey.viewmodels.publishedLabel
 import kotlinx.coroutines.delay
 
@@ -94,6 +94,7 @@ fun AlternateHome(
                     items(feed.newContent, key = { it.id }) { content ->
                         NewContentCard(
                             content = content,
+                            kind = feed.kinds[content.id],
                             onClick = { onOpenLink(ClubLink.Content(content.id)) },
                         )
                     }
@@ -198,6 +199,7 @@ private fun Banners(
 @Composable
 private fun NewContentCard(
     content: ClubContent,
+    kind: NewContentKind?,
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -205,9 +207,6 @@ private fun NewContentCard(
     val request = remember(thumbnail) {
         ImageRequest.Builder(context).data(thumbnail).size(320, 320).build()
     }
-    // Only items with a kind are listed (see OdysseyViewModel.homeFeed), so an article here is
-    // already known to be a comic.
-    val kind = newContentKind(content, comicIds = setOf(content.id))?.label
     Column(
         modifier = Modifier
             .width(140.dp)
@@ -226,7 +225,7 @@ private fun NewContentCard(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = listOfNotNull(kind, publishedLabel(content)).joinToString(" · "),
+            text = listOfNotNull(kind?.label, publishedLabel(content)).joinToString(" · "),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
             maxLines = 1,
