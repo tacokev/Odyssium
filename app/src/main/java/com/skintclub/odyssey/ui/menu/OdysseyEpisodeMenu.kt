@@ -33,6 +33,7 @@ import com.skintclub.odyssey.ui.component.GridMenu
 import com.skintclub.odyssey.ui.component.GridMenuItem
 import com.skintclub.odyssey.ui.component.MediaMetadataListItem
 import com.skintclub.odyssey.viewmodels.OdysseyViewModel
+import com.skintclub.odyssey.ui.screens.odysseyContentRoute
 
 @Composable
 fun OdysseyEpisodeMenu(
@@ -175,6 +176,15 @@ fun OdysseyEpisodeMenu(
             ) {
                 onDismiss()
                 navController.navigate("odyssey_episode/${Uri.encode(albumName)}/$episodeIndex")
+            }
+        } else if (!isSecretEpisodeId(mediaMetadata.id)) {
+            // Not in an album (a podcast, say): its content page.
+            GridMenuItem(
+                icon = R.drawable.info,
+                title = R.string.details,
+            ) {
+                onDismiss()
+                navController.navigate(odysseyContentRoute(mediaMetadata.id))
             }
         }
     }

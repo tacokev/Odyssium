@@ -119,7 +119,18 @@ data class ClubCrewMember(
  * URL for "Content request" playback, and everything the episode details page shows. */
 data class ClubContentDetails(
     val id: String = "",
+    val type: String? = null,
     val subtype: String? = null,
+    val name: String? = null,
+    @SerializedName("short_name") val shortName: String? = null,
+    val description: String? = null,
+    @SerializedName("thumbnail_small") val thumbnailSmall: String? = null,
+    @SerializedName("thumbnail_medium") val thumbnailMedium: String? = null,
+    @SerializedName("thumbnail_large") val thumbnailLarge: String? = null,
+    @SerializedName("last_published_date") val lastPublishedDate: String? = null,
+    /** An Article's HTML body; [contentBodyHtml] is an older rendering, used when it's empty. */
+    @SerializedName("content_body") val contentBody: String? = null,
+    @SerializedName("content_body_html") val contentBodyHtml: String? = null,
     @SerializedName("download_url") val downloadUrl: String? = null,
     @SerializedName("air_date") val airDate: String? = null,
     val characters: List<ClubCharacter>? = null,

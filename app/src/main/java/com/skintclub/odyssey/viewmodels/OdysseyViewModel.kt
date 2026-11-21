@@ -213,11 +213,10 @@ class OdysseyViewModel @Inject constructor(
      * videos and comics. */
     val homeFeed = combine(fetchedHomeFeed, comicSeries) { feed, comics ->
         val comicIds = comics.flatMapTo(HashSet()) { series -> series.contentList.map { it.id } }
-        feed.copy(
-            newContent = feed.newContent
-                .filter { newContentKind(it, comicIds) != null }
-                .take(HOME_NEW_CONTENT_COUNT),
-        )
+        val listed = feed.newContent
+            .mapNotNull { content -> newContentKind(content, comicIds)?.let { content to it } }
+            .take(HOME_NEW_CONTENT_COUNT)
+        feed.copy(newContent = listed.map { it.first }, kinds = listed.associate { (content, kind) -> content.id to kind })
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, HomeFeed())
 
@@ -830,6 +829,7 @@ class OdysseyViewModel @Inject constructor(
             null
         } ?: return ClubLinkTarget.NotFound
         if (content.type == "Video") return ClubLinkTarget.Video(content.albumName.orEmpty(), listOf(content), 0)
+        if (content.type == "Article") return ClubLinkTarget.Content(contentId)
         if (!isPlayableContent(content)) return ClubLinkTarget.NotFound
         val standIn = ClubGrouping(name = content.albumName.orEmpty(), imageUrl = content.thumbnailMedium, contentList = listOf(content))
         val episode = clubClient.groupingEpisodesFrom(_groupings.value, standIn).firstOrNull() ?: return ClubLinkTarget.NotFound
@@ -845,6 +845,37 @@ class OdysseyViewModel @Inject constructor(
             else -> ClubLinkTarget.Grouping(grouping.id)
         }
     }
+
+    /** What's known about content [contentId] without asking the club - from the alternate
+     * Home page's new content or any cached grouping - for the content details page to show
+     * while its full details load. */
+    fun cachedContent(contentId: String): ClubContent? =
+        fetchedHomeFeed.value.newContent.firstOrNull { it.id == contentId }
+            ?: groupings.value.firstNotNullOfOrNull { grouping -> grouping.contentList.firstOrNull { it.id == contentId } }
+
+    /** Where content [contentId] plays from: its album, or else the first other grouping
+     * that has it (a podcast's year...), and its place there. Null if no cached one does. */
+    fun queueFor(contentId: String): Pair<List<Map<String, Any>>, Int>? {
+        baseAlbums.forEach { album ->
+            val index = album.episodes.indexOfFirst { it["id"] == contentId }
+            if (index >= 0) return album.episodes to index
+        }
+        groupings.value
+            .filter { grouping -> grouping.type != "Album" && grouping.contentList.any { it.id == contentId } }
+            .forEach { grouping ->
+                val episodes = episodesOf(grouping)
+                val index = episodes.indexOfFirst { it["id"] == contentId }
+                if (index >= 0) return episodes to index
+            }
+        return null
+    }
+
+    /** The grouping content [contentId] is listed under, for its details page to link to: a
+     * podcast's year, say. Playlists and albums aren't it. */
+    fun listingGroupingOf(contentId: String): ClubGrouping? =
+        groupings.value
+            .filter { it.type != "Album" && it.type != "Playlist" && it.contentList.any { content -> content.id == contentId } }
+            .let { found -> found.firstOrNull { it.type == ClubClient.PODCAST_YEAR_TYPE } ?: found.firstOrNull() }
 
     /** Everything [grouping] plays, in order - what playing a whole grouping search result queues. */
     fun episodesOf(grouping: ClubGrouping): List<Map<String, Any>> = when (grouping.type) {
@@ -954,6 +985,10 @@ sealed interface ClubLinkTarget {
 
     data class Grouping(val groupingId: String) : ClubLinkTarget
 
-    /** Nothing the app can show - an article, say, or content that's gone. */
+    /** Content shown on its own details page: an article, or an episode or podcast outside
+     * the albums. */
+    data class Content(val contentId: String) : ClubLinkTarget
+
+    /** Nothing the app can show - a book, say, or content that's gone. */
     data object NotFound : ClubLinkTarget
 }

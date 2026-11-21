@@ -13,32 +13,40 @@ import java.util.Locale
 data class HomeFeed(
     val banners: List<ClubBanner> = emptyList(),
     val newContent: List<ClubContent> = emptyList(),
+    /** Each listed item's kind, by id (see [newContentKind]). Worked out from the comic series,
+     * not kept in the snapshot. */
+    @Transient val kinds: Map<String, NewContentKind> = emptyMap(),
 )
 
 /** How many of the newest content items the alternate Home page lists. */
 const val HOME_NEW_CONTENT_COUNT = 20
 
-/** How many are asked for, since articles, books and the like are left out. */
+/** How many are asked for, since books, downloads and the like are left out. */
 const val HOME_NEW_CONTENT_FETCH_COUNT = 50
 
 /** What a new content item is, as the alternate Home page labels it. Content the app can't
- * open (articles, books, downloads...) isn't any of these, and isn't listed. */
+ * open (books, downloads...) isn't any of these, and isn't listed. */
 enum class NewContentKind(val label: String) {
     Episode("Episode"),
     Podcast("Podcast"),
     Video("Video"),
     Comic("Comic"),
+    Article("Article"),
 }
 
+/** A numbered "Elsewhere in Odyssey" strip ("Elsewhere in Odyssey #223"), as opposed to the
+ * blog posts about the strip ("Elsewhere in Odyssey - ..."). */
+private val elsewhereStripRegex = Regex("""^Elsewhere in Odyssey #\d+""")
+
 /** [content]'s kind, or null if the alternate Home page doesn't list it. Comics are articles
- * in a comic series ([comicIds]); "Elsewhere in Odyssey" strips count as comics even before
- * their series is known. */
+ * in a comic series ([comicIds]); a numbered Elsewhere in Odyssey strip counts as one even
+ * before its series is known. Other articles (blog posts, "Coming Soon"...) are articles. */
 fun newContentKind(content: ClubContent, comicIds: Set<String>): NewContentKind? = when (content.type) {
     "Audio" -> if (content.subtype == "Podcast") NewContentKind.Podcast else NewContentKind.Episode
     "Video" -> NewContentKind.Video
-    "Article" -> NewContentKind.Comic.takeIf {
-        content.id in comicIds || content.name.startsWith("Elsewhere in Odyssey")
-    }
+    "Article" ->
+        if (content.id in comicIds || elsewhereStripRegex.containsMatchIn(content.name)) NewContentKind.Comic
+        else NewContentKind.Article
     else -> null
 }
 

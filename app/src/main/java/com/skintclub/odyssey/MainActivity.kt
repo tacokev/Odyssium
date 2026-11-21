@@ -147,6 +147,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.skintclub.odyssey.ui.screens.odysseyContentRoute
 
 private const val NAV_ANIM_MS = 300
 
@@ -549,12 +550,13 @@ class MainActivity : ComponentActivity() {
                     // Opens where a club link leads. An episode is played when [playEpisode] (a
                     // link entered in search); otherwise (a link tapped elsewhere) an album
                     // episode opens its page, and only an episode without one is played.
-                    suspend fun openClubLinkTarget(target: ClubLinkTarget, playEpisode: Boolean) {
-                        // A link from outside the app starts afresh from Home, so Back from
-                        // it goes Home (then out) rather than through whatever was open before.
+                    // [fromOutside]: a link from outside the app starts afresh from Home, so
+                    // Back from it goes Home (then out) rather than through whatever was open
+                    // before. One tapped inside the app opens on top of where it was tapped.
+                    suspend fun openClubLinkTarget(target: ClubLinkTarget, playEpisode: Boolean, fromOutside: Boolean = !playEpisode) {
                         fun open(route: String) {
                             navController.navigate(route) {
-                                if (!playEpisode) {
+                                if (fromOutside) {
                                     popUpTo(navController.graph.findStartDestination().id)
                                     launchSingleTop = true
                                 }
@@ -572,7 +574,16 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     open("odyssey_episode/${Uri.encode(target.albumName)}/${target.index}")
                                 }
-                            is ClubLinkTarget.Episode -> play(target.episodes, target.index)
+                            // Played from search; otherwise its details page (a podcast's...).
+                            is ClubLinkTarget.Episode -> {
+                                val contentId = target.episodes[target.index]["id"] as? String
+                                if (playEpisode || contentId.isNullOrBlank()) {
+                                    play(target.episodes, target.index)
+                                } else {
+                                    open(odysseyContentRoute(contentId))
+                                }
+                            }
+                            is ClubLinkTarget.Content -> open(odysseyContentRoute(target.contentId))
                             is ClubLinkTarget.Video -> startActivity(
                                 VideoPlayerActivity.intent(this@MainActivity, target.shelfTitle, target.videos, target.index),
                             )
@@ -597,7 +608,7 @@ class MainActivity : ComponentActivity() {
                     // new content) opens the same way.
                     LaunchedEffect(Unit) {
                         odysseyViewModel.clubLinkRequests.collect { link ->
-                            openClubLinkTarget(odysseyViewModel.resolveClubLink(link), playEpisode = false)
+                            openClubLinkTarget(odysseyViewModel.resolveClubLink(link), playEpisode = false, fromOutside = false)
                         }
                     }
 
