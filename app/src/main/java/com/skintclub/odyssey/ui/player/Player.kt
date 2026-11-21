@@ -162,6 +162,8 @@ import kotlinx.coroutines.withContext
 import me.saket.squiggles.SquigglySlider
 import java.time.LocalDateTime
 import kotlin.math.roundToInt
+import com.skintclub.odyssey.ui.screens.odysseyContentRoute
+import com.skintclub.odyssey.club.isSecretEpisodeId
 
 /**
  * A fully custom, hand-rolled pill slider (not androidx Slider) used by the Apple
@@ -555,9 +557,18 @@ fun BottomSheetPlayer(
                 }
             if (episodeIndex == -1) null else albumName to episodeIndex
         }
+    // Club content outside the albums (a podcast...) has its content page instead.
+    val currentContentId = mediaMetadata?.id?.takeIf {
+        currentOdysseyEpisode == null && it.isNotBlank() && !isSecretEpisodeId(it) && !it.contains('/')
+    }
     val onShowDetails: () -> Unit = {
         val episode = currentOdysseyEpisode
-        if (episode != null) {
+        if (episode == null && currentContentId != null) {
+            state.collapseSoft()
+            navController.navigate(odysseyContentRoute(currentContentId)) {
+                popUpTo(Screens.Home.route)
+            }
+        } else if (episode != null) {
             state.collapseSoft()
             // The player can be opened from anywhere, so the back stack underneath it may
             // already hold an unrelated episode page (or several). Pop up to the albums
@@ -569,7 +580,7 @@ fun BottomSheetPlayer(
             showDetailsDialog = true
         }
     }
-    val onTitleClick: (() -> Unit)? = if (currentOdysseyEpisode != null) onShowDetails else null
+    val onTitleClick: (() -> Unit)? = if (currentOdysseyEpisode != null || currentContentId != null) onShowDetails else null
     val titleClickModifier = if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier
 
     if (showDetailsDialog) {

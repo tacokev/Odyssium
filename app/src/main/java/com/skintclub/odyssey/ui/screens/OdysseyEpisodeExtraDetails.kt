@@ -190,8 +190,9 @@ private fun ExtraDetailsContent(
     }
 }
 
-/** Recommended episodes, left to right. Tapping one opens its own details page when it's in
- * an album (so the randomizer-style browsing continues), otherwise plays it. */
+/** Recommended episodes, left to right. Tapping one opens its details page: the episode page
+ * when it's in an album (so the randomizer-style browsing continues), otherwise the content
+ * page (a podcast...). */
 @Composable
 private fun RecommendationsRow(
     navController: NavController,
@@ -223,9 +224,7 @@ private fun RecommendationsRow(
                         if (location != null) {
                             navController.navigate("odyssey_episode/${Uri.encode(location.first)}/${location.second}")
                         } else {
-                            playerConnection?.playQueue(
-                                OdysseyQueue(context, listOf(recommendationEpisode(content)), 0),
-                            )
+                            navController.navigate(odysseyContentRoute(content.id))
                         }
                     },
             ) {
@@ -247,21 +246,6 @@ private fun RecommendationsRow(
             }
         }
     }
-}
-
-/** An album-less recommendation as a playable episode map. It has no download_url, so it plays
- * through a content request (see odysseyEpisodeToMediaItem). */
-private fun recommendationEpisode(content: ClubContent): Map<String, Any> = buildMap {
-    put("id", content.id)
-    put("name", content.name)
-    put("album_name", content.albumName ?: "")
-    put("download_url", content.downloadUrl ?: "")
-    put("image_small", content.thumbnailSmall ?: "")
-    put("image_medium", content.thumbnailMedium ?: "")
-    put("image_large", content.thumbnailMedium ?: "")
-    put("is_bookmarked", content.isBookmarked)
-    content.shortName?.let { put("short_name", it) }
-    content.description?.let { put("description", it) }
 }
 
 @Composable
