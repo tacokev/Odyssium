@@ -212,7 +212,11 @@ fun OdysseyEpisodeDetailsScreen(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(12.dp))
+
+                EpisodePageActions(viewModel = viewModel, episode = episode)
+
+                Spacer(Modifier.height(16.dp))
 
                 Text(
                     text = metadata.description?.takeIf { it.isNotBlank() }

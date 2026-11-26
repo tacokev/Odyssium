@@ -117,6 +117,7 @@
     <string name="download_all">Download all</string>
     <string name="downloading">Downloading</string>
     <string name="remove_download">Remove download</string>
+    <string name="downloaded">Downloaded</string>
     <string name="delete_all">Delete all</string>
     <string name="like">Like</string>
     <string name="unlike">Unlike</string>
