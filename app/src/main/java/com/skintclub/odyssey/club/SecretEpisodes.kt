@@ -60,7 +60,7 @@ fun secretEpisodeNumber(path: String): Long? =
 /** A readable title from the file name: "1041-the-measure-of-a-patriot-part-2_Mp4_..." ->
  * "The Measure of a Patriot Part 2". The path is all there is to go on - the club has no
  * metadata for these. */
-private fun secretEpisodeTitle(path: String): String {
+fun secretEpisodeTitle(path: String): String {
     val fileName = path.substringAfterLast('/')
     val slug = fileName.substringBefore('_').substringBeforeLast('.').replace(leadingNumberRegex, "")
     val words = slug.split('-', ' ').filter { it.isNotBlank() }
@@ -133,6 +133,47 @@ class SecretEpisodesStore(private val context: Context) {
                 .mapValues { (_, ids) -> ids - id }
                 .filterValues { it.isNotEmpty() },
         )
+    }
+
+    /**
+     * Adds shared episodes ([paths], from a share code - see [decodeSecretShare]). An incoming
+     * episode replaces any existing one with the same title but a different file, along with
+     * that one's playlist memberships; one already here is left as it is (likes kept).
+     * Returns the counts and the ids of the replaced episodes (whose downloads the caller drops).
+     */
+    suspend fun importShared(paths: List<String>): Pair<SecretImportResult, List<String>> {
+        var result = SecretImportResult(0, 0, 0)
+        var replacedIds = emptyList<String>()
+        update { state ->
+            var episodes = state.episodes
+            var members = state.playlistMembers
+            var added = 0
+            var replaced = 0
+            var unchanged = 0
+            val removed = mutableListOf<String>()
+            paths.distinct().forEach { path ->
+                if (episodes.any { it.path == path }) {
+                    unchanged++
+                    return@forEach
+                }
+                val title = secretEpisodeTitle(path).trim().lowercase()
+                val sameName = episodes.filter { secretEpisodeTitle(it.path).trim().lowercase() == title }
+                if (sameName.isNotEmpty()) {
+                    val ids = sameName.map { it.id }.toSet()
+                    removed += ids
+                    episodes = episodes.filterNot { it.id in ids }
+                    members = members.mapValues { (_, list) -> list.filterNot { it in ids } }.filterValues { it.isNotEmpty() }
+                    replaced++
+                } else {
+                    added++
+                }
+                episodes = episodes + SecretEpisode(path)
+            }
+            result = SecretImportResult(added, replaced, unchanged)
+            replacedIds = removed
+            state.copy(episodes = episodes.sortedWith(secretEpisodeOrder), playlistMembers = members)
+        }
+        return result to replacedIds
     }
 
     suspend fun setLiked(id: String, liked: Boolean) = update { state ->

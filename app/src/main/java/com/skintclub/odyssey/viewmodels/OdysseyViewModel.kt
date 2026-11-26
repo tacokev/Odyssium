@@ -28,6 +28,10 @@ import com.skintclub.odyssey.club.isPlayableContent
 import com.skintclub.odyssey.club.isSecretEpisodeId
 import com.skintclub.odyssey.club.mergeComicSeries
 import com.skintclub.odyssey.club.parseSecretEpisodePath
+import com.skintclub.odyssey.club.SecretImportResult
+import com.skintclub.odyssey.club.containsSecretShareCode
+import com.skintclub.odyssey.club.decodeSecretShare
+import com.skintclub.odyssey.club.secretShareMessage
 import com.skintclub.odyssey.club.secretEpisodeMap
 import com.skintclub.odyssey.club.toGrouping
 import com.skintclub.odyssey.club.SilentLoginResult
@@ -764,6 +768,33 @@ class OdysseyViewModel @Inject constructor(
         viewModelScope.launch { secretEpisodesStore.add(path) }
         val liked = secretEpisodesState.value.episodes.firstOrNull { it.path == path }?.liked == true
         return secretEpisodeMap(SecretEpisode(path, liked))
+    }
+
+    /** Imports the secret episodes in a share code anywhere in [text] (see
+     * [com.skintclub.odyssey.club.decodeSecretShare]), replacing same-named ones, then calls
+     * [onDone] with what happened. False (and nothing done) if [text] has no share code;
+     * [onDone] gets null when it has one that can't be read. */
+    fun importSecretShare(text: String, onDone: (SecretImportResult?) -> Unit): Boolean {
+        if (!containsSecretShareCode(text)) return false
+        val paths = decodeSecretShare(text)
+        if (paths == null) {
+            onDone(null)
+            return true
+        }
+        viewModelScope.launch {
+            val (result, replacedIds) = secretEpisodesStore.importShared(paths)
+            replacedIds.forEach { id ->
+                DownloadService.sendRemoveDownload(getApplication(), ExoDownloadService::class.java, id, false)
+            }
+            onDone(result)
+        }
+        return true
+    }
+
+    /** The message to send for sharing the secret episodes with [ids]. */
+    fun secretShareMessageFor(ids: Collection<String>): String? {
+        val episodes = secretEpisodesState.value.episodes.filter { it.id in ids }
+        return episodes.takeIf { it.isNotEmpty() }?.let(::secretShareMessage)
     }
 
     /** Removes a secret episode from "Secret Episodes" (and every local playlist it was added

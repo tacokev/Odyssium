@@ -1,6 +1,11 @@
 package com.skintclub.odyssey.ui.screens
 
+import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -101,6 +106,9 @@ fun OdysseyEpisodeListScreen(
     title: String,
     episodes: List<Map<String, Any>>,
     grouping: ClubGrouping? = null,
+    /** Secret Episodes only: long-press (or the top bar's share button) selects episodes to
+     * share as a share code - see [com.skintclub.odyssey.club.secretShareMessage]. */
+    shareSecretEpisodes: Boolean = false,
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -113,6 +121,47 @@ fun OdysseyEpisodeListScreen(
     val albums by viewModel.albums.collectAsState()
     val showEpisodeNumber by rememberPreference(ShowEpisodeNumberKey, defaultValue = false)
     val downloads by LocalDownloadUtil.current.downloads.collectAsState()
+
+    // Selecting secret episodes to share. Back leaves selection before leaving the screen.
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    var selectedIds by rememberSaveable { mutableStateOf(listOf<String>()) }
+    fun toggleSelected(id: String) {
+        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+    }
+    fun endSelection() {
+        selecting = false
+        selectedIds = emptyList()
+    }
+    BackHandler(enabled = selecting) { endSelection() }
+    var confirmDeleteSelected by remember { mutableStateOf(false) }
+    if (confirmDeleteSelected) {
+        val count = selectedIds.size
+        AlertDialog(
+            onDismissRequest = { confirmDeleteSelected = false },
+            title = { Text(if (count == 1) "Remove 1 secret episode?" else "Remove $count secret episodes?") },
+            text = { Text("They'll be removed from Secret Episodes and any playlists, and their downloads deleted.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteSelected = false
+                    selectedIds.forEach(viewModel::removeSecretEpisode)
+                    endSelection()
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteSelected = false }) { Text(stringResource(android.R.string.cancel)) }
+            },
+        )
+    }
+    val shareSelected: () -> Unit = {
+        viewModel.secretShareMessageFor(selectedIds)?.let { message ->
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, message)
+            }
+            context.startActivity(Intent.createChooser(send, null))
+            endSelection()
+        }
+    }
 
     // Maps an episode id to where it really lives, so the "..." menu's "Details"/queue
     // actions land on the same album/episode page regardless of which list you tapped from.
@@ -253,6 +302,14 @@ fun OdysseyEpisodeListScreen(
                 isActive = mediaMetadata?.id == metadata.id,
                 isPlaying = isPlaying,
                 trailingContent = {
+                    if (selecting) {
+                        val id = episode["id"] as? String
+                        Checkbox(
+                            checked = id != null && id in selectedIds,
+                            onCheckedChange = { if (id != null) toggleSelected(id) },
+                        )
+                        return@MediaMetadataListItem
+                    }
                     val episodeDownload = (episode["id"] as? String)?.let { downloads[it] }
                     when (episodeDownload?.state) {
                         Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> {
@@ -316,9 +373,19 @@ fun OdysseyEpisodeListScreen(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .then(
+                            if (selecting && (episode["id"] as? String) in selectedIds) {
+                                Modifier.background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                            } else {
+                                Modifier
+                            },
+                        )
                         .combinedClickable(
                             onClick = {
-                                if (mediaMetadata?.id == metadata.id) {
+                                val id = episode["id"] as? String
+                                if (selecting) {
+                                    if (id != null) toggleSelected(id)
+                                } else if (mediaMetadata?.id == metadata.id) {
                                     playerConnection.player.togglePlayPause()
                                 } else {
                                     playerConnection.playQueue(
@@ -332,10 +399,43 @@ fun OdysseyEpisodeListScreen(
                             },
                             onLongClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                val id = episode["id"] as? String
+                                if (shareSecretEpisodes && id != null) {
+                                    selecting = true
+                                    if (id !in selectedIds) selectedIds = selectedIds + id
+                                }
                             },
                         ),
             )
         }
+    }
+
+    if (selecting) {
+        val allIds = episodes.mapNotNull { it["id"] as? String }
+        TopAppBar(
+            title = { Text(if (selectedIds.isEmpty()) "Select episodes" else "${selectedIds.size} selected") },
+            scrollBehavior = scrollBehavior,
+            colors = collapsingTopAppBarColors(),
+            navigationIcon = {
+                PlainIconButton(onClick = ::endSelection) {
+                    Icon(painterResource(R.drawable.close), contentDescription = null)
+                }
+            },
+            actions = {
+                PlainIconButton(
+                    onClick = { selectedIds = if (selectedIds.size == allIds.size) emptyList() else allIds },
+                ) {
+                    Icon(painterResource(R.drawable.select_all), contentDescription = null)
+                }
+                PlainIconButton(onClick = { confirmDeleteSelected = true }, enabled = selectedIds.isNotEmpty()) {
+                    Icon(painterResource(R.drawable.delete), contentDescription = stringResource(R.string.delete))
+                }
+                PlainIconButton(onClick = shareSelected, enabled = selectedIds.isNotEmpty()) {
+                    Icon(painterResource(R.drawable.share), contentDescription = stringResource(R.string.share))
+                }
+            },
+        )
+        return
     }
 
     TopAppBar(
@@ -354,6 +454,11 @@ fun OdysseyEpisodeListScreen(
             }
         },
         actions = {
+            if (shareSecretEpisodes && episodes.isNotEmpty()) {
+                PlainIconButton(onClick = { selecting = true }) {
+                    Icon(painterResource(R.drawable.check_box), contentDescription = "Select")
+                }
+            }
             if (grouping != null) {
                 // Groupings can't be liked themselves - only their episodes can - so this is
                 // download-only, and only when something in the grouping actually is
@@ -461,7 +566,7 @@ fun OdysseySecretEpisodesScreen(
     viewModel: OdysseyViewModel,
 ) {
     val secretEpisodes by viewModel.secretEpisodes.collectAsState()
-    OdysseyEpisodeListScreen(navController, viewModel, SECRET_EPISODES_TITLE, secretEpisodes)
+    OdysseyEpisodeListScreen(navController, viewModel, SECRET_EPISODES_TITLE, secretEpisodes, shareSecretEpisodes = true)
 }
 
 /** A description (a grouping's, or an episode's devotional) as a capsule: clamped to [collapsedLines] with a
