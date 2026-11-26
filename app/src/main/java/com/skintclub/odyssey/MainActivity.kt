@@ -98,6 +98,8 @@ import coil.request.ImageRequest
 import com.skintclub.odyssey.club.ClubClient
 import com.skintclub.odyssey.club.ClubLink
 import com.skintclub.odyssey.club.parseClubLink
+import com.skintclub.odyssey.club.SECRET_EPISODES_ROUTE
+import com.skintclub.odyssey.club.containsSecretShareCode
 import com.skintclub.odyssey.constants.*
 import com.skintclub.odyssey.db.MusicDatabase
 import com.skintclub.odyssey.extensions.*
@@ -189,6 +191,7 @@ class MainActivity : ComponentActivity() {
     /** A club link the app was opened with (tapped anywhere on the phone, or shared to it),
      * waiting for the UI to open it. */
     private val pendingClubLink = MutableStateFlow<ClubLink?>(null)
+    private val pendingSecretShare = MutableStateFlow<String?>(null)
     private val serviceConnection =
         object : ServiceConnection {
             override fun onServiceConnected(
@@ -218,6 +221,11 @@ class MainActivity : ComponentActivity() {
             Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
             else -> null
         } ?: return
+        // Secret episodes shared from another Odyssium (a share code in the message).
+        if (containsSecretShareCode(text)) {
+            pendingSecretShare.value = text
+            return
+        }
         // A shared link can arrive with a title or message around it.
         val link = parseClubLink(text) ?: text.split(Regex("""\s+""")).firstNotNullOfOrNull(::parseClubLink)
         if (link != null) pendingClubLink.value = link
@@ -544,8 +552,33 @@ class MainActivity : ComponentActivity() {
                         }
                         episode != null
                     }
+                    // A pasted share code (secret episodes from someone else's Odyssium) imports
+                    // them and opens Secret Episodes. False if [input] has no share code.
+                    val importSecretShare: (String) -> Boolean = { input ->
+                        odysseyViewModel.importSecretShare(input) { result ->
+                            Toast.makeText(
+                                this@MainActivity,
+                                result?.summary() ?: "That share code is damaged - ask for it again",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                            if (result != null) {
+                                navController.navigate(SECRET_EPISODES_ROUTE) { launchSingleTop = true }
+                            }
+                        }.also { imported ->
+                            if (imported) {
+                                onQueryChange(TextFieldValue())
+                                onActiveChange(false)
+                            }
+                        }
+                    }
                     val onSearchQueryChange: (TextFieldValue) -> Unit = { value ->
-                        if (!playSecretEpisode(value.text)) onQueryChange(value)
+                        if (!importSecretShare(value.text) && !playSecretEpisode(value.text)) onQueryChange(value)
+                    }
+                    LaunchedEffect(Unit) {
+                        pendingSecretShare.filterNotNull().collect { text ->
+                            pendingSecretShare.value = null
+                            importSecretShare(text)
+                        }
                     }
                     // Opens where a club link leads. An episode is played when [playEpisode] (a
                     // link entered in search); otherwise (a link tapped elsewhere) an album
